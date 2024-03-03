@@ -59,6 +59,9 @@ set(SOURCE_FILES
   src/auth.cpp
   src/http_client.hpp
   src/http_client.cpp
+  src/app.hpp
+  src/app.cpp
+  src/config.hpp
 )
 set(LIBS
   cxxopts
@@ -69,6 +72,8 @@ set(LIBS
 )
 set(INCLUDES
   ${CURL_INCLUDE_DIR}
+  ${json_SOURCE_DIR}/single_include
+  ${inja_SOURCE_DIR}/single_include/inja
 )
 
 add_executable(weekly ${SOURCE_FILES} src/main.cpp)
@@ -82,6 +87,7 @@ target_link_libraries(weekly PRIVATE ${LIBS})
 
 set(TEST_FILES
   src/http_client_test.cpp
+  src/http_client_mock.cpp
 )
 
 # ctest --test-dir build
@@ -94,6 +100,7 @@ target_compile_options(weekly_test PRIVATE -Wall -Wextra -Wpedantic)
 target_include_directories(weekly_test PRIVATE
   ${INCLUDES}
   ${googletest_SOURCE_DIR}/googletest/include
+  ${googletest_SOURCE_DIR}/googlemock/include
 )
 
 target_link_libraries(weekly_test PRIVATE ${LIBS} GTest::gtest_main)

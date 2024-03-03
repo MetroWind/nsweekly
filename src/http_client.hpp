@@ -20,20 +20,30 @@ struct HTTPResponse
     void clear();
 };
 
+class HTTPSessionInterface
+{
+public:
+    virtual ~HTTPSessionInterface() = default;
+    virtual E<const HTTPResponse*> get(const std::string& uri) = 0;
+    virtual E<const HTTPResponse*> post(
+        const std::string& uri, const std::string& content_type,
+        const std::string& req_data) = 0;
+};
+
 // Threads should not share session
-class HTTPSession
+class HTTPSession : public HTTPSessionInterface
 {
 public:
     HTTPSession();
-    ~HTTPSession();
+    ~HTTPSession() override;
     HTTPSession(const HTTPSession&);
     HTTPSession& operator=(const HTTPSession&) = delete;
 
     // The returned pointer is garenteed to be non-null.
-    E<const HTTPResponse*> get(const std::string& uri);
+    E<const HTTPResponse*> get(const std::string& uri) override;
     E<const HTTPResponse*> post(const std::string& uri,
                                 const std::string& content_type,
-                                const std::string& req_data);
+                                const std::string& req_data) override;
 
 private:
     CURL* handle = nullptr;
