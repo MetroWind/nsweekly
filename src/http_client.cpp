@@ -3,16 +3,32 @@
 #include <cstddef>
 #include <cstring>
 #include <charconv>
+#include <string_view>
+#include <algorithm>
+#include <iterator>
 
 #include <curl/curl.h>
 
 #include "http_client.hpp"
+
+HTTPResponse::HTTPResponse(int status_code, std::string_view payload_str)
+        : status(status_code)
+{
+    std::transform(std::begin(payload_str), std::end(payload_str),
+                   std::back_inserter(payload),
+                   [](char c) { return std::byte(c); });
+}
 
 void HTTPResponse::clear()
 {
     status = 0;
     payload.clear();
     header.clear();
+}
+
+std::string_view HTTPResponse::payloadAsStr() const
+{
+    return {reinterpret_cast<const char*>(payload.data()), payload.size()};
 }
 
 HTTPSession::HTTPSession()

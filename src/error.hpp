@@ -8,12 +8,16 @@
 struct RuntimeError
 {
     std::string msg;
+
+    bool operator==(const RuntimeError& rhs) const = default;
 };
 
 struct HTTPError
 {
     int code;
     std::string msg;
+
+    bool operator==(const HTTPError& rhs) const = default;
 };
 
 using Error = std::variant<RuntimeError, HTTPError>;

@@ -33,8 +33,9 @@ public:
         std::unique_ptr<HTTPSessionInterface> http);
     ~AuthOpenIDConnect() = default;
 
-    E<HTTPResponse> initiate();
-    E<void> authenticate(std::string_view code) const;
+    std::string initialURL() const;
+    E<HTTPResponse> initiate() const;
+    E<Tokens> authenticate(std::string_view code) const;
 
 private:
     std::string endpoint_auth;

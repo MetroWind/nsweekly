@@ -1,6 +1,3 @@
-#include "error.hpp"
-#define CPPHTTPLIB_USE_POLL
-
 #include <thread>
 #include <chrono>
 #include <format>
@@ -9,6 +6,7 @@
 #include <gtest/gtest.h>
 #include <curl/curl.h>
 
+#include "error.hpp"
 #include "http_client.hpp"
 
 class CurlEnv : public ::testing::Environment

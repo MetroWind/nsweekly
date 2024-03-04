@@ -77,7 +77,6 @@ set(INCLUDES
 )
 
 add_executable(weekly ${SOURCE_FILES} src/main.cpp)
-set_property(TARGET weekly PROPERTY CXX_EXTENSIONS FALSE)
 set_property(TARGET weekly PROPERTY CXX_STANDARD 23)
 
 set_property(TARGET weekly PROPERTY COMPILE_WARNING_AS_ERROR TRUE)
@@ -87,12 +86,12 @@ target_link_libraries(weekly PRIVATE ${LIBS})
 
 set(TEST_FILES
   src/http_client_test.cpp
-  src/http_client_mock.cpp
+  src/http_client_mock.hpp
+  src/auth_test.cpp
 )
 
 # ctest --test-dir build
 add_executable(weekly_test ${SOURCE_FILES} ${TEST_FILES})
-set_property(TARGET weekly_test PROPERTY CXX_EXTENSIONS FALSE)
 set_property(TARGET weekly_test PROPERTY CXX_STANDARD 23)
 
 set_property(TARGET weekly_test PROPERTY COMPILE_WARNING_AS_ERROR TRUE)
@@ -103,7 +102,11 @@ target_include_directories(weekly_test PRIVATE
   ${googletest_SOURCE_DIR}/googlemock/include
 )
 
-target_link_libraries(weekly_test PRIVATE ${LIBS} GTest::gtest_main)
+target_link_libraries(weekly_test PRIVATE
+  ${LIBS}
+  GTest::gtest_main
+  GTest::gmock_main
+)
 
 enable_testing()
 include(GoogleTest)

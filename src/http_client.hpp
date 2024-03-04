@@ -17,7 +17,10 @@ struct HTTPResponse
     std::vector<std::byte> payload;
     std::unordered_map<std::string, std::string> header;
 
+    HTTPResponse() = default;
+    HTTPResponse(int status_code, std::string_view payload_str);
     void clear();
+    std::string_view payloadAsStr() const;
 };
 
 class HTTPSessionInterface

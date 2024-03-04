@@ -1,3 +1,4 @@
+#include <chrono>
 #include <memory>
 #include <expected>
 #include <string>
@@ -79,6 +80,7 @@ E<std::unique_ptr<AuthOpenIDConnect>> AuthOpenIDConnect::create(
     }
     auto auth = std::make_unique<AuthOpenIDConnect>(
         config, redirect_url, std::move(http));
+
     ASSIGN_OR_RETURN(auth->endpoint_auth,
                      getStrProperty(data, "authorization_endpoint"));
     ASSIGN_OR_RETURN(auth->endpoint_token,
@@ -90,16 +92,20 @@ E<std::unique_ptr<AuthOpenIDConnect>> AuthOpenIDConnect::create(
     return auth;
 }
 
-E<HTTPResponse> AuthOpenIDConnect::initiate()
+std::string AuthOpenIDConnect::initialURL() const
 {
-    std::string url = std::format(
+    return std::format(
         "{}?response_type=code&client_id={}&redirect_uri={}&scope=openid%20profile",
         endpoint_auth, urlEncode(config.client_id), urlEncode(redirection_url));
-    E<const HTTPResponse*> res = http_client->get(url);
+}
+
+E<HTTPResponse> AuthOpenIDConnect::initiate() const
+{
+    E<const HTTPResponse*> res = http_client->get(initialURL());
     return res.transform([](const auto* r) { return *r; });
 }
 
-E<void> AuthOpenIDConnect::authenticate(std::string_view code) const
+E<Tokens> AuthOpenIDConnect::authenticate(std::string_view code) const
 {
     std::string payload = std::format(
         "grant_type=authorization_code&code={}&redirect_uri={}",
@@ -110,9 +116,9 @@ E<void> AuthOpenIDConnect::authenticate(std::string_view code) const
     if(res->status != 200)
     {
         return std::unexpected(
-            httpError(res->status, bytesToString(res->payload)));
+            httpError(res->status, res->payloadAsStr()));
     }
-    nlohmann::json data = parseJSON(bytesToString(res->payload));
+    nlohmann::json data = parseJSON(res->payloadAsStr());
     if(data.is_discarded())
     {
         return std::unexpected(runtimeError("Invalid token response"));
@@ -123,7 +129,8 @@ E<void> AuthOpenIDConnect::authenticate(std::string_view code) const
     ASSIGN_OR_RETURN(tokens.id_token, getStrProperty(data, "id_token"));
     ASSIGN_OR_RETURN(tokens.refresh_token, getStrProperty(data, "refresh_token"));
     ASSIGN_OR_RETURN(int seconds, getIntProperty(data, "expires_in"));
+    tokens.expiration = std::chrono::steady_clock::now() +
+        std::chrono::seconds(seconds);
 
-
-    return {};
+    return tokens;
 }
