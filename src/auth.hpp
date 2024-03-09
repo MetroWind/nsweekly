@@ -34,6 +34,9 @@ public:
     ~AuthOpenIDConnect() = default;
 
     std::string initialURL() const;
+    // Do a GET on the initial URL. Normally this is not needed, as
+    // the client should just redirect the to the initial URL on the
+    // browser.
     E<HTTPResponse> initiate() const;
     E<Tokens> authenticate(std::string_view code) const;
 

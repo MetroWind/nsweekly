@@ -16,4 +16,5 @@ public:
     MOCK_METHOD(E<const HTTPResponse*>, post,
                 (const std::string& uri, const std::string& content_type,
                  const std::string& req_data), (override));
+    MOCK_METHOD(E<const HTTPResponse*>, post, (HTTPRequest req), (override));
 };

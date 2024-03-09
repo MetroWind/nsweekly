@@ -11,6 +11,27 @@
 
 #include "error.hpp"
 
+struct HTTPRequest
+{
+    std::string url;
+    std::string request_data;
+    std::unordered_map<std::string, std::string> header;
+
+    HTTPRequest() = default;
+    explicit HTTPRequest(std::string_view uri) : url(uri) {}
+    HTTPRequest& setPayload(std::string_view data)
+    {
+        request_data = data;
+        return *this;
+    }
+    HTTPRequest& addHeader(std::string_view key, std::string_view value)
+    {
+        header.emplace(key, value);
+        return *this;
+    }
+    bool operator==(const HTTPRequest&) const = default;
+};
+
 struct HTTPResponse
 {
     int status;
@@ -30,11 +51,16 @@ public:
     virtual E<const HTTPResponse*> get(const std::string& uri) = 0;
     virtual E<const HTTPResponse*> post(
         const std::string& uri, const std::string& content_type,
-        const std::string& req_data) = 0;
+        const std::string& req_data)
+    {
+        return this->post(HTTPRequest(uri).setPayload(req_data)
+                          .addHeader("Content-Type", content_type));
+    }
+    virtual E<const HTTPResponse*> post(HTTPRequest req) = 0;
 };
 
 // Threads should not share session
-class HTTPSession : public HTTPSessionInterface
+class HTTPSession : public virtual HTTPSessionInterface
 {
 public:
     HTTPSession();
@@ -44,9 +70,8 @@ public:
 
     // The returned pointer is garenteed to be non-null.
     E<const HTTPResponse*> get(const std::string& uri) override;
-    E<const HTTPResponse*> post(const std::string& uri,
-                                const std::string& content_type,
-                                const std::string& req_data) override;
+    using HTTPSessionInterface::post;
+    E<const HTTPResponse*> post(HTTPRequest req) override;
 
 private:
     CURL* handle = nullptr;

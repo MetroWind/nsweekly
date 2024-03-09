@@ -6,6 +6,7 @@
 #include <string_view>
 #include <algorithm>
 #include <iterator>
+#include <format>
 
 #include <curl/curl.h>
 
@@ -73,17 +74,20 @@ E<const HTTPResponse*> HTTPSession::get(const std::string& uri)
     return std::unexpected(runtimeError(curl_easy_strerror(code)));
 }
 
-E<const HTTPResponse*> HTTPSession::post(const std::string& uri,
-                                         const std::string& content_type,
-                                         const std::string& req_data)
+E<const HTTPResponse*> HTTPSession::post(HTTPRequest req)
 {
     prepareForNewRequest();
-    curl_easy_setopt(handle, CURLOPT_URL, uri.c_str());
-    curl_slist* headers = curl_slist_append(
-        nullptr, (std::string("Content-Type: ") + content_type).c_str());
+    curl_easy_setopt(handle, CURLOPT_URL, req.url.c_str());
+    curl_slist* headers = nullptr;
+    for(const auto& [key, value]: req.header)
+    {
+        headers = curl_slist_append(
+            headers, std::format("{}: {}", key, value).c_str());
+    }
+
     curl_easy_setopt(handle, CURLOPT_HTTPHEADER, headers);
-    curl_easy_setopt(handle, CURLOPT_POSTFIELDS, req_data.data());
-    curl_easy_setopt(handle, CURLOPT_POSTFIELDSIZE, req_data.size());
+    curl_easy_setopt(handle, CURLOPT_POSTFIELDS, req.request_data.data());
+    curl_easy_setopt(handle, CURLOPT_POSTFIELDSIZE, req.request_data.size());
 
     CURLcode code = curl_easy_perform(handle);
     if(code == CURLE_OK)

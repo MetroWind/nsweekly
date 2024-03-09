@@ -42,7 +42,6 @@ TEST(HTTPSession, CanGet)
     auto result = s.get(std::format("http://localhost:{}/", port));
     ASSERT_TRUE(result.has_value());
     const std::vector<std::byte>& payload = (*result)->payload;
-    std::cout << "Payload is " << payload.size() << " bytes." << std::endl;
     EXPECT_EQ(std::string_view(reinterpret_cast<const char*>(payload.data()),
                                payload.size()),
               "aaa");
@@ -93,7 +92,9 @@ TEST(HTTPSession, CanPost)
     HTTPSession s;
     {
         E<const HTTPResponse*> result = s.post(
-            std::format("http://localhost:{}/", port), "text/plain", "aaa");
+            HTTPRequest(std::format("http://localhost:{}/", port))
+            .setPayload("aaa")
+            .addHeader("Content-Type", "text/plain"));
         ASSERT_TRUE(result.has_value());
         const HTTPResponse& res = **result;
         EXPECT_EQ(res.status, 200);

@@ -1,6 +1,7 @@
 #include <memory>
 #include <string>
 #include <regex>
+#include <variant>
 
 #include <inja.hpp>
 #include <httplib.h>
@@ -11,6 +12,7 @@
 #include "auth.hpp"
 #include "config.hpp"
 #include "http_client.hpp"
+#include "utils.hpp"
 
 #define _ASSIGN_OR_RESPOND_ERROR(tmp, var, val, res)                    \
     auto tmp = val;                                                     \
@@ -18,23 +20,25 @@
     if(std::holds_alternative<HTTPError>(tmp.error()))                  \
     {                                                                   \
         const HTTPError& e = std::get<HTTPError>(tmp.error());          \
-        res.status = e.status;                                          \
+        res.status = e.code;                                          \
         res.set_content(e.msg, "text/plain");                           \
         return;                                                         \
     }                                                                   \
     else                                                                \
     {                                                                   \
         res.status = 500;                                               \
-        res.set_content(std::visit([](e) { return e.msg; }, tmp.error()), \
+        res.set_content(std::visit([](const auto& e) { return e.msg; }, \
+                                   tmp.error()),                    \
                         "text/plain");                                  \
         return;                                                         \
     }                                                                   \
     }                                                                   \
     var = std::move(tmp).value()
 
-// Val should be a rvalue. Var should be already declared.
+// Val should be a rvalue.
 #define ASSIGN_OR_RESPOND_ERROR(var, val, res)                          \
-    _ASSIGN_OR_RETURN_INNER(_CONCAT_NAMES(assign_or_return_tmp, __COUNTER__), var, val, res)
+    _ASSIGN_OR_RESPOND_ERROR(_CONCAT_NAMES(assign_or_return_tmp, __COUNTER__), \
+                            var, val, res)
 
 App::App(const Configuration& conf,
          std::unique_ptr<AuthOpenIDConnect> openid_auth)
@@ -57,7 +61,7 @@ void App::handleLogin(httplib::Response& res) const
         return;
     }
 
-    res.set_redirect(auth.initialURL());
+    res.set_redirect(auth->initialURL());
 }
 
 void App::handleOpenIDRedirect(const httplib::Request& req,
@@ -83,7 +87,10 @@ void App::handleOpenIDRedirect(const httplib::Request& req,
     }
 
     std::string code = req.get_param_value("code");
-
+    spdlog::debug("OpenID server visited {} with code {}.", req.path, code);
+    ASSIGN_OR_RESPOND_ERROR(Tokens tokens, auth->authenticate(code), res);
+    res.set_content(std::format("Got token {}.", tokens.access_token),
+                    "text/plain");
 }
 
 void App::start()
@@ -106,6 +113,12 @@ void App::start()
                         httplib::Response& res)
     {
         handleLogin(res);
+    });
+
+    server.Get("/openid-redirect", [&](const httplib::Request& req,
+                                        httplib::Response& res)
+    {
+        handleOpenIDRedirect(req, res);
     });
 
     spdlog::info("Listening at http://{}:{}/...", config.listen_address,

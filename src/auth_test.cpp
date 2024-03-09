@@ -169,14 +169,17 @@ TEST(Auth, CanGetTokens)
   }
 )");
 
-    EXPECT_CALL(*http, post("https://example.com/token",
-                            "application/x-www-form-urlencoded",
-                            "grant_type=authorization_code&code=some%20code"
-                            "&redirect_uri=http%3A%2F%2Flocalhost%2F"))
+    EXPECT_CALL(*http, post(
+                    HTTPRequest("https://example.com/token")
+                    .setPayload("grant_type=authorization_code&code=some%20code"
+                                "&redirect_uri=http%3A%2F%2Flocalhost%2F")
+                    .addHeader("Content-Type", "application/x-www-form-urlencoded")
+                    .addHeader("Authorization", "Basic client secret")))
         .WillOnce(Return(&res_token));
 
     Configuration config;
     config.client_id = "client id";
+    config.client_secret = "client secret";
     config.openid_url_prefix = "https://example.com/";
 
     auto auth = AuthOpenIDConnect::create(
@@ -209,14 +212,16 @@ TEST(Auth, AuthenticateCanHandleFailedQuery)
         .WillOnce(Return(&res_conf));
 
     HTTPResponse res_token(500, "");
-    EXPECT_CALL(*http, post("https://example.com/token",
-                            "application/x-www-form-urlencoded",
-                            "grant_type=authorization_code&code=some%20code"
-                            "&redirect_uri=http%3A%2F%2Flocalhost%2F"))
+    EXPECT_CALL(*http, post(HTTPRequest("https://example.com/token")
+                            .setPayload("grant_type=authorization_code&code=some%20code"
+                                        "&redirect_uri=http%3A%2F%2Flocalhost%2F")
+                            .addHeader("Content-Type", "application/x-www-form-urlencoded")
+                            .addHeader("Authorization", "Basic client secret")))
         .WillOnce(Return(&res_token));
 
     Configuration config;
     config.client_id = "client id";
+    config.client_secret = "client secret";
     config.openid_url_prefix = "https://example.com/";
 
     auto auth = AuthOpenIDConnect::create(
@@ -245,14 +250,16 @@ TEST(Auth, AuthenticateCanHandleServerFault)
         *http, get("https://example.com/.well-known/openid-configuration"))
         .WillOnce(Return(&res_conf));
 
-    EXPECT_CALL(*http, post("https://example.com/token",
-                            "application/x-www-form-urlencoded",
-                            "grant_type=authorization_code&code=some%20code"
-                            "&redirect_uri=http%3A%2F%2Flocalhost%2F"))
+    EXPECT_CALL(*http, post(HTTPRequest("https://example.com/token")
+                            .setPayload("grant_type=authorization_code&code=some%20code"
+                                        "&redirect_uri=http%3A%2F%2Flocalhost%2F")
+                            .addHeader("Content-Type", "application/x-www-form-urlencoded")
+                            .addHeader("Authorization", "Basic client secret")))
         .WillOnce(Return(std::unexpected(runtimeError("error"))));
 
     Configuration config;
     config.client_id = "client id";
+    config.client_secret = "client secret";
     config.openid_url_prefix = "https://example.com/";
 
     auto auth = AuthOpenIDConnect::create(
@@ -281,14 +288,16 @@ TEST(Auth, AuthenticateCanHandleInvalidJSON)
         .WillOnce(Return(&res_conf));
 
     HTTPResponse res_token(200, "invalid json");
-    EXPECT_CALL(*http, post("https://example.com/token",
-                            "application/x-www-form-urlencoded",
-                            "grant_type=authorization_code&code=some%20code"
-                            "&redirect_uri=http%3A%2F%2Flocalhost%2F"))
+    EXPECT_CALL(*http, post(HTTPRequest("https://example.com/token")
+                            .setPayload("grant_type=authorization_code&code=some%20code"
+                                        "&redirect_uri=http%3A%2F%2Flocalhost%2F")
+                            .addHeader("Content-Type", "application/x-www-form-urlencoded")
+                            .addHeader("Authorization", "Basic client secret")))
         .WillOnce(Return(&res_token));
 
     Configuration config;
     config.client_id = "client id";
+    config.client_secret = "client secret";
     config.openid_url_prefix = "https://example.com/";
 
     auto auth = AuthOpenIDConnect::create(

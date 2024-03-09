@@ -12,7 +12,7 @@
 #include "error.hpp"
 #include "http_client.hpp"
 #include "utils.hpp"
-
+#include "spdlog/spdlog.h"
 
 E<std::string> getStrProperty(
     const nlohmann::json& json_dict, std::string_view property)
@@ -107,14 +107,23 @@ E<HTTPResponse> AuthOpenIDConnect::initiate() const
 
 E<Tokens> AuthOpenIDConnect::authenticate(std::string_view code) const
 {
+    // TODO: support client with public access type (no client
+    // secret).
     std::string payload = std::format(
-        "grant_type=authorization_code&code={}&redirect_uri={}",
-        urlEncode(code), urlEncode(redirection_url));
+        "grant_type=authorization_code&code={}&redirect_uri={}"
+        "&client_id={}&client_secret={}",
+        urlEncode(code), urlEncode(redirection_url),
+        urlEncode(config.client_id), urlEncode(config.client_secret));
+    spdlog::debug("Making post...");
     E<const HTTPResponse*> result = http_client->post(
-        endpoint_token, "application/x-www-form-urlencoded", payload);
-    ASSIGN_OR_RETURN(const HTTPResponse* res, result);
+        HTTPRequest(endpoint_token).setPayload(payload)
+        .addHeader("Content-Type", "application/x-www-form-urlencoded")
+        .addHeader("Authorization", std::string("Basic ") +
+                   urlEncode(config.client_secret)));
+    ASSIGN_OR_RETURN(const HTTPResponse* res, std::move(result));
     if(res->status != 200)
     {
+        spdlog::debug("Post returned status");
         return std::unexpected(
             httpError(res->status, res->payloadAsStr()));
     }
