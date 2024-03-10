@@ -94,7 +94,7 @@ TEST(HTTPSession, CanPost)
         E<const HTTPResponse*> result = s.post(
             HTTPRequest(std::format("http://localhost:{}/", port))
             .setPayload("aaa")
-            .addHeader("Content-Type", "text/plain"));
+            .setContentType("text/plain"));
         ASSERT_TRUE(result.has_value());
         const HTTPResponse& res = **result;
         EXPECT_EQ(res.status, 200);
@@ -107,7 +107,8 @@ TEST(HTTPSession, CanPost)
     }
     {
         E<const HTTPResponse*> result = s.post(
-            std::format("http://localhost:{}/", port), "text/plain", "nonono");
+            HTTPRequest(std::format("http://localhost:{}/", port))
+            .addHeader("Content-Type", "text/plain").setPayload("nonono"));
         ASSERT_TRUE(result.has_value());
         const HTTPResponse& res = **result;
         EXPECT_EQ(res.status, 401);

@@ -12,6 +12,23 @@
 
 #include "http_client.hpp"
 
+HTTPRequest& HTTPRequest::setPayload(std::string_view data)
+{
+    request_data = data;
+    return *this;
+}
+
+HTTPRequest& HTTPRequest::addHeader(std::string_view key, std::string_view value)
+{
+    header.emplace(key, value);
+    return *this;
+}
+
+HTTPRequest& HTTPRequest::setContentType(std::string_view type)
+{
+    return addHeader("Content-Type", type);
+}
+
 HTTPResponse::HTTPResponse(int status_code, std::string_view payload_str)
         : status(status_code)
 {
@@ -62,10 +79,22 @@ void HTTPSession::prepareForNewRequest()
     curl_easy_setopt(handle, CURLOPT_HEADERDATA, &res);
 }
 
-E<const HTTPResponse*> HTTPSession::get(const std::string& uri)
+curl_slist* headersFromReq(const HTTPRequest& req)
+{
+    curl_slist* headers = nullptr;
+    for(const auto& [key, value]: req.header)
+    {
+        headers = curl_slist_append(
+            headers, std::format("{}: {}", key, value).c_str());
+    }
+    return headers;
+}
+
+E<const HTTPResponse*> HTTPSession::get(const HTTPRequest& req)
 {
     prepareForNewRequest();
-    curl_easy_setopt(handle, CURLOPT_URL, uri.c_str());
+    curl_easy_setopt(handle, CURLOPT_URL, req.url.c_str());
+    curl_easy_setopt(handle, CURLOPT_HTTPHEADER, headersFromReq(req));
     CURLcode code = curl_easy_perform(handle);
     if(code == CURLE_OK)
     {
@@ -74,18 +103,11 @@ E<const HTTPResponse*> HTTPSession::get(const std::string& uri)
     return std::unexpected(runtimeError(curl_easy_strerror(code)));
 }
 
-E<const HTTPResponse*> HTTPSession::post(HTTPRequest req)
+E<const HTTPResponse*> HTTPSession::post(const HTTPRequest& req)
 {
     prepareForNewRequest();
     curl_easy_setopt(handle, CURLOPT_URL, req.url.c_str());
-    curl_slist* headers = nullptr;
-    for(const auto& [key, value]: req.header)
-    {
-        headers = curl_slist_append(
-            headers, std::format("{}: {}", key, value).c_str());
-    }
-
-    curl_easy_setopt(handle, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(handle, CURLOPT_HTTPHEADER, headersFromReq(req));
     curl_easy_setopt(handle, CURLOPT_POSTFIELDS, req.request_data.data());
     curl_easy_setopt(handle, CURLOPT_POSTFIELDSIZE, req.request_data.size());
 

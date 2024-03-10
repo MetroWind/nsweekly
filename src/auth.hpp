@@ -3,17 +3,19 @@
 #include <chrono>
 #include <string>
 #include <memory>
+#include <optional>
 
 #include "error.hpp"
 #include "http_client.hpp"
 #include "config.hpp"
+#include "utils.hpp"
 
 struct Tokens
 {
     std::string access_token;
     std::string id_token;
-    std::string refresh_token;
-    std::chrono::time_point<std::chrono::steady_clock> expiration;
+    std::optional<std::string> refresh_token;
+    std::optional<Time> expiration;
 };
 
 // Authenticate against an OpenID Connect service.

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <string>
 #include <string_view>
 
@@ -18,6 +19,8 @@
 // Val should be a rvalue.
 #define ASSIGN_OR_RETURN(var, val)                                      \
     _ASSIGN_OR_RETURN_INNER(_CONCAT_NAMES(assign_or_return_tmp, __COUNTER__), var, val)
+
+using Time = std::chrono::time_point<std::chrono::steady_clock>;
 
 template <typename Bytes>
 nlohmann::json parseJSON(Bytes&& bs)

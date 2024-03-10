@@ -8,6 +8,7 @@
 #include <unordered_map>
 
 #include <curl/curl.h>
+#include <spdlog/spdlog.h>
 
 #include "error.hpp"
 
@@ -19,17 +20,10 @@ struct HTTPRequest
 
     HTTPRequest() = default;
     explicit HTTPRequest(std::string_view uri) : url(uri) {}
-    HTTPRequest& setPayload(std::string_view data)
-    {
-        request_data = data;
-        return *this;
-    }
-    HTTPRequest& addHeader(std::string_view key, std::string_view value)
-    {
-        header.emplace(key, value);
-        return *this;
-    }
-    bool operator==(const HTTPRequest&) const = default;
+    HTTPRequest& setPayload(std::string_view data);
+    HTTPRequest& addHeader(std::string_view key, std::string_view value);
+    HTTPRequest& setContentType(std::string_view type);
+    bool operator==(const HTTPRequest& rhs) const = default;
 };
 
 struct HTTPResponse
@@ -48,15 +42,12 @@ class HTTPSessionInterface
 {
 public:
     virtual ~HTTPSessionInterface() = default;
-    virtual E<const HTTPResponse*> get(const std::string& uri) = 0;
-    virtual E<const HTTPResponse*> post(
-        const std::string& uri, const std::string& content_type,
-        const std::string& req_data)
+    E<const HTTPResponse*> get(const std::string& uri)
     {
-        return this->post(HTTPRequest(uri).setPayload(req_data)
-                          .addHeader("Content-Type", content_type));
+        return this->get(HTTPRequest(uri));
     }
-    virtual E<const HTTPResponse*> post(HTTPRequest req) = 0;
+    virtual E<const HTTPResponse*> get(const HTTPRequest& req) = 0;
+    virtual E<const HTTPResponse*> post(const HTTPRequest& req) = 0;
 };
 
 // Threads should not share session
@@ -68,10 +59,10 @@ public:
     HTTPSession(const HTTPSession&);
     HTTPSession& operator=(const HTTPSession&) = delete;
 
+    using HTTPSessionInterface::get;
     // The returned pointer is garenteed to be non-null.
-    E<const HTTPResponse*> get(const std::string& uri) override;
-    using HTTPSessionInterface::post;
-    E<const HTTPResponse*> post(HTTPRequest req) override;
+    E<const HTTPResponse*> get(const HTTPRequest& req) override;
+    E<const HTTPResponse*> post(const HTTPRequest& req) override;
 
 private:
     CURL* handle = nullptr;

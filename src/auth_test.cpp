@@ -3,6 +3,7 @@
 
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
+#include <spdlog/spdlog.h>
 
 #include "config.hpp"
 #include "error.hpp"
@@ -11,6 +12,19 @@
 #include "http_client_mock.hpp"
 
 using ::testing::Return;
+
+class DebugLogEnv : public ::testing::Environment
+{
+public:
+    ~DebugLogEnv() override = default;
+    void SetUp() override
+    {
+        spdlog::set_level(spdlog::level::debug);
+    }
+};
+
+testing::Environment* const debug_log_env =
+    testing::AddGlobalTestEnvironment(new DebugLogEnv);
 
 TEST(Auth, CanInitiate)
 {
@@ -26,14 +40,15 @@ TEST(Auth, CanInitiate)
 )");
 
     EXPECT_CALL(
-        *http, get("https://example.com/.well-known/openid-configuration"))
+        *http, get(HTTPRequest("https://example.com/.well-known/openid-configuration")))
         .WillOnce(Return(&res_conf));
 
     HTTPResponse res_code(200, "Some login page");
-    EXPECT_CALL(*http, get("https://example.com/auth?response_type=code"
-                           "&client_id=client%20id"
-                           "&redirect_uri=http%3A%2F%2Flocalhost%2F"
-                           "&scope=openid%20profile"))
+    EXPECT_CALL(*http, get(
+                    HTTPRequest("https://example.com/auth?response_type=code"
+                                "&client_id=client%20id"
+                                "&redirect_uri=http%3A%2F%2Flocalhost%2F"
+                                "&scope=openid%20profile")))
         .WillOnce(Return(&res_code));
 
     Configuration config;
@@ -54,7 +69,7 @@ TEST(Auth, CreateCanHandleServerConfError)
     auto http = std::make_unique<HTTPSessionMock>();
     HTTPResponse res_conf(500, "");
     EXPECT_CALL(
-        *http, get("https://example.com/.well-known/openid-configuration"))
+        *http, get(HTTPRequest("https://example.com/.well-known/openid-configuration")))
         .WillOnce(Return(&res_conf));
 
     Configuration config;
@@ -73,7 +88,7 @@ TEST(Auth, CreateCanHandleInvalidJSON)
     auto http = std::make_unique<HTTPSessionMock>();
     HTTPResponse res_conf(200, "invalid json");
     EXPECT_CALL(
-        *http, get("https://example.com/.well-known/openid-configuration"))
+        *http, get(HTTPRequest("https://example.com/.well-known/openid-configuration")))
         .WillOnce(Return(&res_conf));
 
     Configuration config;
@@ -91,7 +106,7 @@ TEST(Auth, CreateCanHandleFaultyServer)
 {
     auto http = std::make_unique<HTTPSessionMock>();
     EXPECT_CALL(
-        *http, get("https://example.com/.well-known/openid-configuration"))
+        *http, get(HTTPRequest("https://example.com/.well-known/openid-configuration")))
         .WillOnce(Return(std::unexpected(runtimeError("server died"))));
 
     Configuration config;
@@ -119,14 +134,16 @@ TEST(Auth, InitiateJustPropagateServerError)
 )");
 
     EXPECT_CALL(
-        *http, get("https://example.com/.well-known/openid-configuration"))
+        *http, get(HTTPRequest("https://example.com/.well-known/openid-configuration")))
         .WillOnce(Return(&res_conf));
 
     HTTPResponse res_code(500, "");
-    EXPECT_CALL(*http, get("https://example.com/auth?response_type=code"
-                           "&client_id=client%20id"
-                           "&redirect_uri=http%3A%2F%2Flocalhost%2F"
-                           "&scope=openid%20profile"))
+    EXPECT_CALL(*http, get(
+                    HTTPRequest(
+                        "https://example.com/auth?response_type=code"
+                        "&client_id=client%20id"
+                        "&redirect_uri=http%3A%2F%2Flocalhost%2F"
+                        "&scope=openid%20profile")))
         .WillOnce(Return(&res_code));
 
     Configuration config;
@@ -156,7 +173,7 @@ TEST(Auth, CanGetTokens)
 )");
 
     EXPECT_CALL(
-        *http, get("https://example.com/.well-known/openid-configuration"))
+        *http, get(HTTPRequest("https://example.com/.well-known/openid-configuration")))
         .WillOnce(Return(&res_conf));
 
     HTTPResponse res_token(200, R"(
@@ -172,9 +189,11 @@ TEST(Auth, CanGetTokens)
     EXPECT_CALL(*http, post(
                     HTTPRequest("https://example.com/token")
                     .setPayload("grant_type=authorization_code&code=some%20code"
-                                "&redirect_uri=http%3A%2F%2Flocalhost%2F")
+                                "&redirect_uri=http%3A%2F%2Flocalhost%2F"
+                                "&client_id=client%20id"
+                                "&client_secret=client%20secret")
                     .addHeader("Content-Type", "application/x-www-form-urlencoded")
-                    .addHeader("Authorization", "Basic client secret")))
+                    .addHeader("Authorization", "Basic client%20secret")))
         .WillOnce(Return(&res_token));
 
     Configuration config;
@@ -191,7 +210,7 @@ TEST(Auth, CanGetTokens)
     EXPECT_EQ(tokens->id_token, "ccc");
     EXPECT_EQ(tokens->refresh_token, "bbb");
     using namespace std::literals;
-    EXPECT_LT(std::chrono::abs(tokens->expiration - (std::chrono::steady_clock::now() + 1h)), 1s);
+    EXPECT_LT(std::chrono::abs(*(tokens->expiration) - (std::chrono::steady_clock::now() + 1h)), 1s);
 }
 
 TEST(Auth, AuthenticateCanHandleFailedQuery)
@@ -208,15 +227,17 @@ TEST(Auth, AuthenticateCanHandleFailedQuery)
 )");
 
     EXPECT_CALL(
-        *http, get("https://example.com/.well-known/openid-configuration"))
+        *http, get(HTTPRequest("https://example.com/.well-known/openid-configuration")))
         .WillOnce(Return(&res_conf));
 
     HTTPResponse res_token(500, "");
     EXPECT_CALL(*http, post(HTTPRequest("https://example.com/token")
                             .setPayload("grant_type=authorization_code&code=some%20code"
-                                        "&redirect_uri=http%3A%2F%2Flocalhost%2F")
+                                        "&redirect_uri=http%3A%2F%2Flocalhost%2F"
+                                        "&client_id=client%20id"
+                                        "&client_secret=client%20secret")
                             .addHeader("Content-Type", "application/x-www-form-urlencoded")
-                            .addHeader("Authorization", "Basic client secret")))
+                            .addHeader("Authorization", "Basic client%20secret")))
         .WillOnce(Return(&res_token));
 
     Configuration config;
@@ -247,14 +268,16 @@ TEST(Auth, AuthenticateCanHandleServerFault)
 )");
 
     EXPECT_CALL(
-        *http, get("https://example.com/.well-known/openid-configuration"))
+        *http, get(HTTPRequest("https://example.com/.well-known/openid-configuration")))
         .WillOnce(Return(&res_conf));
 
     EXPECT_CALL(*http, post(HTTPRequest("https://example.com/token")
                             .setPayload("grant_type=authorization_code&code=some%20code"
-                                        "&redirect_uri=http%3A%2F%2Flocalhost%2F")
+                                        "&redirect_uri=http%3A%2F%2Flocalhost%2F"
+                                        "&client_id=client%20id"
+                                        "&client_secret=client%20secret")
                             .addHeader("Content-Type", "application/x-www-form-urlencoded")
-                            .addHeader("Authorization", "Basic client secret")))
+                            .addHeader("Authorization", "Basic client%20secret")))
         .WillOnce(Return(std::unexpected(runtimeError("error"))));
 
     Configuration config;
@@ -284,15 +307,17 @@ TEST(Auth, AuthenticateCanHandleInvalidJSON)
 )");
 
     EXPECT_CALL(
-        *http, get("https://example.com/.well-known/openid-configuration"))
+        *http, get(HTTPRequest("https://example.com/.well-known/openid-configuration")))
         .WillOnce(Return(&res_conf));
 
     HTTPResponse res_token(200, "invalid json");
     EXPECT_CALL(*http, post(HTTPRequest("https://example.com/token")
                             .setPayload("grant_type=authorization_code&code=some%20code"
-                                        "&redirect_uri=http%3A%2F%2Flocalhost%2F")
+                                        "&redirect_uri=http%3A%2F%2Flocalhost%2F"
+                                        "&client_id=client%20id"
+                                        "&client_secret=client%20secret")
                             .addHeader("Content-Type", "application/x-www-form-urlencoded")
-                            .addHeader("Authorization", "Basic client secret")))
+                            .addHeader("Authorization", "Basic client%20secret")))
         .WillOnce(Return(&res_token));
 
     Configuration config;

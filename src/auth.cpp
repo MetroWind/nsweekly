@@ -114,7 +114,6 @@ E<Tokens> AuthOpenIDConnect::authenticate(std::string_view code) const
         "&client_id={}&client_secret={}",
         urlEncode(code), urlEncode(redirection_url),
         urlEncode(config.client_id), urlEncode(config.client_secret));
-    spdlog::debug("Making post...");
     E<const HTTPResponse*> result = http_client->post(
         HTTPRequest(endpoint_token).setPayload(payload)
         .addHeader("Content-Type", "application/x-www-form-urlencoded")
@@ -123,7 +122,6 @@ E<Tokens> AuthOpenIDConnect::authenticate(std::string_view code) const
     ASSIGN_OR_RETURN(const HTTPResponse* res, std::move(result));
     if(res->status != 200)
     {
-        spdlog::debug("Post returned status");
         return std::unexpected(
             httpError(res->status, res->payloadAsStr()));
     }
@@ -136,10 +134,16 @@ E<Tokens> AuthOpenIDConnect::authenticate(std::string_view code) const
     Tokens tokens;
     ASSIGN_OR_RETURN(tokens.access_token, getStrProperty(data, "access_token"));
     ASSIGN_OR_RETURN(tokens.id_token, getStrProperty(data, "id_token"));
-    ASSIGN_OR_RETURN(tokens.refresh_token, getStrProperty(data, "refresh_token"));
-    ASSIGN_OR_RETURN(int seconds, getIntProperty(data, "expires_in"));
-    tokens.expiration = std::chrono::steady_clock::now() +
-        std::chrono::seconds(seconds);
-
+    if(auto refresh_token = getStrProperty(data, "refresh_token");
+       refresh_token.has_value())
+    {
+        tokens.refresh_token = *std::move(refresh_token);
+    }
+    if(auto seconds = getIntProperty(data, "expires_in");
+       seconds.has_value())
+    {
+        tokens.expiration = std::chrono::steady_clock::now() +
+            std::chrono::seconds(*seconds);
+    }
     return tokens;
 }
