@@ -62,6 +62,8 @@ set(SOURCE_FILES
   src/app.hpp
   src/app.cpp
   src/config.hpp
+  src/url.hpp
+  src/url.cpp
 )
 set(LIBS
   cxxopts
@@ -88,6 +90,7 @@ set(TEST_FILES
   src/http_client_test.cpp
   src/http_client_mock.hpp
   src/auth_test.cpp
+  src/url_test.cpp
 )
 
 # ctest --test-dir build
