@@ -12,6 +12,9 @@
 #include "auth.hpp"
 #include "config.hpp"
 
+std::string urlFor(const std::string& name, const std::string& arg,
+                   [[maybe_unused]] const Configuration& config);
+
 class App
 {
 public:
@@ -19,13 +22,38 @@ public:
     explicit App(const Configuration& conf,
                  std::unique_ptr<AuthOpenIDConnect> openid_auth);
 
-    void handleIndex(httplib::Response& res) const;
+    void handleIndex(const httplib::Request& req, httplib::Response& res) const;
     void handleLogin(httplib::Response& res) const;
     void handleOpenIDRedirect(const httplib::Request& req,
                               httplib::Response& res) const;
+    void handleUserWeekly(const httplib::Request& req, httplib::Response& res,
+                          const std::string& username) const;
     void start();
 
 private:
+    struct SessionValidation
+    {
+        enum { VALID, REFRESHED, INVALID } status;
+        UserInfo user;
+        Tokens new_tokens;
+
+        static SessionValidation valid(UserInfo&& user_info)
+        {
+            return {VALID, user_info, {}};
+        }
+
+        static SessionValidation refreshed(UserInfo&& user_info, Tokens&& tokens)
+        {
+            return {REFRESHED, user_info, tokens};
+        }
+
+        static SessionValidation invalid()
+        {
+            return {INVALID, {}, {}};
+        }
+    };
+    E<SessionValidation> validateSession(const httplib::Request& req) const;
+
     const Configuration config;
     inja::Environment templates;
     std::unique_ptr<AuthOpenIDConnect> auth;

@@ -207,7 +207,6 @@ TEST(Auth, CanGetTokens)
     E<Tokens> tokens = (*auth)->authenticate("some code");
     ASSERT_TRUE(tokens.has_value());
     EXPECT_EQ(tokens->access_token, "aaa");
-    EXPECT_EQ(tokens->id_token, "ccc");
     EXPECT_EQ(tokens->refresh_token, "bbb");
     using namespace std::literals;
     EXPECT_LT(std::chrono::abs(*(tokens->expiration) - (std::chrono::steady_clock::now() + 1h)), 1s);
@@ -331,4 +330,57 @@ TEST(Auth, AuthenticateCanHandleInvalidJSON)
     E<Tokens> tokens = (*auth)->authenticate("some code");
     ASSERT_FALSE(tokens.has_value());
     EXPECT_EQ(tokens.error(), Error(RuntimeError{"Invalid token response"}));
+}
+
+TEST(Auth, CanRefreshTokens)
+{
+    auto http = std::make_unique<HTTPSessionMock>();
+    HTTPResponse res_conf(200, R"(
+{
+    "authorization_endpoint": "https://example.com/auth",
+    "token_endpoint": "https://example.com/token",
+    "introspection_endpoint": "https://example.com/token/introspect",
+    "userinfo_endpoint": "https://example.com/userinfo",
+    "end_session_endpoint": "https://example.com/logout"
+}
+)");
+
+    EXPECT_CALL(
+        *http, get(HTTPRequest("https://example.com/.well-known/openid-configuration")))
+        .WillOnce(Return(&res_conf));
+
+    HTTPResponse res_token(200, R"(
+ {
+   "access_token": "aaa",
+   "token_type": "Bearer",
+   "expires_in": 3600,
+   "refresh_token": "bbb"
+ }
+)");
+
+    EXPECT_CALL(*http, post(
+                    HTTPRequest("https://example.com/token")
+                    .setPayload("client_id=client%20id"
+                                "&client_secret=client%20secret"
+                                "&grant_type=refresh_token"
+                                "&refresh_token=lalala"
+                                "&scope=openid%20profile")
+                    .addHeader("Content-Type", "application/x-www-form-urlencoded")
+                    .addHeader("Authorization", "Basic client%20secret")))
+        .WillOnce(Return(&res_token));
+
+    Configuration config;
+    config.client_id = "client id";
+    config.client_secret = "client secret";
+    config.openid_url_prefix = "https://example.com/";
+
+    auto auth = AuthOpenIDConnect::create(
+        config, "http://localhost/", std::move(http));
+
+    E<Tokens> tokens = (*auth)->refreshTokens("lalala");
+    ASSERT_TRUE(tokens.has_value());
+    EXPECT_EQ(tokens->access_token, "aaa");
+    EXPECT_EQ(tokens->refresh_token, "bbb");
+    using namespace std::literals;
+    EXPECT_LT(std::chrono::abs(*(tokens->expiration) - (std::chrono::steady_clock::now() + 1h)), 1s);
 }

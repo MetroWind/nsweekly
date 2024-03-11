@@ -17,7 +17,7 @@
 E<std::string> getStrProperty(
     const nlohmann::json& json_dict, std::string_view property)
 {
-    if(json_dict[property].is_string())
+    if(json_dict.contains(property) && json_dict[property].is_string())
     {
         return json_dict[property].get<std::string>();
     }
@@ -30,7 +30,7 @@ E<std::string> getStrProperty(
 E<int> getIntProperty(
     const nlohmann::json& json_dict, std::string_view property)
 {
-    if(json_dict[property].is_number_integer())
+    if(json_dict.contains(property) && json_dict[property].is_number_integer())
     {
         return json_dict[property].get<int>();
     }
@@ -38,6 +38,40 @@ E<int> getIntProperty(
     {
         return std::unexpected(runtimeError(std::format("Invalid value of {}", property)));
     }
+}
+
+E<Tokens> tokensFromResponse(const HTTPResponse& res)
+{
+    nlohmann::json data = parseJSON(res.payloadAsStr());
+    if(data.is_discarded())
+    {
+        return std::unexpected(runtimeError("Invalid token response"));
+    }
+    if(res.status != 200)
+    {
+        auto err = getStrProperty(data, "error_description");
+        std::string_view msg;
+        if(err.has_value())
+        {
+            msg = *err;
+        }
+        return std::unexpected(httpError(res.status, msg));
+    }
+
+    Tokens tokens;
+    ASSIGN_OR_RETURN(tokens.access_token, getStrProperty(data, "access_token"));
+    if(auto refresh_token = getStrProperty(data, "refresh_token");
+       refresh_token.has_value())
+    {
+        tokens.refresh_token = *std::move(refresh_token);
+    }
+    if(auto seconds = getIntProperty(data, "expires_in");
+       seconds.has_value())
+    {
+        tokens.expiration = std::chrono::steady_clock::now() +
+            std::chrono::seconds(*seconds);
+    }
+    return tokens;
 }
 
 E<std::unique_ptr<AuthOpenIDConnect>> AuthOpenIDConnect::create(
@@ -125,25 +159,50 @@ E<Tokens> AuthOpenIDConnect::authenticate(std::string_view code) const
         return std::unexpected(
             httpError(res->status, res->payloadAsStr()));
     }
+    return tokensFromResponse(*res);
+}
+
+E<UserInfo> AuthOpenIDConnect::getUser(const Tokens& tokens) const
+{
+    ASSIGN_OR_RETURN(const HTTPResponse* res, http_client->get(
+        HTTPRequest(endpoint_user_info).addHeader(
+            "Authorization", std::string("Bearer ") +
+            urlEncode(tokens.access_token))));
+
     nlohmann::json data = parseJSON(res->payloadAsStr());
     if(data.is_discarded())
     {
-        return std::unexpected(runtimeError("Invalid token response"));
+        return std::unexpected(runtimeError("Invalid user info response"));
     }
 
-    Tokens tokens;
-    ASSIGN_OR_RETURN(tokens.access_token, getStrProperty(data, "access_token"));
-    ASSIGN_OR_RETURN(tokens.id_token, getStrProperty(data, "id_token"));
-    if(auto refresh_token = getStrProperty(data, "refresh_token");
-       refresh_token.has_value())
+    UserInfo user;
+    ASSIGN_OR_RETURN(user.id, getStrProperty(data, "sub"));
+    if(data.contains("name"))
     {
-        tokens.refresh_token = *std::move(refresh_token);
+        ASSIGN_OR_RETURN(user.name, getStrProperty(data, "name"));
     }
-    if(auto seconds = getIntProperty(data, "expires_in");
-       seconds.has_value())
+    else if(data.contains("preferred_username"))
     {
-        tokens.expiration = std::chrono::steady_clock::now() +
-            std::chrono::seconds(*seconds);
+        ASSIGN_OR_RETURN(user.name, getStrProperty(data, "preferred_username"));
     }
-    return tokens;
+    return user;
+}
+
+E<Tokens> AuthOpenIDConnect::refreshTokens(std::string_view refresh_token) const
+{
+    std::string token_payload = std::format(
+        "client_id={}"
+        "&client_secret={}"
+        "&grant_type=refresh_token"
+        "&refresh_token={}"
+        "&scope=openid%20profile",
+        urlEncode(config.client_id), urlEncode(config.client_secret),
+        urlEncode(refresh_token));
+    ASSIGN_OR_RETURN(const HTTPResponse* res, http_client->post(
+        HTTPRequest(endpoint_token)
+        .addHeader("Authorization", std::string("Basic ") +
+                   urlEncode(config.client_secret))
+        .setContentType("application/x-www-form-urlencoded")
+        .setPayload(std::move(token_payload))));
+    return tokensFromResponse(*res);
 }

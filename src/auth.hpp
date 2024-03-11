@@ -13,9 +13,14 @@
 struct Tokens
 {
     std::string access_token;
-    std::string id_token;
     std::optional<std::string> refresh_token;
     std::optional<Time> expiration;
+};
+
+struct UserInfo
+{
+    std::string id;
+    std::string name;
 };
 
 // Authenticate against an OpenID Connect service.
@@ -41,6 +46,10 @@ public:
     // browser.
     E<HTTPResponse> initiate() const;
     E<Tokens> authenticate(std::string_view code) const;
+    // Only the access token is used in this request.
+    E<UserInfo> getUser(const Tokens& tokens) const;
+
+    E<Tokens> refreshTokens(std::string_view refresh_token) const;
 
 private:
     std::string endpoint_auth;

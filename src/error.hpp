@@ -34,3 +34,11 @@ inline Error httpError(int code, std::string_view msg)
 {
     return HTTPError{code, std::string(msg)};
 }
+
+inline const std::string& errorMsg(const Error& e)
+{
+    return std::visit([](const auto& err) -> const std::string&
+    {
+        return err.msg;
+    }, e);
+}
