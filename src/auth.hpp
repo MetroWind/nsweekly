@@ -23,8 +23,20 @@ struct UserInfo
     std::string name;
 };
 
+class AuthInterface
+{
+public:
+    virtual ~AuthInterface() = default;
+
+    virtual std::string initialURL() const = 0;
+    virtual E<HTTPResponse> initiate() const = 0;
+    virtual E<Tokens> authenticate(std::string_view code) const = 0;
+    virtual E<UserInfo> getUser(const Tokens& tokens) const = 0;
+    virtual E<Tokens> refreshTokens(std::string_view refresh_token) const = 0;
+};
+
 // Authenticate against an OpenID Connect service.
-class AuthOpenIDConnect
+class AuthOpenIDConnect : public AuthInterface
 {
 public:
     // Do not use. Use create() instead.
@@ -38,18 +50,18 @@ public:
     static E<std::unique_ptr<AuthOpenIDConnect>> create(
         const Configuration& config, std::string_view redirect_url,
         std::unique_ptr<HTTPSessionInterface> http);
-    ~AuthOpenIDConnect() = default;
+    ~AuthOpenIDConnect() override = default;
 
-    std::string initialURL() const;
+    std::string initialURL() const override;
     // Do a GET on the initial URL. Normally this is not needed, as
     // the client should just redirect the to the initial URL on the
     // browser.
-    E<HTTPResponse> initiate() const;
-    E<Tokens> authenticate(std::string_view code) const;
+    E<HTTPResponse> initiate() const override;
+    E<Tokens> authenticate(std::string_view code) const override;
     // Only the access token is used in this request.
-    E<UserInfo> getUser(const Tokens& tokens) const;
+    E<UserInfo> getUser(const Tokens& tokens) const override;
 
-    E<Tokens> refreshTokens(std::string_view refresh_token) const;
+    E<Tokens> refreshTokens(std::string_view refresh_token) const override;
 
 private:
     std::string endpoint_auth;

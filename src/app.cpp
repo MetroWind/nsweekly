@@ -236,6 +236,7 @@ void App::handleUserWeekly(const httplib::Request& req, httplib::Response& res,
         session_user = session->user.name;
     }
     // WIP...
+    res.set_content(username, "plain/text");
 }
 
 void App::start()

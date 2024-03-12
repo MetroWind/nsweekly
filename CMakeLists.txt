@@ -90,6 +90,7 @@ set(TEST_FILES
   src/http_client_test.cpp
   src/http_client_mock.hpp
   src/auth_test.cpp
+  src/auth_mock.hpp
   src/url_test.cpp
 )
 
