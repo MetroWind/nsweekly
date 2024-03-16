@@ -79,21 +79,6 @@ std::unordered_map<std::string, std::string> parseCookies(std::string_view value
     return cookies;
 }
 
-std::string urlFor(const std::string& name,
-                   [[maybe_unused]] const std::string& arg,
-                   [[maybe_unused]] const Configuration& config)
-{
-    if(name == "index")
-    {
-        return "/";
-    }
-    if(name == "openid-redirect")
-    {
-        return "/openid-redirect";
-    }
-    return "";
-}
-
 void setTokenCookies(const Tokens& tokens, httplib::Response& res)
 {
     int64_t expire_sec = 3600*24*30; // One month
@@ -112,6 +97,25 @@ void setTokenCookies(const Tokens& tokens, httplib::Response& res)
         res.set_header("Set-Cookie", std::format(
                            "refresh-token={}; Max-Age={}",
                            urlEncode(*tokens.refresh_token), 3600*24*30));
+    }
+}
+
+void copyToHttplibReq(const HTTPRequest& src, httplib::Request& dest)
+{
+    std::string type = "text/plain";
+    if(auto it = src.header.find("Content-Type");
+       it != std::end(src.header))
+    {
+        type = src.header.at("Content-Type");
+    }
+    dest.set_header("Content-Type", type);
+    dest.body = src.request_data;
+    for(const auto& [key, value]: src.header)
+    {
+        if(key != "Content-Type")
+        {
+            dest.set_header(key, value);
+        }
     }
 }
 
@@ -149,11 +153,28 @@ E<App::SessionValidation> App::validateSession(const httplib::Request& req) cons
     return SessionValidation::invalid();
 }
 
-App::App(const Configuration& conf,
-         std::unique_ptr<AuthOpenIDConnect> openid_auth)
+App::App(const Configuration& conf, std::unique_ptr<AuthInterface> openid_auth)
         : config(conf), templates(conf.template_dir),
           auth(std::move(openid_auth))
 {
+}
+
+std::string App::urlFor(const std::string& name,
+                        [[maybe_unused]] const std::string& arg) const
+{
+    if(name == "index")
+    {
+        return "/";
+    }
+    if(name == "openid-redirect")
+    {
+        return "/openid-redirect";
+    }
+    if(name == "weekly")
+    {
+        return "/weekly/" + arg;
+    }
+    return "";
 }
 
 void App::handleIndex(const httplib::Request& req, httplib::Response& res) const
@@ -169,30 +190,28 @@ void App::handleIndex(const httplib::Request& req, httplib::Response& res) const
     switch(session->status)
     {
     case SessionValidation::INVALID:
-        res.set_content("Not logged in", "text/plain");
+        switch(config.guest_index)
+        {
+        case GuestIndex::USER_WEEKLY:
+            res.set_redirect(urlFor("weekly", config.guest_index_user), 301);
+            return;
+        }
+        res.status = 500;
+        res.set_content("Someone forgot to add a switch case 🤣", "text/plain");
         return;
     case SessionValidation::VALID:
-        res.set_content(std::format("Loggined as {}", session->user.name),
-                        "text/plain");
+        res.set_redirect(urlFor("weekly", session->user.name), 302);
         return;
     case SessionValidation::REFRESHED:
         setTokenCookies(session->new_tokens, res);
-        res.set_content(
-            std::format("Refreshed session as {}", session->user.name),
-            "text/plain");
+        res.set_redirect(urlFor("weekly", session->user.name), 302);
+        return;
     }
 }
 
 void App::handleLogin(httplib::Response& res) const
 {
-    if(auth == nullptr)
-    {
-        res.status = 500;
-        res.set_content("Null auth", "text/plain");
-        return;
-    }
-
-    res.set_redirect(auth->initialURL());
+    res.set_redirect(auth->initialURL(), 301);
 }
 
 void App::handleOpenIDRedirect(const httplib::Request& req,
@@ -223,7 +242,7 @@ void App::handleOpenIDRedirect(const httplib::Request& req,
     ASSIGN_OR_RESPOND_ERROR(UserInfo user, auth->getUser(tokens), res);
 
     setTokenCookies(tokens, res);
-    res.set_redirect(urlFor("index", "", config));
+    res.set_redirect(urlFor("index", ""), 301);
 }
 
 void App::handleUserWeekly(const httplib::Request& req, httplib::Response& res,

@@ -11,16 +11,18 @@
 
 #include "auth.hpp"
 #include "config.hpp"
+#include "http_client.hpp"
 
-std::string urlFor(const std::string& name, const std::string& arg,
-                   [[maybe_unused]] const Configuration& config);
+void copyToHttplibReq(const HTTPRequest& src, httplib::Request& dest);
 
 class App
 {
 public:
     App() = delete;
     explicit App(const Configuration& conf,
-                 std::unique_ptr<AuthOpenIDConnect> openid_auth);
+                 std::unique_ptr<AuthInterface> openid_auth);
+
+    std::string urlFor(const std::string& name, const std::string& arg) const;
 
     void handleIndex(const httplib::Request& req, httplib::Response& res) const;
     void handleLogin(httplib::Response& res) const;
@@ -56,5 +58,5 @@ private:
 
     const Configuration config;
     inja::Environment templates;
-    std::unique_ptr<AuthOpenIDConnect> auth;
+    std::unique_ptr<AuthInterface> auth;
 };

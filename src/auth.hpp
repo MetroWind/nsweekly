@@ -15,12 +15,16 @@ struct Tokens
     std::string access_token;
     std::optional<std::string> refresh_token;
     std::optional<Time> expiration;
+
+    bool operator==(const Tokens&) const = default;
 };
 
 struct UserInfo
 {
     std::string id;
     std::string name;
+
+    bool operator==(const UserInfo&) const = default;
 };
 
 class AuthInterface

@@ -2,6 +2,12 @@
 
 #include <string>
 
+// What should be displayed on the index page if there is no session?
+enum class GuestIndex
+{
+    USER_WEEKLY,                // Redirect to the weekly of a user.
+};
+
 struct Configuration
 {
     std::string template_dir;
@@ -11,4 +17,6 @@ struct Configuration
     std::string client_secret;
     std::string openid_url_prefix;
     std::string url_prefix;
+    GuestIndex guest_index;
+    std::string guest_index_user;
 };

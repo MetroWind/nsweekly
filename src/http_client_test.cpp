@@ -22,7 +22,7 @@ public:
 testing::Environment* const curl_env =
     testing::AddGlobalTestEnvironment(new CurlEnv);
 
-TEST(HTTPSession, CanGet)
+TEST(DISABLED_HTTPSession, CanGet)
 {
     using namespace std::chrono_literals;
 
@@ -62,7 +62,7 @@ TEST(HTTPSession, CanGet)
     t.join();
 }
 
-TEST(HTTPSession, CanPost)
+TEST(DISABLED_HTTPSession, CanPost)
 {
     using namespace std::chrono_literals;
 

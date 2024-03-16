@@ -92,6 +92,7 @@ set(TEST_FILES
   src/auth_test.cpp
   src/auth_mock.hpp
   src/url_test.cpp
+  src/app_test.cpp
 )
 
 # ctest --test-dir build
