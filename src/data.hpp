@@ -23,7 +23,9 @@ public:
 class DataSourceSqlite : public DataSourceInterface
 {
 public:
-    DataSourceSqlite() = default;
+    explicit DataSourceSqlite(std::unique_ptr<SQLite> conn)
+            : db(std::move(conn)) {}
+
     ~DataSourceSqlite() override = default;
     DataSourceSqlite(const DataSourceSqlite&) = delete;
     DataSourceSqlite& operator=(const DataSourceSqlite&) = delete;
@@ -37,6 +39,8 @@ public:
         override;
     E<std::optional<int64_t>> getUserID(std::string_view name);
 
+    // Do not use.
+    DataSourceSqlite() = default;
 private:
     std::unique_ptr<SQLite> db;
 };

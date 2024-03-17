@@ -103,6 +103,7 @@ set(TEST_FILES
   src/url_test.cpp
   src/app_test.cpp
   src/data_test.cpp
+  src/database_test.cpp
 )
 
 # ctest --test-dir build
