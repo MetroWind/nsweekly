@@ -148,12 +148,12 @@ E<Tokens> AuthOpenIDConnect::authenticate(std::string_view code) const
         "&client_id={}&client_secret={}",
         urlEncode(code), urlEncode(redirection_url),
         urlEncode(config.client_id), urlEncode(config.client_secret));
-    E<const HTTPResponse*> result = http_client->post(
+    ASSIGN_OR_RETURN(const HTTPResponse* res, http_client->post(
         HTTPRequest(endpoint_token).setPayload(payload)
         .addHeader("Content-Type", "application/x-www-form-urlencoded")
         .addHeader("Authorization", std::string("Basic ") +
-                   urlEncode(config.client_secret)));
-    ASSIGN_OR_RETURN(const HTTPResponse* res, std::move(result));
+                   urlEncode(config.client_secret))));
+
     if(res->status != 200)
     {
         return std::unexpected(
