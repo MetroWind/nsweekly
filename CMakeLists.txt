@@ -51,6 +51,7 @@ FetchContent_MakeAvailable(json inja httplib cxxopts googletest ryml spdlog)
 unset(BUILD_BENCHMARK)
 
 find_package(CURL REQUIRED)
+find_package(SQLite3 REQUIRED)
 
 set(SOURCE_FILES
   src/error.hpp
@@ -64,6 +65,8 @@ set(SOURCE_FILES
   src/config.hpp
   src/url.hpp
   src/url.cpp
+  src/database.hpp
+  src/database.cpp
 )
 set(LIBS
   cxxopts
@@ -71,11 +74,14 @@ set(LIBS
   spdlog::spdlog
   ryml::ryml
   ${CURL_LIBRARIES}
+  ${SQLite3_LIBRARIES}
 )
+
 set(INCLUDES
   ${CURL_INCLUDE_DIR}
   ${json_SOURCE_DIR}/single_include
   ${inja_SOURCE_DIR}/single_include/inja
+  ${SQLite3_INCLUDE_DIRS}
 )
 
 add_executable(weekly ${SOURCE_FILES} src/main.cpp)
