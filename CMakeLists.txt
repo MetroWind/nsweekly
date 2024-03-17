@@ -65,8 +65,11 @@ set(SOURCE_FILES
   src/config.hpp
   src/url.hpp
   src/url.cpp
+  src/weekly.hpp
   src/database.hpp
   src/database.cpp
+  src/data.hpp
+  src/data.cpp
 )
 set(LIBS
   cxxopts
@@ -99,6 +102,7 @@ set(TEST_FILES
   src/auth_mock.hpp
   src/url_test.cpp
   src/app_test.cpp
+  src/data_test.cpp
 )
 
 # ctest --test-dir build
