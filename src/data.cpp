@@ -18,13 +18,13 @@ DataSourceSqlite::fromFile(const std::string& db_file)
 {
     auto data_source = std::make_unique<DataSourceSqlite>();
     ASSIGN_OR_RETURN(data_source->db, SQLite::connectFile(db_file));
-    auto result = data_source->db->execute(
+    DO_OR_RETURN(data_source->db->execute(
         "CREATE TABLE IF NOT EXISTS Users "
-        "(id INTEGER PRIMARY KEY ASC, name TEXT UNIQUE);");
-    if(!result.has_value())
-    {
-        return std::unexpected(result.error());
-    }
+        "(id INTEGER PRIMARY KEY ASC, name TEXT UNIQUE);"));
+    DO_OR_RETURN(data_source->db->execute(
+        "CREATE TABLE IF NOT EXISTS Weeklies "
+        "(user_id INTEGER REFERENCES Users (id) ON DELETE CASCADE,"
+        " week_start INTEGER, update_time INTEGER, content TEXT);"));
     return data_source;
 }
 
@@ -38,7 +38,6 @@ DataSourceSqlite::getYearOfWeeklies([[maybe_unused]] const std::string& username
 {
     return {};
 }
-
 
 E<std::optional<int64_t>> DataSourceSqlite::getUserID(const std::string& name) const
 {
@@ -63,5 +62,6 @@ E<void> DataSourceSqlite::createUser(const std::string& name) const
     ASSIGN_OR_RETURN(auto sql, db->statementFromStr(
         "INSERT INTO Users (name) VALUES (?);"));
     sql.bind(name);
-    return db->execute(std::move(sql));
+    DO_OR_RETURN(db->execute(std::move(sql)));
+    return {};
 }

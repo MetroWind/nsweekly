@@ -98,3 +98,8 @@ SQLite::~SQLite()
 {
     clear();
 }
+
+int64_t SQLite::lastInsertRowID() const
+{
+    return sqlite3_last_insert_rowid(db);
+}

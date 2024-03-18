@@ -79,6 +79,8 @@ public:
         return execute(sql_code.c_str());
     }
 
+    int64_t lastInsertRowID() const;
+
 private:
     sqlite3* db = nullptr;
     void clear();
