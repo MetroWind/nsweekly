@@ -159,37 +159,32 @@ inline E<void> sqlMaybe(int code, const char* msg)
     return {};
 }
 
-template<typename T>
-inline E<void> bindOne(const SQLiteStatement& sql, int i, T x)
+inline E<void> bindOne(const SQLiteStatement& sql, int i, int x)
 {
-    if constexpr(std::is_integral<T>::value)
-    {
-        return sqlMaybe(sqlite3_bind_int64(sql.data(), i, x),
-                        "Failed to bind parameter");
-    }
-    else
-    {
-        static_assert(false, "Invalid type to bind");
-        return {};
-    }
+    return sqlMaybe(sqlite3_bind_int(sql.data(), i, x),
+                    "Failed to bind parameter");
 }
 
-template<>
+inline E<void> bindOne(const SQLiteStatement& sql, int i, int64_t x)
+{
+    return sqlMaybe(sqlite3_bind_int64(sql.data(), i, x),
+                    "Failed to bind parameter");
+}
+
 inline E<void> bindOne(const SQLiteStatement& sql, int i, double x)
 {
     return sqlMaybe(sqlite3_bind_double(sql.data(), i, x),
                     "Failed to bind parameter");
 }
 
-template<>
 inline E<void> bindOne(const SQLiteStatement& sql, int i, const std::string& x)
 {
-    return sqlMaybe(sqlite3_bind_text(sql.data(), i, x.c_str(), -1,
-                                      SQLITE_STATIC),
+    std::cerr << "Binding string '" << x << "' of size " << x.size() << std::endl;
+    return sqlMaybe(sqlite3_bind_text(sql.data(), i, x.data(), x.size(),
+                                      SQLITE_TRANSIENT),
                     "Failed to bind parameter");
 }
 
-template<>
 inline E<void> bindOne(const SQLiteStatement& sql, int i, const char* x)
 {
     return sqlMaybe(sqlite3_bind_text(sql.data(), i, x, -1,
@@ -198,14 +193,14 @@ inline E<void> bindOne(const SQLiteStatement& sql, int i, const char* x)
 }
 
 template<typename T>
-inline E<void> bindInternal(const SQLiteStatement& sql, int i, const T& x)
+inline E<void> bindInternal(const SQLiteStatement& sql, int i, T x)
 {
     return bindOne(sql, i, x);
 }
 
 template<typename T, typename...Types>
-inline E<void> bindInternal(const SQLiteStatement& sql, int i, const T& x,
-                            const Types&... args)
+inline E<void> bindInternal(const SQLiteStatement& sql, int i, T x,
+                            Types... args)
 {
     auto e = bindOne(sql, i, x);
     if(!e.has_value())

@@ -34,23 +34,18 @@ E<std::unique_ptr<DataSourceSqlite>> DataSourceSqlite::newFromMemory()
 }
 
 std::vector<WeeklyPost>
-DataSourceSqlite::getYearOfWeeklies([[maybe_unused]] std::string_view username)
+DataSourceSqlite::getYearOfWeeklies([[maybe_unused]] const std::string& username)
 {
     return {};
 }
 
 
-E<std::optional<int64_t>> DataSourceSqlite::getUserID(std::string_view name)
+E<std::optional<int64_t>> DataSourceSqlite::getUserID(const std::string& name) const
 {
-    if(name.contains('"'))
-    {
-        return std::unexpected(runtimeError(
-            std::format("Invalid username: {}", name)));
-    }
-
+    ASSIGN_OR_RETURN(auto sql, db->statementFromStr("SELECT id FROM Users WHERE name = ?;"));
+    sql.bind(name);
     ASSIGN_OR_RETURN(std::vector<std::tuple<int64_t>> result,
-                     db->eval<int64_t>(std::format(
-        "SELECT id FROM Users WHERE name = \"{}\";", name)));
+                     db->eval<int64_t>(std::move(sql)));
     if(result.empty())
     {
         return std::nullopt;
@@ -61,4 +56,12 @@ E<std::optional<int64_t>> DataSourceSqlite::getUserID(std::string_view name)
             std::format("Found multiple IDs for user {}", name)));
     }
     return std::get<0>(result[0]);
+}
+
+E<void> DataSourceSqlite::createUser(const std::string& name) const
+{
+    ASSIGN_OR_RETURN(auto sql, db->statementFromStr(
+        "INSERT INTO Users (name) VALUES (?);"));
+    sql.bind(name);
+    return db->execute(std::move(sql));
 }

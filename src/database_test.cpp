@@ -45,4 +45,7 @@ TEST(Database, ParametrizedStatement)
     ASSIGN_OR_FAIL(auto result0,
                    (db->eval<int64_t, std::string>("SELECT * FROM test;")));
     EXPECT_EQ(result0.size(), 2);
+    ASSIGN_OR_FAIL(auto result1,
+                   (db->eval<int64_t, std::string>("SELECT * FROM test WHERE b = 'aaa';")));
+    EXPECT_EQ(result1.size(), 1);
 }

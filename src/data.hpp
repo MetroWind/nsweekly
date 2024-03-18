@@ -17,7 +17,7 @@ class DataSourceInterface
 public:
     virtual ~DataSourceInterface() = default;
     // Return the weeklies of the last 52 weeks.
-    virtual std::vector<WeeklyPost> getYearOfWeeklies(std::string_view username) = 0;
+    virtual std::vector<WeeklyPost> getYearOfWeeklies(const std::string& username) = 0;
 };
 
 class DataSourceSqlite : public DataSourceInterface
@@ -35,9 +35,11 @@ public:
     static E<std::unique_ptr<DataSourceSqlite>> newFromMemory();
 
     // Return the weeklies of the last 52 weeks.
-    std::vector<WeeklyPost> getYearOfWeeklies(std::string_view username)
+    std::vector<WeeklyPost> getYearOfWeeklies(const std::string& username)
         override;
-    E<std::optional<int64_t>> getUserID(std::string_view name);
+    E<std::optional<int64_t>> getUserID(const std::string& name) const;
+
+    E<void> createUser(const std::string& name) const;
 
     // Do not use.
     DataSourceSqlite() = default;
