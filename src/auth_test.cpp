@@ -209,7 +209,7 @@ TEST(Auth, CanGetTokens)
     EXPECT_EQ(tokens->access_token, "aaa");
     EXPECT_EQ(tokens->refresh_token, "bbb");
     using namespace std::literals;
-    EXPECT_LT(std::chrono::abs(*(tokens->expiration) - (std::chrono::steady_clock::now() + 1h)), 1s);
+    EXPECT_LT(std::chrono::abs(*(tokens->expiration) - (Clock::now() + 1h)), 1s);
 }
 
 TEST(Auth, AuthenticateCanHandleFailedQuery)
@@ -382,5 +382,5 @@ TEST(Auth, CanRefreshTokens)
     EXPECT_EQ(tokens->access_token, "aaa");
     EXPECT_EQ(tokens->refresh_token, "bbb");
     using namespace std::literals;
-    EXPECT_LT(std::chrono::abs(*(tokens->expiration) - (std::chrono::steady_clock::now() + 1h)), 1s);
+    EXPECT_LT(std::chrono::abs(*(tokens->expiration) - (Clock::now() + 1h)), 1s);
 }

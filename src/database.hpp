@@ -181,7 +181,6 @@ inline E<void> bindOne(const SQLiteStatement& sql, int i, double x)
 
 inline E<void> bindOne(const SQLiteStatement& sql, int i, const std::string& x)
 {
-    std::cerr << "Binding string '" << x << "' of size " << x.size() << std::endl;
     return sqlMaybe(sqlite3_bind_text(sql.data(), i, x.data(), x.size(),
                                       SQLITE_TRANSIENT),
                     "Failed to bind parameter");
@@ -230,10 +229,8 @@ E<std::vector<std::tuple<Types...>>> SQLite::eval(SQLiteStatement sql) const
         switch(code)
         {
         case SQLITE_DONE:
-            std::cerr << "Done" << std::endl;
             return result;
         case SQLITE_ROW:
-            std::cerr << "Got a row" << std::endl;
             result.push_back(internal::getRow<Types...>(sql));
             break;
         case SQLITE_BUSY:

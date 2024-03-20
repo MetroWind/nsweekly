@@ -16,10 +16,10 @@ class DataSourceInterface
 {
 public:
     virtual ~DataSourceInterface() = default;
-    // Return the weeklies of the last 52 weeks.
-    virtual std::vector<WeeklyPost> getYearOfWeeklies(const std::string& username) = 0;
 };
 
+// Username and start time of the week uniquely identify a weekly
+// post.
 class DataSourceSqlite : public DataSourceInterface
 {
 public:
@@ -34,11 +34,13 @@ public:
     fromFile(const std::string& db_file);
     static E<std::unique_ptr<DataSourceSqlite>> newFromMemory();
 
-    // Return the weeklies of the last 52 weeks.
-    std::vector<WeeklyPost> getYearOfWeeklies(const std::string& username)
-        override;
+    // Return the weeklies of a user, from begin (inclusive) to end
+    // (exclusive).
+    E<std::vector<WeeklyPost>> getWeeklies(
+        const std::string& user, const Time& begin, const Time& end) const;
+    E<void> updateWeekly(const std::string& username,
+                         WeeklyPost&& new_post) const;
     E<std::optional<int64_t>> getUserID(const std::string& name) const;
-
     E<void> createUser(const std::string& name) const;
 
     // Do not use.

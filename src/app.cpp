@@ -85,7 +85,7 @@ void setTokenCookies(const Tokens& tokens, httplib::Response& res)
     if(tokens.expiration.has_value())
     {
         auto expire = std::chrono::duration_cast<std::chrono::seconds>(
-            *tokens.expiration - std::chrono::steady_clock::now());
+            *tokens.expiration - Clock::now());
         expire_sec = expire.count();
     }
     res.set_header("Set-Cookie", std::format(

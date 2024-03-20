@@ -54,22 +54,23 @@ find_package(CURL REQUIRED)
 find_package(SQLite3 REQUIRED)
 
 set(SOURCE_FILES
-  src/error.hpp
-  src/utils.hpp
-  src/auth.hpp
-  src/auth.cpp
-  src/http_client.hpp
-  src/http_client.cpp
-  src/app.hpp
   src/app.cpp
+  src/app.hpp
+  src/auth.cpp
+  src/auth.hpp
   src/config.hpp
-  src/url.hpp
-  src/url.cpp
-  src/weekly.hpp
-  src/database.hpp
-  src/database.cpp
-  src/data.hpp
   src/data.cpp
+  src/data.hpp
+  src/database.cpp
+  src/database.hpp
+  src/error.hpp
+  src/http_client.cpp
+  src/http_client.hpp
+  src/url.cpp
+  src/url.hpp
+  src/utils.hpp
+  src/weekly.cpp
+  src/weekly.hpp
 )
 set(LIBS
   cxxopts

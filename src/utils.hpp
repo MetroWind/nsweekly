@@ -36,7 +36,8 @@
         return std::unexpected(std::move(rt).error());  \
     }
 
-using Time = std::chrono::time_point<std::chrono::steady_clock>;
+using Clock = std::chrono::system_clock;
+using Time = std::chrono::time_point<Clock>;
 
 template <typename Bytes>
 nlohmann::json parseJSON(Bytes&& bs)
@@ -50,4 +51,15 @@ inline std::string urlEncode(std::string_view s)
     std::string url(url_raw);
     curl_free(url_raw);
     return url;
+}
+
+inline int64_t timeToSeconds(const Time& t)
+{
+    return std::chrono::duration_cast<std::chrono::seconds>(
+        t.time_since_epoch()).count();
+}
+
+inline Time secondsToTime(const int64_t t)
+{
+    return Time(std::chrono::seconds(t));
 }

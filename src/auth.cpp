@@ -68,8 +68,7 @@ E<Tokens> tokensFromResponse(const HTTPResponse& res)
     if(auto seconds = getIntProperty(data, "expires_in");
        seconds.has_value())
     {
-        tokens.expiration = std::chrono::steady_clock::now() +
-            std::chrono::seconds(*seconds);
+        tokens.expiration = Clock::now() + std::chrono::seconds(*seconds);
     }
     return tokens;
 }

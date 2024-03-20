@@ -14,4 +14,8 @@ public:
     std::string raw_content;
     Time week_begin;
     Time update_time;
+    // The IETF BCP 47 language tag (RFC 5646) of the post.
+    std::string language;
+
+    static bool isValidFormatInt(int i);
 };
