@@ -39,14 +39,19 @@ public:
     E<std::vector<WeeklyPost>> getWeeklies(
         const std::string& user, const Time& begin, const Time& end) const;
     // Update a weekly if exists, otherwise just create the weekly. If
-    // user does not exists, create the user first.
+    // user does not exists, create the user first. Caller should make
+    // sure that the week_begin time in new_post should be exactly
+    // 00:00 UTC on a Monday. This function does not check the
+    // validity of week_begin, but failure to do so is undefined
+    // behavior.
     E<void> updateWeekly(const std::string& username,
                          WeeklyPost&& new_post) const;
     E<std::optional<int64_t>> getUserID(const std::string& name) const;
     // Do not use.
     DataSourceSqlite() = default;
 private:
-    E<void> createUser(const std::string& name) const;
+    // Create a user and return user_id.
+    E<int64_t> createUser(const std::string& name) const;
 
     std::unique_ptr<SQLite> db;
 };

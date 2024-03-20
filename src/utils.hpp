@@ -20,15 +20,6 @@
 #define ASSIGN_OR_RETURN(var, val)                                      \
     _ASSIGN_OR_RETURN_INNER(_CONCAT_NAMES(assign_or_return_tmp, __COUNTER__), var, val)
 
-#define _ASSIGN_OR_FAIL_INNER(tmp, var, val)  \
-    auto tmp = val;                             \
-    ASSERT_TRUE(tmp.has_value());               \
-    var = std::move(tmp).value()
-
-// Val should be a rvalue.
-#define ASSIGN_OR_FAIL(var, val)                                      \
-    _ASSIGN_OR_FAIL_INNER(_CONCAT_NAMES(assign_or_return_tmp, __COUNTER__), var, val)
-
 // Val should be a rvalue.
 #define DO_OR_RETURN(val)                               \
     if(auto rt = val; !rt.has_value())                  \

@@ -97,6 +97,7 @@ target_include_directories(weekly PRIVATE ${INCLUDES})
 target_link_libraries(weekly PRIVATE ${LIBS})
 
 set(TEST_FILES
+  src/test_utils.hpp
   src/http_client_test.cpp
   src/http_client_mock.hpp
   src/auth_test.cpp

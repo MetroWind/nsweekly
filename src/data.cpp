@@ -80,12 +80,12 @@ E<void> DataSourceSqlite::updateWeekly(
     ASSIGN_OR_RETURN(std::optional<int64_t> uid, getUserID(username));
     if(!uid.has_value())
     {
-        DO_OR_RETURN(createUser(username));
+        ASSIGN_OR_RETURN(uid, createUser(username));
     }
     ASSIGN_OR_RETURN(auto sql, db->statementFromStr(
         "INSERT INTO weeklies "
         "(user_id, week_start, update_time, format, lang, content) "
-        "VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT DO UPDATE update_time = ?, "
+        "VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT DO UPDATE SET update_time = ?, "
         "format = ?, lang = ?, content = ?;"));
     int64_t now = timeToSeconds(Clock::now());
     DO_OR_RETURN(sql.bind(
@@ -96,9 +96,11 @@ E<void> DataSourceSqlite::updateWeekly(
     return db->execute(std::move(sql));
 }
 
-E<std::optional<int64_t>> DataSourceSqlite::getUserID(const std::string& name) const
+E<std::optional<int64_t>>
+DataSourceSqlite::getUserID(const std::string& name) const
 {
-    ASSIGN_OR_RETURN(auto sql, db->statementFromStr("SELECT id FROM Users WHERE name = ?;"));
+    ASSIGN_OR_RETURN(auto sql, db->statementFromStr(
+        "SELECT id FROM Users WHERE name = ?;"));
     DO_OR_RETURN(sql.bind(name));
     ASSIGN_OR_RETURN(std::vector<std::tuple<int64_t>> result,
                      db->eval<int64_t>(std::move(sql)));
@@ -114,10 +116,11 @@ E<std::optional<int64_t>> DataSourceSqlite::getUserID(const std::string& name) c
     return std::get<0>(result[0]);
 }
 
-E<void> DataSourceSqlite::createUser(const std::string& name) const
+E<int64_t> DataSourceSqlite::createUser(const std::string& name) const
 {
     ASSIGN_OR_RETURN(auto sql, db->statementFromStr(
         "INSERT INTO Users (name) VALUES (?);"));
     DO_OR_RETURN(sql.bind(name));
-    return db->execute(std::move(sql));
+    DO_OR_RETURN(db->execute(std::move(sql)));
+    return db->lastInsertRowID();
 }
