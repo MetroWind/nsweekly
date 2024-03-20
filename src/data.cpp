@@ -80,7 +80,7 @@ E<void> DataSourceSqlite::updateWeekly(
     ASSIGN_OR_RETURN(std::optional<int64_t> uid, getUserID(username));
     if(!uid.has_value())
     {
-        return std::unexpected(runtimeError("User not found"));
+        DO_OR_RETURN(createUser(username));
     }
     ASSIGN_OR_RETURN(auto sql, db->statementFromStr(
         "INSERT INTO weeklies "

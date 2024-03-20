@@ -38,13 +38,15 @@ public:
     // (exclusive).
     E<std::vector<WeeklyPost>> getWeeklies(
         const std::string& user, const Time& begin, const Time& end) const;
+    // Update a weekly if exists, otherwise just create the weekly. If
+    // user does not exists, create the user first.
     E<void> updateWeekly(const std::string& username,
                          WeeklyPost&& new_post) const;
     E<std::optional<int64_t>> getUserID(const std::string& name) const;
-    E<void> createUser(const std::string& name) const;
-
     // Do not use.
     DataSourceSqlite() = default;
 private:
+    E<void> createUser(const std::string& name) const;
+
     std::unique_ptr<SQLite> db;
 };
