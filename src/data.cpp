@@ -5,6 +5,7 @@
 #include <expected>
 #include <tuple>
 #include <optional>
+#include <chrono>
 
 #include <spdlog/spdlog.h>
 #include <sqlite3.h>
@@ -14,6 +15,13 @@
 #include "error.hpp"
 #include "utils.hpp"
 #include "weekly.hpp"
+
+E<std::vector<WeeklyPost>>
+DataSourceInterface::getWeekliesOneYear(const std::string& user) const
+{
+    auto now = Clock::now();
+    return this->getWeeklies(user, now - std::chrono::years(1), now);
+}
 
 E<std::unique_ptr<DataSourceSqlite>>
 DataSourceSqlite::fromFile(const std::string& db_file)

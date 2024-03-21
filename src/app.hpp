@@ -11,6 +11,7 @@
 
 #include "auth.hpp"
 #include "config.hpp"
+#include "data.hpp"
 #include "http_client.hpp"
 
 void copyToHttplibReq(const HTTPRequest& src, httplib::Request& dest);
@@ -20,7 +21,8 @@ class App
 public:
     App() = delete;
     explicit App(const Configuration& conf,
-                 std::unique_ptr<AuthInterface> openid_auth);
+                 std::unique_ptr<AuthInterface> openid_auth,
+                 std::unique_ptr<DataSourceInterface> data_source);
 
     std::string urlFor(const std::string& name, const std::string& arg) const;
 
@@ -59,4 +61,5 @@ private:
     const Configuration config;
     inja::Environment templates;
     std::unique_ptr<AuthInterface> auth;
+    std::unique_ptr<DataSourceInterface> data;
 };

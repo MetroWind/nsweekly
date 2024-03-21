@@ -7,7 +7,9 @@
 #include "auth.hpp"
 #include "config.hpp"
 #include "auth_mock.hpp"
+#include "data.hpp"
 #include "http_client.hpp"
+#include "test_utils.hpp"
 
 using ::testing::Return;
 using ::testing::HasSubstr;
@@ -41,7 +43,8 @@ TEST(App, IndexCanRedirectWhenLoggedIn)
     expected_user.name = "mw";
 
     EXPECT_CALL(*auth, getUser(expected_tokens)).WillOnce(Return(expected_user));
-    App app(config, std::move(auth));
+    ASSIGN_OR_FAIL(auto data, DataSourceSqlite::newFromMemory());
+    App app(config, std::move(auth), std::move(data));
 
     httplib::Request http_req;
     http_req.set_header("Cookie", "access-token=aaa");
@@ -58,7 +61,8 @@ TEST(App, IndexCanRedirectWhenNotLoggedIn)
     config.guest_index_user = "mw";
 
     auto auth = std::make_unique<AuthMock>();
-    App app(config, std::move(auth));
+    ASSIGN_OR_FAIL(auto data, DataSourceSqlite::newFromMemory());
+    App app(config, std::move(auth), std::move(data));
 
     httplib::Request http_req;
     httplib::Response res;
@@ -83,7 +87,8 @@ TEST(App, IndexCanRefreshToken)
     EXPECT_CALL(*auth, refreshTokens("bbb"))
         .WillOnce(Return(expected_tokens_after_refresh));
 
-    App app(config, std::move(auth));
+    ASSIGN_OR_FAIL(auto data, DataSourceSqlite::newFromMemory());
+    App app(config, std::move(auth), std::move(data));
 
     httplib::Request req;
     req.set_header("Cookie", "refresh-token=bbb");
@@ -100,8 +105,8 @@ TEST(App, LoginBringsUserToLoginURL)
     Configuration config;
     auto auth = std::make_unique<AuthMock>();
     EXPECT_CALL(*auth, initialURL()).WillOnce(Return("http://aaa/"));
-
-    App app(config, std::move(auth));
+    ASSIGN_OR_FAIL(auto data, DataSourceSqlite::newFromMemory());
+    App app(config, std::move(auth), std::move(data));
 
     httplib::Response res;
     app.handleLogin(res);
@@ -120,8 +125,8 @@ TEST(App, CanHandleOpenIDRedirect)
 
     EXPECT_CALL(*auth, authenticate("aaa")).WillOnce(Return(expected_tokens));
     EXPECT_CALL(*auth, getUser(expected_tokens)).WillOnce(Return(expected_user));
-
-    App app(config, std::move(auth));
+    ASSIGN_OR_FAIL(auto data, DataSourceSqlite::newFromMemory());
+    App app(config, std::move(auth), std::move(data));
 
     httplib::Request req;
     req.params.emplace("code", "aaa");
@@ -135,8 +140,8 @@ TEST(App, OpenIDRedirectCanHandleUpstreamError)
 {
     Configuration config;
     auto auth = std::make_unique<AuthMock>();
-
-    App app(config, std::move(auth));
+    ASSIGN_OR_FAIL(auto data, DataSourceSqlite::newFromMemory());
+    App app(config, std::move(auth), std::move(data));
     {
         httplib::Request req;
         req.params.emplace("error", "aaa");

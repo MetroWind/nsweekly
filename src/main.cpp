@@ -3,6 +3,7 @@
 #include "app.hpp"
 #include "auth.hpp"
 #include "config.hpp"
+#include "data.hpp"
 #include "http_client.hpp"
 #include "spdlog/spdlog.h"
 #include "utils.hpp"
@@ -27,7 +28,15 @@ int main()
                                  auth.error()));
         return 1;
     }
-    App app(conf, *std::move(auth));
+    auto data_source = DataSourceSqlite::newFromMemory();
+    if(!data_source.has_value())
+    {
+        spdlog::error("Failed to create data source: {}",
+                      errorMsg(data_source.error()));
+        return 2;
+    }
+
+    App app(conf, *std::move(auth), *std::move(data_source));
     app.start();
 
     return 0;

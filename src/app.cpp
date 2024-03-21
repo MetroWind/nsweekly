@@ -7,6 +7,7 @@
 #include <httplib.h>
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
+#include <vector>
 
 #include "app.hpp"
 #include "auth.hpp"
@@ -153,9 +154,10 @@ E<App::SessionValidation> App::validateSession(const httplib::Request& req) cons
     return SessionValidation::invalid();
 }
 
-App::App(const Configuration& conf, std::unique_ptr<AuthInterface> openid_auth)
+App::App(const Configuration& conf, std::unique_ptr<AuthInterface> openid_auth,
+         std::unique_ptr<DataSourceInterface> data_source)
         : config(conf), templates(conf.template_dir),
-          auth(std::move(openid_auth))
+          auth(std::move(openid_auth)), data(std::move(data_source))
 {
 }
 
@@ -254,7 +256,10 @@ void App::handleUserWeekly(const httplib::Request& req, httplib::Response& res,
     {
         session_user = session->user.name;
     }
-    // WIP...
+
+    ASSIGN_OR_RESPOND_ERROR(std::vector<WeeklyPost> weeklies,
+                            data->getWeekliesOneYear(username), res);
+
     res.set_content(username, "plain/text");
 }
 

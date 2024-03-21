@@ -16,6 +16,15 @@ class DataSourceInterface
 {
 public:
     virtual ~DataSourceInterface() = default;
+    virtual E<std::vector<WeeklyPost>> getWeeklies(
+        const std::string& user, const Time& begin, const Time& end) const = 0;
+    virtual E<void> updateWeekly(const std::string& username,
+                                 WeeklyPost&& new_post) const = 0;
+    virtual E<std::optional<int64_t>> getUserID(const std::string& name) const
+    = 0;
+
+    // Convenient function to get weeklies in the last year.
+    E<std::vector<WeeklyPost>> getWeekliesOneYear(const std::string& user) const;
 };
 
 // Username and start time of the week uniquely identify a weekly
@@ -37,7 +46,9 @@ public:
     // Return the weeklies of a user, from begin (inclusive) to end
     // (exclusive).
     E<std::vector<WeeklyPost>> getWeeklies(
-        const std::string& user, const Time& begin, const Time& end) const;
+        const std::string& user, const Time& begin, const Time& end)
+        const override;
+
     // Update a weekly if exists, otherwise just create the weekly. If
     // user does not exists, create the user first. Caller should make
     // sure that the week_begin time in new_post should be exactly
