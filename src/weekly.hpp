@@ -1,5 +1,6 @@
 #pragma once
 
+#include "error.hpp"
 #include "utils.hpp"
 
 class WeeklyPost
@@ -18,4 +19,6 @@ public:
     std::string language;
 
     static bool isValidFormatInt(int i);
+    // Render the post to HTML.
+    E<std::string> render() const;
 };

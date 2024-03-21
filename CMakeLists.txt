@@ -52,6 +52,7 @@ unset(BUILD_BENCHMARK)
 
 find_package(CURL REQUIRED)
 find_package(SQLite3 REQUIRED)
+find_package(cmark REQUIRED)
 
 set(SOURCE_FILES
   src/app.cpp
@@ -79,6 +80,9 @@ set(LIBS
   ryml::ryml
   ${CURL_LIBRARIES}
   ${SQLite3_LIBRARIES}
+  # This can be found in the installed
+  # cmark-targets-relwithdebinfo.cmake.
+  cmark::cmark
 )
 
 set(INCLUDES
@@ -86,6 +90,7 @@ set(INCLUDES
   ${json_SOURCE_DIR}/single_include
   ${inja_SOURCE_DIR}/single_include/inja
   ${SQLite3_INCLUDE_DIRS}
+  ${cmark_INCLUDE_DIRS}
 )
 
 add_executable(weekly ${SOURCE_FILES} src/main.cpp)
