@@ -10,7 +10,7 @@ enum class GuestIndex
 
 struct Configuration
 {
-    std::string template_dir;
+    std::string data_dir;
     std::string listen_address;
     int listen_port;
     std::string client_id;
@@ -19,4 +19,5 @@ struct Configuration
     std::string url_prefix;
     GuestIndex guest_index;
     std::string guest_index_user;
+
 };

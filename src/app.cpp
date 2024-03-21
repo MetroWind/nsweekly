@@ -2,6 +2,7 @@
 #include <string>
 #include <regex>
 #include <variant>
+#include <filesystem>
 
 #include <inja.hpp>
 #include <httplib.h>
@@ -12,9 +13,11 @@
 #include "app.hpp"
 #include "auth.hpp"
 #include "config.hpp"
+#include "error.hpp"
 #include "http_client.hpp"
-#include "utils.hpp"
 #include "url.hpp"
+#include "utils.hpp"
+#include "weekly.hpp"
 
 #define _ASSIGN_OR_RESPOND_ERROR(tmp, var, val, res)                    \
     auto tmp = val;                                                     \
@@ -154,15 +157,35 @@ E<App::SessionValidation> App::validateSession(const httplib::Request& req) cons
     return SessionValidation::invalid();
 }
 
-App::App(const Configuration& conf, std::unique_ptr<AuthInterface> openid_auth,
-         std::unique_ptr<DataSourceInterface> data_source)
-        : config(conf), templates(conf.template_dir),
-          auth(std::move(openid_auth)), data(std::move(data_source))
+nlohmann::json weeklyToJSON(const WeeklyPost& p)
 {
+    std::string content = *p.render().or_else([](const auto& e) -> E<std::string>
+    {
+        return errorMsg(e);
+    });
+
+    std::chrono::year_month_day date(std::chrono::floor<std::chrono::days>(p.week_begin));
+    int week = daysSinceNewYear(p.week_begin);
+    std::string week_str = std::format("{} week {}", date.year(), week);
+    return {{ "week_str", week_str}};
 }
 
-std::string App::urlFor(const std::string& name,
-                        [[maybe_unused]] const std::string& arg) const
+App::App(const Configuration& conf, std::unique_ptr<AuthInterface> openid_auth,
+         std::unique_ptr<DataSourceInterface> data_source)
+        : config(conf),
+          templates((std::filesystem::path(config.data_dir) / "templates")
+                    .string()),
+          auth(std::move(openid_auth)), data(std::move(data_source))
+{
+    templates.add_callback("url_for", 2, [&](const inja::Arguments& args)
+    {
+        return urlFor(args.at(0)->get_ref<const std::string&>(),
+                      args.at(1)->get_ref<const std::string&>());
+    });
+
+}
+
+std::string App::urlFor(const std::string& name, const std::string& arg) const
 {
     if(name == "index")
     {
@@ -175,6 +198,10 @@ std::string App::urlFor(const std::string& name,
     if(name == "weekly")
     {
         return "/weekly/" + arg;
+    }
+    if(name == "statics")
+    {
+        return "/statics/" + arg;
     }
     return "";
 }
@@ -266,12 +293,14 @@ void App::handleUserWeekly(const httplib::Request& req, httplib::Response& res,
 void App::start()
 {
     httplib::Server server;
-    // spdlog::info("Mounting static dir at {}...", config.static_dir);
-    // auto ret = server.set_mount_point("/static", config.static_dir);
-    // if (!ret)
-    // {
-    //     spdlog::error("Failed to mount static");
-    // }
+    std::string statics_dir = (std::filesystem::path(config.data_dir) /
+                               "statics").string();
+    spdlog::info("Mounting static dir at {}...", statics_dir);
+    auto ret = server.set_mount_point("/statics", statics_dir);
+    if (!ret)
+    {
+        spdlog::error("Failed to mount statics");
+    }
 
     server.Get("/", [&](const httplib::Request& req,
                         httplib::Response& res)

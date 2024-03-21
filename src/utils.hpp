@@ -54,3 +54,13 @@ inline Time secondsToTime(const int64_t t)
 {
     return Time(std::chrono::seconds(t));
 }
+
+inline int daysSinceNewYear(const Time& t)
+{
+    std::chrono::year_month_day date(std::chrono::floor<std::chrono::days>(t));
+    std::chrono::year_month_day new_year(
+        date.year(), std::chrono::January, std::chrono::day(1));
+    return std::chrono::floor<std::chrono::days>(t.time_since_epoch()).count() -
+        std::chrono::floor<std::chrono::days>(
+            std::chrono::sys_days(new_year).time_since_epoch()).count();
+}
