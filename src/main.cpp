@@ -1,4 +1,8 @@
 #include <memory>
+#include <variant>
+#include <filesystem>
+
+#include <spdlog/spdlog.h>
 
 #include "app.hpp"
 #include "auth.hpp"
@@ -17,6 +21,9 @@ int main()
     conf.listen_address = "localhost";
     conf.listen_port = 8123;
     conf.openid_url_prefix = "https://auth.xeno.darksair.org/realms/xeno";
+    conf.data_dir = ".";
+    conf.guest_index = GuestIndex::USER_WEEKLY;
+    conf.guest_index_user = "mw";
 
     auto auth = AuthOpenIDConnect::create(
         conf, "http://localhost:8123/openid-redirect",
@@ -28,12 +35,17 @@ int main()
                                  auth.error()));
         return 1;
     }
-    auto data_source = DataSourceSqlite::newFromMemory();
+    auto data_source = DataSourceSqlite::fromFile(
+        (std::filesystem::path(conf.data_dir) / "data.db").string());
     if(!data_source.has_value())
     {
         spdlog::error("Failed to create data source: {}",
                       errorMsg(data_source.error()));
         return 2;
+    }
+    if(!(*data_source)->createUser("mw").has_value())
+    {
+        spdlog::error("Failed to create user");
     }
 
     App app(conf, *std::move(auth), *std::move(data_source));

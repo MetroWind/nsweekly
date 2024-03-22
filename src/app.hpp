@@ -31,7 +31,7 @@ public:
     void handleOpenIDRedirect(const httplib::Request& req,
                               httplib::Response& res) const;
     void handleUserWeekly(const httplib::Request& req, httplib::Response& res,
-                          const std::string& username) const;
+                          const std::string& username);
     void start();
 
 private:
@@ -57,6 +57,7 @@ private:
         }
     };
     E<SessionValidation> validateSession(const httplib::Request& req) const;
+    void handleIndexWithInvalidSession(httplib::Response& res) const;
 
     const Configuration config;
     inja::Environment templates;

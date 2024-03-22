@@ -59,6 +59,7 @@ set(SOURCE_FILES
   src/app.hpp
   src/auth.cpp
   src/auth.hpp
+  src/config.cpp
   src/config.hpp
   src/data.cpp
   src/data.hpp

@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    {% include "head.html" %}
+    <meta property="og:title" content="Album: {{ username }}’s Weeklies" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="{{ this_url }}" />
+    <title>Gallery</title>
+  </head>
+  <body>
+    <div id="Weeklies">
+      {% for p in weeklies %}
+      <section>
+        {{ p.content }}
+      </section>
+      {% endfor %}
+    </div>
+  </body>
+</html>

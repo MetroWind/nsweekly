@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    {% include "head.html" %}
+    <meta property="og:title" content="Album: {{ username }}’s Weeklies" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="{{ this_url }}" />
+    <title>Gallery</title>
+  </head>
+  <body>
+    {% include "nav.html" %}
+    <div id="AlbumContent">
+      <section id="Albums">
+        <h2>Albums</h2>
+        <ul id="AlbumList" class="ItemList">
+          {% for a in albums %}
+          <li>
+            <figure class="AlbumLink">
+              <a href="{{ url_for_album(a.id) }}">
+              {%- if a.cover_type == "image" -%}
+              <img src="{{ url_for_repr(a.cover, "thumb") }}" alt="Album cover" />
+              {%- else if a.cover_type == "static" -%}
+              <img src="{{ url_for_static(a.cover) }}" alt="Default
+              album cover" style="max-width: {{ thumb_size }}px;
+              max-height: {{ thumb_size }}px;" />
+              {%- endif -%}
+              <figcaption><a href="{{ url_for_album(a.id) }}">{{ a.name }}</a></figcaption>
+            </figure>
+          </li>
+          {% endfor %}
+        </ul>
+      </section>
+      <section id="Photos">
+        <h2>Photos</h2>
+        <ul id="PhotoList" class="ItemList">
+          {% for img in images %}
+          <li>
+            <a href="{{ url_for_photo(img.id) }}"><img src="{{ url_for_repr(img.id, "thumb") }}"
+                                                       class="PhotoThumb" /></a>
+          </li>
+          {% endfor %}
+        </ul>
+      </section>
+    </div>
+  </body>
+</html>

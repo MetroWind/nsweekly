@@ -58,11 +58,12 @@ public:
     E<void> updateWeekly(const std::string& username,
                          WeeklyPost&& new_post) const;
     E<std::optional<int64_t>> getUserID(const std::string& name) const;
+    // Create a user and return user_id.
+    E<int64_t> createUser(const std::string& name) const;
+
     // Do not use.
     DataSourceSqlite() = default;
 private:
-    // Create a user and return user_id.
-    E<int64_t> createUser(const std::string& name) const;
 
     std::unique_ptr<SQLite> db;
 };

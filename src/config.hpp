@@ -1,6 +1,10 @@
 #pragma once
 
 #include <string>
+#include <expected>
+#include <filesystem>
+
+#include "error.hpp"
 
 // What should be displayed on the index page if there is no session?
 enum class GuestIndex
@@ -19,5 +23,7 @@ struct Configuration
     std::string url_prefix;
     GuestIndex guest_index;
     std::string guest_index_user;
+
+    static E<Configuration> fromYaml(const std::filesystem::path& path);
 
 };

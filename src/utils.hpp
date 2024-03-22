@@ -3,9 +3,12 @@
 #include <chrono>
 #include <string>
 #include <string_view>
+#include <filesystem>
 
 #include <nlohmann/json.hpp>
 #include <curl/curl.h>
+
+#include "error.hpp"
 
 #define _CONCAT_NAMES_INNER(a, b) a##b
 #define _CONCAT_NAMES(a, b) _CONCAT_NAMES_INNER(a, b)

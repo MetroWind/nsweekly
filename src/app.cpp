@@ -3,12 +3,12 @@
 #include <regex>
 #include <variant>
 #include <filesystem>
+#include <vector>
 
 #include <inja.hpp>
 #include <httplib.h>
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
-#include <vector>
 
 #include "app.hpp"
 #include "auth.hpp"
@@ -21,22 +21,23 @@
 
 #define _ASSIGN_OR_RESPOND_ERROR(tmp, var, val, res)                    \
     auto tmp = val;                                                     \
-    if(!tmp.has_value()) {                                              \
-    if(std::holds_alternative<HTTPError>(tmp.error()))                  \
+    if(!tmp.has_value())                                                \
     {                                                                   \
-        const HTTPError& e = std::get<HTTPError>(tmp.error());          \
-        res.status = e.code;                                          \
-        res.set_content(e.msg, "text/plain");                           \
-        return;                                                         \
-    }                                                                   \
-    else                                                                \
-    {                                                                   \
-        res.status = 500;                                               \
-        res.set_content(std::visit([](const auto& e) { return e.msg; }, \
-                                   tmp.error()),                    \
-                        "text/plain");                                  \
-        return;                                                         \
-    }                                                                   \
+        if(std::holds_alternative<HTTPError>(tmp.error()))              \
+        {                                                               \
+            const HTTPError& e = std::get<HTTPError>(tmp.error());      \
+            res.status = e.code;                                        \
+            res.set_content(e.msg, "text/plain");                       \
+            return;                                                     \
+        }                                                               \
+        else                                                            \
+        {                                                               \
+            res.status = 500;                                           \
+            res.set_content(std::visit([](const auto& e) { return e.msg; }, \
+                                       tmp.error()),                    \
+                            "text/plain");                              \
+            return;                                                     \
+        }                                                               \
     }                                                                   \
     var = std::move(tmp).value()
 
@@ -167,13 +168,15 @@ nlohmann::json weeklyToJSON(const WeeklyPost& p)
     std::chrono::year_month_day date(std::chrono::floor<std::chrono::days>(p.week_begin));
     int week = daysSinceNewYear(p.week_begin);
     std::string week_str = std::format("{} week {}", date.year(), week);
-    return {{ "week_str", week_str}};
+    return {{ "week_str", week_str},
+            { "content", std::move(content) },
+    };
 }
 
 App::App(const Configuration& conf, std::unique_ptr<AuthInterface> openid_auth,
          std::unique_ptr<DataSourceInterface> data_source)
         : config(conf),
-          templates((std::filesystem::path(config.data_dir) / "templates")
+          templates((std::filesystem::path(config.data_dir) / "templates" / "")
                     .string()),
           auth(std::move(openid_auth)), data(std::move(data_source))
 {
@@ -206,27 +209,31 @@ std::string App::urlFor(const std::string& name, const std::string& arg) const
     return "";
 }
 
+void App::handleIndexWithInvalidSession(httplib::Response& res) const
+{
+    switch(config.guest_index)
+    {
+    case GuestIndex::USER_WEEKLY:
+        res.set_redirect(urlFor("weekly", config.guest_index_user), 301);
+        return;
+    }
+    res.status = 500;
+    res.set_content("Someone forgot to add a switch case 🤣", "text/plain");
+}
+
 void App::handleIndex(const httplib::Request& req, httplib::Response& res) const
 {
     E<SessionValidation> session = validateSession(req);
     if(!session.has_value())
     {
-        res.set_content(std::string("Not logged in: ") +
-                        errorMsg(session.error()), "text/plain");
+        handleIndexWithInvalidSession(res);
         return;
     }
 
     switch(session->status)
     {
     case SessionValidation::INVALID:
-        switch(config.guest_index)
-        {
-        case GuestIndex::USER_WEEKLY:
-            res.set_redirect(urlFor("weekly", config.guest_index_user), 301);
-            return;
-        }
-        res.status = 500;
-        res.set_content("Someone forgot to add a switch case 🤣", "text/plain");
+        handleIndexWithInvalidSession(res);
         return;
     case SessionValidation::VALID:
         res.set_redirect(urlFor("weekly", session->user.name), 302);
@@ -275,7 +282,7 @@ void App::handleOpenIDRedirect(const httplib::Request& req,
 }
 
 void App::handleUserWeekly(const httplib::Request& req, httplib::Response& res,
-                           const std::string& username) const
+                           const std::string& username)
 {
     E<SessionValidation> session = validateSession(req);
     std::string session_user;
@@ -286,8 +293,18 @@ void App::handleUserWeekly(const httplib::Request& req, httplib::Response& res,
 
     ASSIGN_OR_RESPOND_ERROR(std::vector<WeeklyPost> weeklies,
                             data->getWeekliesOneYear(username), res);
-
-    res.set_content(username, "plain/text");
+    nlohmann::json weeklies_json(nlohmann::json::value_t::array);
+    for(const WeeklyPost& p: weeklies)
+    {
+        weeklies_json.push_back(weeklyToJSON(p));
+    }
+    nlohmann::json data{{ "weeklies", std::move(weeklies_json) },
+                        { "username", username },
+                        { "this_url", req.target },
+    };
+    std::string result = templates.render_file(
+        "weeklies.html", std::move(data));
+    res.set_content(result, "text/html");
 }
 
 void App::start()
