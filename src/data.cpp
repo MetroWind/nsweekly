@@ -16,6 +16,31 @@
 #include "utils.hpp"
 #include "weekly.hpp"
 
+namespace
+{
+
+// Calculate all the Monday 00:00 in a time period
+std::vector<Time> allWeekStarts(const Time& begin, const Time& end)
+{
+    std::chrono::weekday w(std::chrono::floor<std::chrono::days>(begin));
+    int diff = w.iso_encoding() - 1;
+    Time mon = begin;
+    if(diff != 0)
+    {
+        mon += std::chrono::days(7 - diff);
+    }
+    std::vector<Time> result;
+    while(mon < end)
+    {
+        result.push_back(mon);
+        mon += std::chrono::days(7);
+    }
+    return result;
+}
+
+} // namespace
+
+
 E<std::vector<WeeklyPost>>
 DataSourceInterface::getWeekliesOneYear(const std::string& user) const
 {
@@ -54,6 +79,7 @@ E<std::vector<WeeklyPost>> DataSourceSqlite::getWeeklies(
     }
     int64_t start = timeToSeconds(begin);
     int64_t stop = timeToSeconds(end);
+    // Get all rows whose week_start is in the time period.
     ASSIGN_OR_RETURN(auto sql, db->statementFromStr(
         "SELECT content, format, lang, week_start, update_time FROM Weeklies "
         "WHERE user_id = ? AND week_start >= ? AND week_start < ?;"));
@@ -61,6 +87,7 @@ E<std::vector<WeeklyPost>> DataSourceSqlite::getWeeklies(
     ASSIGN_OR_RETURN(
         auto rows, (db->eval<std::string, int, std::string, int64_t, int64_t>(
             std::move(sql))));
+    // Converting rows to weekly objects.
     std::vector<WeeklyPost> weeklies;
     weeklies.reserve(rows.size());
     for(auto& row: rows)
@@ -79,7 +106,55 @@ E<std::vector<WeeklyPost>> DataSourceSqlite::getWeeklies(
         p.language = std::move(std::get<2>(row));
         weeklies.push_back(std::move(p));
     }
-    return weeklies;
+
+    // Now we have a set of weeklies, the week_begin of each of which
+    // is a Monday. However, these Mondays are only a subset of all
+    // the Mondays in the queried time period. Our goal is to return
+    // one weekly for each of the Monday in the time period. If there
+    // is not a weekly on a Monday, we return an empty weekly for
+    // that. This way the logic in the HTTP handler and the frontend
+    // is simplified.
+    //
+    // Our algorithm for this is the classic double pointer. We will
+    // have a “pointer” for all the mondays in the time peroid, and
+    // another for the (non-empty) weeklies, both from the start of
+    // the respective sequence. If the current weekly’s week_begin
+    // happens to be the current monday, we add this weekly to the
+    // result, and advance both pointers; if not we just advance the
+    // Monday pointer.
+    //
+    // I think this could be an interview question...
+    std::vector<Time> week_starts = allWeekStarts(begin, end);
+    std::vector<WeeklyPost> result(week_starts.size());
+    // The monday “pointer”
+    auto monday_it = std::begin(week_starts);
+    // The weeklies “pointer”
+    auto weekly_it = std::begin(weeklies);
+    auto result_it = std::begin(result); // This should sync with monday_it.
+
+    while(true)
+    {
+        if(weekly_it != std::end(weeklies) &&
+           weekly_it->week_begin == *monday_it)
+        {
+            *result_it = *weekly_it;
+            ++monday_it;
+            ++weekly_it;
+            ++result_it;
+        }
+        else
+        {
+            result_it->week_begin = *monday_it;
+            ++monday_it;
+            ++result_it;
+        }
+        if(monday_it == std::end(week_starts))
+        {
+            break;
+        }
+    }
+
+    return result;
 }
 
 E<void> DataSourceSqlite::updateWeekly(
