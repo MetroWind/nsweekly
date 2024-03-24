@@ -24,6 +24,7 @@ int main()
     conf.data_dir = ".";
     conf.guest_index = GuestIndex::USER_WEEKLY;
     conf.guest_index_user = "mw";
+    conf.default_lang = "zh-CN";
 
     auto auth = AuthOpenIDConnect::create(
         conf, "http://localhost:8123/openid-redirect",

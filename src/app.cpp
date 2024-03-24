@@ -1,9 +1,14 @@
+#include <algorithm>
 #include <memory>
+#include <sstream>
 #include <string>
 #include <regex>
 #include <variant>
 #include <filesystem>
 #include <vector>
+#include <sstream>
+#include <iomanip>
+#include <ctime>
 
 #include <inja.hpp>
 #include <httplib.h>
@@ -86,7 +91,7 @@ std::unordered_map<std::string, std::string> parseCookies(std::string_view value
 
 void setTokenCookies(const Tokens& tokens, httplib::Response& res)
 {
-    int64_t expire_sec = 3600*24*30; // One month
+    int64_t expire_sec = 300;
     if(tokens.expiration.has_value())
     {
         auto expire = std::chrono::duration_cast<std::chrono::seconds>(
@@ -99,9 +104,17 @@ void setTokenCookies(const Tokens& tokens, httplib::Response& res)
     // Add refresh token to cookie, with one month expiration.
     if(tokens.refresh_token.has_value())
     {
+        expire_sec = 1800;
+        if(tokens.refresh_expiration.has_value())
+        {
+            auto expire = std::chrono::duration_cast<std::chrono::seconds>(
+                *tokens.refresh_expiration - Clock::now());
+            expire_sec = expire.count();
+        }
+
         res.set_header("Set-Cookie", std::format(
                            "refresh-token={}; Max-Age={}",
-                           urlEncode(*tokens.refresh_token), 3600*24*30));
+                           urlEncode(*tokens.refresh_token), expire_sec));
     }
 }
 
@@ -158,18 +171,32 @@ E<App::SessionValidation> App::validateSession(const httplib::Request& req) cons
     return SessionValidation::invalid();
 }
 
-nlohmann::json weeklyToJSON(const WeeklyPost& p)
+nlohmann::json weeklyToJSON(const WeeklyPost& p, bool render=true)
 {
-    std::string content = *p.render().or_else([](const auto& e) -> E<std::string>
+    std::string content;
+    if(render)
     {
-        return errorMsg(e);
-    });
+        content = *p.render().or_else(
+            [](const auto& e) -> E<std::string>
+            {
+                return errorMsg(e);
+            });
+    }
+    else
+    {
+        content = p.raw_content;
+    }
 
-    std::chrono::year_month_day date(std::chrono::floor<std::chrono::days>(p.week_begin));
+    std::chrono::year_month_day
+        date(std::chrono::floor<std::chrono::days>(p.week_begin));
     int week = daysSinceNewYear(p.week_begin);
-    std::string week_str = std::format("{} week {}", date.year(), week);
-    return {{ "week_str", week_str},
+    std::string week_str = std::format("{} week {}", date.year(), week / 7 + 1);
+    std::ostringstream ss;
+    ss << date;
+    return {{ "week_str", week_str },
+            { "date_str", ss.str() },
             { "content", std::move(content) },
+            { "author", p.author },
     };
 }
 
@@ -205,6 +232,15 @@ std::string App::urlFor(const std::string& name, const std::string& arg) const
     if(name == "statics")
     {
         return "/statics/" + arg;
+    }
+    if(name == "login")
+    {
+        return "/login";
+    }
+    if(name == "edit")
+    {
+        // Arg is expected to be in username/YYYY-MM-DD format.
+        return "/edit/" + arg;
     }
     return "";
 }
@@ -293,6 +329,7 @@ void App::handleUserWeekly(const httplib::Request& req, httplib::Response& res,
 
     ASSIGN_OR_RESPOND_ERROR(std::vector<WeeklyPost> weeklies,
                             data->getWeekliesOneYear(username), res);
+    std::reverse(std::begin(weeklies), std::end(weeklies));
     nlohmann::json weeklies_json(nlohmann::json::value_t::array);
     for(const WeeklyPost& p: weeklies)
     {
@@ -300,11 +337,95 @@ void App::handleUserWeekly(const httplib::Request& req, httplib::Response& res,
     }
     nlohmann::json data{{ "weeklies", std::move(weeklies_json) },
                         { "username", username },
+                        { "session_user", session_user },
                         { "this_url", req.target },
     };
     std::string result = templates.render_file(
         "weeklies.html", std::move(data));
     res.set_content(result, "text/html");
+}
+
+void App::handleEditFrontEnd(
+    const httplib::Request& req, httplib::Response& res,
+    const std::string& username, const Time& week_start)
+{
+    E<SessionValidation> session = validateSession(req);
+    std::string session_user;
+    if(session.has_value() && session->status != SessionValidation::INVALID)
+    {
+        session_user = session->user.name;
+    }
+    else
+    {
+        res.status = 401;
+        return;
+    }
+
+    if(session_user != username)
+    {
+        res.status = 401;
+        return;
+    }
+
+    if(std::chrono::weekday(std::chrono::floor<std::chrono::days>(week_start))
+       != std::chrono::Monday)
+    {
+        res.status = 404;
+        return;
+    }
+
+    ASSIGN_OR_RESPOND_ERROR(
+        std::vector<WeeklyPost> weekly, data->getWeeklies(
+            username, week_start, week_start + std::chrono::days(1)), res);
+    nlohmann::json data{{"weekly", weeklyToJSON(std::move(weekly)[0], false)},
+                        {"session_user", session_user}};
+    std::string html = templates.render_file("edit.html", std::move(data));
+    res.set_content(html, "text/html");
+}
+
+void App::handleEdit(
+    const httplib::Request& req, httplib::Response& res,
+    const std::string& username, const Time& week_start) const
+{
+    E<SessionValidation> session = validateSession(req);
+    std::string session_user;
+    if(session.has_value() && session->status != SessionValidation::INVALID)
+    {
+        session_user = session->user.name;
+    }
+    else
+    {
+        res.status = 401;
+        return;
+    }
+
+    if(session_user != username)
+    {
+        res.status = 401;
+        return;
+    }
+
+    if(std::chrono::weekday(std::chrono::floor<std::chrono::days>(week_start))
+       != std::chrono::Monday)
+    {
+        res.status = 404;
+        return;
+    }
+
+    WeeklyPost p;
+    p.author = username;
+    p.format = WeeklyPost::MARKDOWN;
+    p.language = config.default_lang;
+    p.week_begin = week_start;
+    p.raw_content = req.get_param_value("content");
+    if(auto r = data->updateWeekly(username, std::move(p));
+       !r.has_value())
+    {
+        res.status = 500;
+        res.set_content(errorMsg(r.error()), "text/plain");
+        return;
+    }
+    res.set_redirect(urlFor("index", ""));
 }
 
 void App::start()
@@ -341,6 +462,58 @@ void App::start()
                                         httplib::Response& res)
     {
         handleUserWeekly(req, res, req.path_params.at("username"));
+    });
+
+    server.Get("/edit/:username/:date",
+               [&](const httplib::Request& req, httplib::Response& res)
+    {
+        std::tm t;
+        std::istringstream ss(req.path_params.at("date"));
+        ss >> std::get_time(&t, "%Y-%m-%d");
+        if(ss.fail())
+        {
+            res.status = 400;
+            res.set_content("Invalid date", "text/plain");
+            return;
+        }
+        std::chrono::year_month_day date(
+            std::chrono::year(t.tm_year + 1900),
+            std::chrono::month(t.tm_mon + 1),
+            std::chrono::day(t.tm_mday));
+        if(!date.ok())
+        {
+            res.status = 400;
+            res.set_content("Invalid date", "text/plain");
+            return;
+        }
+        handleEditFrontEnd(req, res, req.path_params.at("username"),
+                           std::chrono::sys_days(date));
+    });
+
+    server.Post("/edit/:username/:date",
+               [&](const httplib::Request& req, httplib::Response& res)
+    {
+        std::tm t;
+        std::istringstream ss(req.path_params.at("date"));
+        ss >> std::get_time(&t, "%Y-%m-%d");
+        if(ss.fail())
+        {
+            res.status = 400;
+            res.set_content("Invalid date", "text/plain");
+            return;
+        }
+        std::chrono::year_month_day date(
+            std::chrono::year(t.tm_year + 1900),
+            std::chrono::month(t.tm_mon + 1),
+            std::chrono::day(t.tm_mday));
+        if(!date.ok())
+        {
+            res.status = 400;
+            res.set_content("Invalid date", "text/plain");
+            return;
+        }
+        handleEdit(req, res, req.path_params.at("username"),
+                   std::chrono::sys_days(date));
     });
 
     spdlog::info("Listening at http://{}:{}/...", config.listen_address,

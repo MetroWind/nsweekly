@@ -22,9 +22,10 @@ namespace
 // Calculate all the Monday 00:00 in a time period
 std::vector<Time> allWeekStarts(const Time& begin, const Time& end)
 {
-    std::chrono::weekday w(std::chrono::floor<std::chrono::days>(begin));
+    auto begin_date = std::chrono::floor<std::chrono::days>(begin);
+    std::chrono::weekday w(begin_date);
     int diff = w.iso_encoding() - 1;
-    Time mon = begin;
+    Time mon = begin_date;
     if(diff != 0)
     {
         mon += std::chrono::days(7 - diff);
@@ -82,7 +83,8 @@ E<std::vector<WeeklyPost>> DataSourceSqlite::getWeeklies(
     // Get all rows whose week_start is in the time period.
     ASSIGN_OR_RETURN(auto sql, db->statementFromStr(
         "SELECT content, format, lang, week_start, update_time FROM Weeklies "
-        "WHERE user_id = ? AND week_start >= ? AND week_start < ?;"));
+        "WHERE user_id = ? AND week_start >= ? AND week_start < ? "
+        "ORDER BY week_start ASC;"));
     DO_OR_RETURN(sql.bind(*uid, start, stop));
     ASSIGN_OR_RETURN(
         auto rows, (db->eval<std::string, int, std::string, int64_t, int64_t>(
@@ -104,6 +106,7 @@ E<std::vector<WeeklyPost>> DataSourceSqlite::getWeeklies(
         p.week_begin = secondsToTime(std::get<3>(row));
         p.update_time = secondsToTime(std::get<4>(row));
         p.language = std::move(std::get<2>(row));
+        p.author = username;
         weeklies.push_back(std::move(p));
     }
 
@@ -145,6 +148,7 @@ E<std::vector<WeeklyPost>> DataSourceSqlite::getWeeklies(
         else
         {
             result_it->week_begin = *monday_it;
+            result_it->author = username;
             ++monday_it;
             ++result_it;
         }

@@ -44,7 +44,7 @@ public:
     static E<std::unique_ptr<DataSourceSqlite>> newFromMemory();
 
     // Return the weeklies of a user, from begin (inclusive) to end
-    // (exclusive).
+    // (exclusive), ordered from old to new.
     E<std::vector<WeeklyPost>> getWeeklies(
         const std::string& user, const Time& begin, const Time& end)
         const override;

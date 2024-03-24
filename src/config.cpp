@@ -103,5 +103,10 @@ E<Configuration> Configuration::fromYaml(const std::filesystem::path& path)
         auto value = tree["guest-index-user"].val();
         config.guest_index_user = std::string(value.begin(), value.end());
     }
+    if(tree["default-lang"].has_key())
+    {
+        auto value = tree["default-lang"].val();
+        config.default_lang = std::string(value.begin(), value.end());
+    }
     return E<Configuration>{std::in_place, std::move(config)};
 }

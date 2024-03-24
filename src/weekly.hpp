@@ -17,6 +17,7 @@ public:
     Time update_time;
     // The IETF BCP 47 language tag (RFC 5646) of the post.
     std::string language;
+    std::string author;
 
     static bool isValidFormatInt(int i);
     // Render the post to HTML.

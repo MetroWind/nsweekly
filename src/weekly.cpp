@@ -1,6 +1,7 @@
 #include <expected>
 
 #include <cmark.h>
+#include <spdlog/spdlog.h>
 
 #include "error.hpp"
 #include "weekly.hpp"

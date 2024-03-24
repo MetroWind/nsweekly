@@ -5,13 +5,24 @@
     <meta property="og:title" content="Album: {{ username }}’s Weeklies" />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="{{ this_url }}" />
-    <title>Gallery</title>
+    <title>Weeklies</title>
   </head>
   <body>
+    {% include "nav.html" %}
     <div id="Weeklies">
       {% for p in weeklies %}
       <section>
-        {{ p.content }}
+        <h2>{{ p.week_str }}</h2>
+        {% if p.author == session_user %}
+          <div><a href="{{ url_for("edit", p.author + "/" + p.date_str) }}">
+              {%- if length(p.content) > 0 -%}
+              Update
+              {% else %}
+              Write
+              {%- endif -%}
+          </a></div>
+        {% endif %}
+        <div>{{ p.content }}</div>
       </section>
       {% endfor %}
     </div>

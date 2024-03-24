@@ -13,6 +13,7 @@
 #include "config.hpp"
 #include "data.hpp"
 #include "http_client.hpp"
+#include "utils.hpp"
 
 void copyToHttplibReq(const HTTPRequest& src, httplib::Request& dest);
 
@@ -32,6 +33,11 @@ public:
                               httplib::Response& res) const;
     void handleUserWeekly(const httplib::Request& req, httplib::Response& res,
                           const std::string& username);
+    void handleEditFrontEnd(const httplib::Request& req, httplib::Response& res,
+                            const std::string& username,
+                            const Time& week_start);
+    void handleEdit(const httplib::Request& req, httplib::Response& res,
+                    const std::string& username, const Time& week_start) const;
     void start();
 
 private:

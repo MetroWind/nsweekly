@@ -70,6 +70,12 @@ E<Tokens> tokensFromResponse(const HTTPResponse& res)
     {
         tokens.expiration = Clock::now() + std::chrono::seconds(*seconds);
     }
+    if(auto seconds = getIntProperty(data, "refresh_expires_in");
+       seconds.has_value())
+    {
+        tokens.refresh_expiration = Clock::now() +
+            std::chrono::seconds(*seconds);
+    }
     return tokens;
 }
 

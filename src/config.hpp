@@ -23,6 +23,7 @@ struct Configuration
     std::string url_prefix;
     GuestIndex guest_index;
     std::string guest_index_user;
+    std::string default_lang;
 
     static E<Configuration> fromYaml(const std::filesystem::path& path);
 
