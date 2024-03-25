@@ -2,10 +2,10 @@
 <html lang="en">
   <head>
     {% include "head.html" %}
-    <meta property="og:title" content="Album: {{ username }}’s Weeklies" />
+    <meta property="og:title" content="{{ username }}’s Weeklies" />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="{{ this_url }}" />
-    <title>Weeklies</title>
+    <title>{{ username }}’s Weeklies</title>
   </head>
   <body>
     {% include "nav.html" %}

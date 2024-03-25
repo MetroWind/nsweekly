@@ -6,9 +6,9 @@
   </head>
   <body>
     {% include "nav.html" %}
-    <div>
+    <div id="EditWrapper">
       <h2>Editing {{ weekly.week_str }}</h2>
-      <form action="{{ url_for("edit", session_user + "/" + weekly.date_str) }}" method="post">
+      <form id="EditView" action="{{ url_for("edit", session_user + "/" + weekly.date_str) }}" method="post">
         <div>
           <textarea name="content">{{ weekly.content }}</textarea>
         </div>

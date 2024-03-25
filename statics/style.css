@@ -164,6 +164,11 @@ ul p, ol p
     background-color: var(--color-hidden);
 }
 
+#Weeklies
+{
+    margin-top: var(--nav-height);
+}
+
 @media (width > 1560px)
 {
     #Weeklies
@@ -173,11 +178,6 @@ ul p, ol p
         flex-wrap: wrap;
         max-height: calc(100vh - var(--nav-height));
     }
-}
-
-#Weeklies
-{
-    margin-top: var(--nav-height);
 }
 
 .Weekly
@@ -191,6 +191,17 @@ ul p, ol p
     {
         padding-left: 40px;
         padding-right: 40px;
+    }
+}
+
+@media (width <= 1560px)
+{
+    .Weekly
+    {
+        padding-left: 10px;
+        padding-right: 10px;
+        margin-left: auto;
+        margin-right: auto;
     }
 }
 
@@ -240,4 +251,36 @@ ul p, ol p
 .Weekly img
 {
     max-width: 100%;
+}
+
+#EditWrapper
+{
+    width: var(--content-width);
+    margin: var(--nav-height) auto 0 auto;
+}
+
+#EditWrapper > h2
+{
+    margin-top: 4rem;
+}
+
+#EditView textarea
+{
+    width: 100%;
+    height: 64rem;
+    border: none;
+    background-color: var(--color-hidden);
+    font-family: monospace;
+    font-size: 1rem;
+    margin-bottom: 1rem;
+    padding: 0.5rem;
+}
+
+#EditView input[type="submit"]
+{
+    border: none;
+    border-radius: 5px;
+    background-color: var(--color-hidden);
+    font-size: 1rem;
+    padding: 10px 14px 10px 14px;
 }
