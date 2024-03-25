@@ -255,6 +255,12 @@ void App::handleIndexWithInvalidSession(httplib::Response& res) const
     switch(config.guest_index)
     {
     case GuestIndex::USER_WEEKLY:
+        ASSIGN_OR_RESPOND_ERROR(
+            auto uid, data->getUserID(config.guest_index_user), res);
+        if(!uid.has_value())
+        {
+            res.set_redirect(urlFor("login", ""));
+        }
         res.set_redirect(urlFor("weekly", config.guest_index_user), 301);
         return;
     }

@@ -83,11 +83,11 @@ E<Configuration> Configuration::fromYaml(const std::filesystem::path& path)
     if(tree["url-prefix"].has_key())
     {
         auto value = tree["url-prefix"].val();
-        config.openid_url_prefix = std::string(value.begin(), value.end());
+        config.url_prefix = std::string(value.begin(), value.end());
     }
     if(tree["guest-index"].has_key())
     {
-        auto value_bytes = tree["url-prefix"].val();
+        auto value_bytes = tree["guest-index"].val();
         std::string value(value_bytes.begin(), value_bytes.end());
         if(value == "user-weekly")
         {

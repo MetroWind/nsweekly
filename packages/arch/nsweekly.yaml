@@ -1,0 +1,10 @@
+data-dir: "/var/lib/nsweekly"
+listen-address: localhost
+listen-port: 58787
+# client-id:
+# client-secret:
+# openid-url-prefix:
+# url-prefix:
+guest-index: user-weekly
+# guest-index-user:
+default-lang: zh-CN

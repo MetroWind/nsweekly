@@ -1,0 +1,47 @@
+pkgname=nsweekly-git
+pkgver=0.1
+pkgrel=1
+pkgdesc="A naively simple weekly snippet server"
+arch=('x86_64')
+url="https://github.com/MetroWind/nsweekly"
+license=('WTFPL')
+groups=()
+depends=('sqlite' 'curl' 'cmark')
+makedepends=('git' 'cmake' 'gcc')
+provides=("${pkgname%-git}")
+conflicts=("${pkgname%-git}")
+replaces=()
+backup=("etc/nsweekly.yaml")
+options=()
+install=
+source=('git+https://github.com/MetroWind/nsweekly.git' "sysusers-nsweekly.conf" "nsweekly.service" "nsweekly.yaml")
+noextract=()
+sha256sums=('SKIP' "cb284aa8081215095b5c47460804d8714393558e6300b1bb1d979ca0efad15c0"
+            "42d4e9aded7f018d5cc8fbb79e8402b147287e61036d8592b058e7f1eb77ebe3"
+            "3580bcc87078624438819804d7822ddda462fdc24e664195feb3d65f4ccba713")
+
+pkgver()
+{
+	cd "$srcdir/${pkgname%-git}"
+    printf "r%s.%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short=7 HEAD)"
+}
+
+build()
+{
+	cd "$srcdir/${pkgname%-git}"
+    cmake -B build \
+          -DCMAKE_BUILD_TYPE='None' \
+          -DCMAKE_INSTALL_PREFIX='/usr' \
+          -Wno-dev .
+    cmake --build build
+}
+
+package()
+{
+    install -Dm755 -t "$pkgdir/usr/bin" "${srcdir}/${pkgname%-git}/build/nsweekly"
+    mkdir -pv "$pkgdir/var/lib/nsweekly"
+    cp -r "${srcdir}/${pkgname%-git}/statics" "${srcdir}/${pkgname%-git}/templates" "${pkgdir}/var/lib/nsweekly"
+    install -Dm644 -t "$pkgdir/etc" "${srcdir}/nsweekly.yaml"
+    install -Dm644 "${srcdir}/sysusers-nsweekly.conf" "${pkgdir}/usr/lib/sysusers.d/nsweekly.conf"
+    install -Dm644 "${srcdir}/nsweekly.service" "${pkgdir}/usr/lib/systemd/system/nsweekly.service"
+}

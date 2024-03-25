@@ -94,13 +94,13 @@ set(INCLUDES
   ${cmark_INCLUDE_DIRS}
 )
 
-add_executable(weekly ${SOURCE_FILES} src/main.cpp)
-set_property(TARGET weekly PROPERTY CXX_STANDARD 23)
+add_executable(nsweekly ${SOURCE_FILES} src/main.cpp)
+set_property(TARGET nsweekly PROPERTY CXX_STANDARD 23)
 
-set_property(TARGET weekly PROPERTY COMPILE_WARNING_AS_ERROR TRUE)
-target_compile_options(weekly PRIVATE -Wall -Wextra -Wpedantic)
-target_include_directories(weekly PRIVATE ${INCLUDES})
-target_link_libraries(weekly PRIVATE ${LIBS})
+set_property(TARGET nsweekly PROPERTY COMPILE_WARNING_AS_ERROR TRUE)
+target_compile_options(nsweekly PRIVATE -Wall -Wextra -Wpedantic)
+target_include_directories(nsweekly PRIVATE ${INCLUDES})
+target_link_libraries(nsweekly PRIVATE ${LIBS})
 
 set(TEST_FILES
   src/test_utils.hpp
@@ -116,18 +116,18 @@ set(TEST_FILES
 )
 
 # ctest --test-dir build
-add_executable(weekly_test ${SOURCE_FILES} ${TEST_FILES})
-set_property(TARGET weekly_test PROPERTY CXX_STANDARD 23)
+add_executable(nsweekly_test ${SOURCE_FILES} ${TEST_FILES})
+set_property(TARGET nsweekly_test PROPERTY CXX_STANDARD 23)
 
-set_property(TARGET weekly_test PROPERTY COMPILE_WARNING_AS_ERROR TRUE)
-target_compile_options(weekly_test PRIVATE -Wall -Wextra -Wpedantic)
-target_include_directories(weekly_test PRIVATE
+set_property(TARGET nsweekly_test PROPERTY COMPILE_WARNING_AS_ERROR TRUE)
+target_compile_options(nsweekly_test PRIVATE -Wall -Wextra -Wpedantic)
+target_include_directories(nsweekly_test PRIVATE
   ${INCLUDES}
   ${googletest_SOURCE_DIR}/googletest/include
   ${googletest_SOURCE_DIR}/googlemock/include
 )
 
-target_link_libraries(weekly_test PRIVATE
+target_link_libraries(nsweekly_test PRIVATE
   ${LIBS}
   GTest::gtest_main
   GTest::gmock_main
@@ -135,4 +135,4 @@ target_link_libraries(weekly_test PRIVATE
 
 enable_testing()
 include(GoogleTest)
-gtest_discover_tests(weekly_test)
+gtest_discover_tests(nsweekly_test)
