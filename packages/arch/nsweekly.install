@@ -1,0 +1,9 @@
+post_install()
+{
+    chown -R nsweekly:nsweekly var/lib/nsweekly
+}
+
+post_upgrade()
+{
+    chown -R nsweekly:nsweekly var/lib/nsweekly
+}
