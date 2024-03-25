@@ -1,0 +1,243 @@
+/* ========== Reset ==============================================> */
+html, body, div, span, applet, object, iframe,
+h1, h2, h3, h4, h5, h6, p, blockquote, pre,
+a, abbr, acronym, address, big, cite, code,
+del, dfn, em, img, ins, kbd, q, s, samp,
+small, strike, strong, sub, sup, tt, var,
+b, u, i, center,
+dl, dt, dd, ol, ul, li,
+fieldset, form, label, legend,
+table, caption, tbody, tfoot, thead, tr, th, td,
+article, aside, canvas, details, embed,
+figure, figcaption, footer, header, hgroup,
+menu, nav, output, ruby, section, summary,
+time, mark, audio, video {
+	margin: 0;
+	padding: 0;
+	border: 0;
+	font-size: 100%;
+	font: inherit;
+	vertical-align: baseline;
+}
+/* HTML5 display-role reset for older browsers */
+article, aside, details, figcaption, figure,
+footer, header, hgroup, menu, nav, section {
+	display: block;
+}
+body {
+	line-height: 1;
+}
+ol, ul {
+	list-style: none;
+}
+blockquote, q {
+	quotes: none;
+}
+blockquote:before, blockquote:after,
+q:before, q:after {
+	content: '';
+	content: none;
+}
+table {
+	border-collapse: collapse;
+	border-spacing: 0;
+}
+
+/* ========== Actual style =======================================> */
+
+:root
+{
+    --content-width: 760px;
+    --nav-height: 30px;
+    --color-bg: white;
+    --color-fg: #2f3542;
+    --color-accent: #ff4757;
+    --color-fg-sub: #a4b0be;
+    --color-hidden: #dfe4ea;
+}
+
+*
+{
+    box-sizing: border-box;
+}
+
+body
+{
+    font-family: Inter, "Source Han Sans", "Noto Sans CJK", sans-serif;
+    font-size: 18px;
+    line-height: 1.5;
+    color: var(--color-fg);
+    background-color: var(--color-bg);
+}
+
+a
+{
+    text-decoration: none;
+    color: var(--color-accent);
+}
+
+a:hover
+{
+    background-color: var(--color-accent);
+    color: var(--color-bg);
+}
+
+code, pre
+{
+    font-family: monospace;
+    font-size: 94%;
+}
+
+pre
+{
+    line-height: 1.3;
+    overflow-x: scroll;
+}
+
+p
+{
+    margin: 1em 0 1em 0;
+}
+
+h1, h2, h3, h4
+{
+    margin: 1.2em 0 1.2em 0;
+    color: var(--color-accent);
+}
+
+h1
+{
+    font-size: 173%;
+}
+
+h2
+{
+    font-size: 144%;
+}
+
+h3
+{
+    font-size: 120%;
+}
+
+h4
+{
+    font-style: italic;
+}
+
+nav
+{
+    position: fixed;
+    top: 0px;
+    left: 0px;
+    height: var(--nav-height);
+    width: 100vw;
+    text-align: right;
+    background-color: var(--color-hidden);
+    padding: 0 10px 0 10px;
+}
+
+ul
+{
+    list-style: square;
+}
+
+ol
+{
+    list-style: decimal;
+}
+
+ul > li, ol > li
+{
+    margin-left: 1em;
+}
+
+ul p, ol p
+{
+    margin: 0.5em 0 0.5em 0;
+}
+
+.hrule
+{
+    width: 100%;
+    height: 2px;
+    background-color: var(--color-hidden);
+}
+
+@media (width > 1560px)
+{
+    #Weeklies
+    {
+        display: flex;
+        flex-direction: column;
+        flex-wrap: wrap;
+        max-height: calc(100vh - var(--nav-height));
+    }
+}
+
+#Weeklies
+{
+    margin-top: var(--nav-height);
+}
+
+.Weekly
+{
+    max-width: var(--content-width);
+}
+
+@media (width > 1560px)
+{
+    .Weekly
+    {
+        padding-left: 40px;
+        padding-right: 40px;
+    }
+}
+
+.Weekly > header
+{
+    display: flex;
+    align-items: center;
+    margin-top: 3rem;
+}
+
+.EmptyWeekly > header
+{
+    margin: 1rem 0 1rem 0;
+}
+
+.Weekly > header > h2
+{
+    flex-grow: 0;
+    margin: 0;
+    font-size: 1.2rem;
+    color: var(--color-fg);
+}
+
+.Weekly > header > .BtnEdit
+{
+    flex-grow: 0;
+}
+
+.Weekly > header > .hrule
+{
+    flex-grow: 1;
+    margin: 0 10px 0 10px;
+    min-width: 2rem;
+    width: unset;
+}
+
+.Weekly .Metadata
+{
+    margin-bottom: 3em;
+    font-size: 80%;
+    width: 100%;
+    text-align: right;
+    font-weight: 500;
+    color: var(--color-fg-sub);
+}
+
+.Weekly img
+{
+    max-width: 100%;
+}

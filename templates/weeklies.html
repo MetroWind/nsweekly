@@ -11,10 +11,13 @@
     {% include "nav.html" %}
     <div id="Weeklies">
       {% for p in weeklies %}
-      <section>
-        <h2>{{ p.week_str }}</h2>
-        {% if p.author == session_user %}
-          <div><a href="{{ url_for("edit", p.author + "/" + p.date_str) }}">
+      <section class="Weekly{% if length(p.content) == 0 %} EmptyWeekly{%- endif %}"
+               {% if length(p.content) > 0 %}lang="{{ p.lang }}"{% endif %}>
+        <header>
+          <h2 title="{{ p.week_begin }} – {{ p.week_end }}">{{ p.week_str }}</h2>
+          <div class="hrule"></div>
+          {% if p.author == session_user %}
+          <div class="BtnEdit"><a href="{{ url_for("edit", p.author + "/" + p.date_str) }}">
               {%- if length(p.content) > 0 -%}
               Update
               {% else %}
@@ -22,6 +25,10 @@
               {%- endif -%}
           </a></div>
         {% endif %}
+        </header>
+        <div class="Metadata">{%- if length(p.content) > 0 -%}
+          {{ p.week_begin }} – {{ p.week_end }}
+          @{{ p.update }} by {{ p.author }}{% endif %} </div>
         <div>{{ p.content }}</div>
       </section>
       {% endfor %}

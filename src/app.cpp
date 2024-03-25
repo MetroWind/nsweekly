@@ -187,15 +187,20 @@ nlohmann::json weeklyToJSON(const WeeklyPost& p, bool render=true)
         content = p.raw_content;
     }
 
-    std::chrono::year_month_day
-        date(std::chrono::floor<std::chrono::days>(p.week_begin));
+    auto week_begin_day = std::chrono::floor<std::chrono::days>(p.week_begin);
+    std::chrono::year_month_day date(week_begin_day);
     int week = daysSinceNewYear(p.week_begin);
     std::string week_str = std::format("{} week {}", date.year(), week / 7 + 1);
     std::ostringstream ss;
     ss << date;
     return {{ "week_str", week_str },
             { "date_str", ss.str() },
+            { "week_begin", std::format("{}", week_begin_day) },
+            { "week_end", std::format("{}", week_begin_day +
+                                      std::chrono::days(6)) },
+            { "update", std::format("{}", std::chrono::floor<std::chrono::seconds>(p.update_time)) },
             { "content", std::move(content) },
+            { "lang", p.language },
             { "author", p.author },
     };
 }
