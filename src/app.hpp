@@ -31,8 +31,10 @@ public:
     void handleLogin(httplib::Response& res) const;
     void handleOpenIDRedirect(const httplib::Request& req,
                               httplib::Response& res) const;
+    void handleUserWeeklies(const httplib::Request& req, httplib::Response& res,
+                            const std::string& username);
     void handleUserWeekly(const httplib::Request& req, httplib::Response& res,
-                          const std::string& username);
+                          const std::string& username, const Time& date);
     void handleEditFrontEnd(const httplib::Request& req, httplib::Response& res,
                             const std::string& username,
                             const Time& week_start);

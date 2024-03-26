@@ -194,6 +194,14 @@ ul p, ol p
     }
 }
 
+#SingleWeekly > .Weekly
+{
+    padding-left: 10px;
+    padding-right: 10px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
 @media (width <= 1560px)
 {
     .Weekly
@@ -246,6 +254,14 @@ ul p, ol p
     text-align: right;
     font-weight: 500;
     color: var(--color-fg-sub);
+}
+
+@media (width <= 500px)
+{
+    .Weekly .MetaDetail
+    {
+        display: none;
+    }
 }
 
 .Weekly img

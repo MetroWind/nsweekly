@@ -67,3 +67,23 @@ inline int daysSinceNewYear(const Time& t)
         std::chrono::floor<std::chrono::days>(
             std::chrono::sys_days(new_year).time_since_epoch()).count();
 }
+
+inline E<Time> strToDate(const std::string& s)
+{
+    std::tm t;
+    std::istringstream ss(s);
+    ss >> std::get_time(&t, "%Y-%m-%d");
+    if(ss.fail())
+    {
+        return std::unexpected(runtimeError("Invalid date"));
+    }
+    std::chrono::year_month_day date(
+        std::chrono::year(t.tm_year + 1900),
+        std::chrono::month(t.tm_mon + 1),
+        std::chrono::day(t.tm_mday));
+    if(!date.ok())
+    {
+        return std::unexpected(runtimeError("Invalid date"));
+    }
+    return std::chrono::sys_days(date);
+}

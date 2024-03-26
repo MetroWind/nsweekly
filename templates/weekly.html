@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    {% include "head.html" %}
+    <meta property="og:title" content="{{ username }}’s Weekly for {{ weekly.week_str }}" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="{{ this_url }}" />
+    <title>{{ username }}’s Weekly for {{ weekly.week_str }}</title>
+  </head>
+  <body>
+    {% include "nav.html" %}
+    <div id="SingleWeekly">
+      <section class="Weekly" lang="{{ weekly.lang }}">
+        <header>
+          <h2 title="{{ weekly.week_begin }} – {{ weekly.week_end }}">{{ weekly.week_str }}</h2>
+          <div class="hrule"></div>
+          {% if weekly.author == session_user %}
+          <div class="BtnEdit">
+            <a href="{{ url_for("edit", weekly.author + "/" + weekly.date_str) }}">Update</a>
+          </div>
+        {% endif %}
+        </header>
+        <div class="Metadata">{%- if length(weekly.content) > 0 -%}
+          {{ weekly.week_begin }} – {{ weekly.week_end }}
+          <span class="MetaDetail">@{{ weekly.update }} </span>by {{ weekly.author }}{% endif %} </div>
+        <div>{{ weekly.content }}</div>
+      </section>
+    </div>
+  </body>
+</html>

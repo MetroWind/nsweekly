@@ -27,8 +27,9 @@
         {% endif %}
         </header>
         <div class="Metadata">{%- if length(p.content) > 0 -%}
-          {{ p.week_begin }} – {{ p.week_end }}
-          @{{ p.update }} by {{ p.author }}{% endif %} </div>
+          <a href="{{ url_for("weekly", p.author + "/" + p.date_str) }}">⌘</a>
+          <span>{{ p.week_begin }} – {{ p.week_end }}</span>
+          <span class="MetaDetail">@{{ p.update }} </span>by {{ p.author }}{% endif %} </div>
         <div>{{ p.content }}</div>
       </section>
       {% endfor %}
