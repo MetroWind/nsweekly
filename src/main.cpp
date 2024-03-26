@@ -16,7 +16,6 @@
 
 int main(int argc, char** argv)
 {
-    spdlog::set_level(spdlog::level::debug);
     cxxopts::Options cmd_options("NS Weekly", "Naively simple weekly snippet");
     cmd_options.add_options()
         ("c,config", "Config file",
