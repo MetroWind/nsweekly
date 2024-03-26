@@ -102,17 +102,23 @@ p
 h1, h2, h3, h4
 {
     margin: 1.2em 0 1.2em 0;
+}
+
+h1, h2
+{
     color: var(--color-accent);
 }
 
 h1
 {
     font-size: 173%;
+    font-weight: 300;
 }
 
 h2
 {
     font-size: 144%;
+    font-weight: 300;
 }
 
 h3
@@ -149,7 +155,7 @@ ol
 
 ul > li, ol > li
 {
-    margin-left: 1em;
+    margin-left: 1.5em;
 }
 
 ul p, ol p
@@ -230,6 +236,7 @@ ul p, ol p
     flex-grow: 0;
     margin: 0;
     font-size: 1.2rem;
+    font-weight: normal;
     color: var(--color-fg);
 }
 
