@@ -93,6 +93,8 @@ E<std::unique_ptr<AuthOpenIDConnect>> AuthOpenIDConnect::create(
         return std::unexpected(runtimeError("Empty auth prefix"));
     }
 
+    // TODO: use the URL class to process the prefix.
+    //
     // Remove trailing slashes from URL prefix.
     while(prefix.back() == '/')
     {
