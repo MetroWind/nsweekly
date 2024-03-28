@@ -7,7 +7,7 @@ image::screenshot.png[screenshot]
 == Introduction
 
 NSWeekly is an extremely simple tool to let you (and other people)
-write weekly snippets (like a journal).
+write weekly snippets (like a journal) in CommonMark.
 
 == Deployment
 
@@ -34,7 +34,7 @@ However, it does not have any ability to manage the user accounts. All
 user management is delegated to an external OpenID Connect server. In
 principle you can let it use the big public services such as Google or
 GitHub, but I have only tested it on my self-hosted KeyCloak server.
-There are three configuration options involved:
+There are four configuration options involved:
 
 - `client-id`: The client ID you registered with the OpenID Connect
   service
