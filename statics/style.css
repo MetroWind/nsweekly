@@ -197,6 +197,12 @@ ul p, ol p
     {
         padding-left: 40px;
         padding-right: 40px;
+        flex-basis: 100vh;
+    }
+
+    .EmptyWeekly
+    {
+        flex-basis: unset;
     }
 }
 
