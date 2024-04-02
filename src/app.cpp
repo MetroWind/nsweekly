@@ -68,7 +68,7 @@ std::unordered_map<std::string, std::string> parseCookies(std::string_view value
             semicolon = value.size();
         }
 
-        std::string_view section = value.substr(begin, semicolon);
+        std::string_view section = value.substr(begin, semicolon - begin);
 
         begin = semicolon + 1;
         // Skip spaces
@@ -80,7 +80,7 @@ std::unordered_map<std::string, std::string> parseCookies(std::string_view value
         size_t equal = section.find('=');
         if(equal == std::string::npos) continue;
         cookies.emplace(section.substr(0, equal),
-                        section.substr(equal+1, semicolon));
+                        section.substr(equal+1, semicolon - equal - 1));
         if(semicolon >= value.size())
         {
             continue;
