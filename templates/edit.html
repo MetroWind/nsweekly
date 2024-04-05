@@ -2,22 +2,29 @@
 <html lang="en">
   <head>
     {% include "head.html" %}
+    <script src="https://unpkg.com/commonmark/dist/commonmark.min.js"></script>
+    <script defer src="{{ url_for("statics", "preview.js") }}"></script>
     <title>Edit weekly</title>
   </head>
   <body>
     {% include "nav.html" %}
     <div id="EditWrapper">
       <h2>Editing {{ weekly.week_str }}</h2>
-      <form id="EditView" action="{{ url_for("edit", session_user + "/" + weekly.date_str) }}" method="post">
-        <div>
-          <textarea name="content">{{ weekly.content }}</textarea>
+      <div id="EditAndPreview">
+        <form id="EditView" action="{{ url_for("edit", session_user + "/" + weekly.date_str) }}" method="post">
+          <div>
+            <textarea name="content">{{ weekly.content }}</textarea>
+          </div>
+          <div>
+            <input type="submit" value="Save" />
+          </div>
+        </form>
+        <div id="Preview">
+          <div id="SingleWeekly">
+            <section class="Weekly"></section>
+          </div>
         </div>
-        <div>
-          <input type="submit" value="Save" />
-        </div>
-      </form>
+      </div>
     </div>
-    <!-- <div id="Weeklies"> -->
-    <!-- </div> -->
   </body>
 </html>

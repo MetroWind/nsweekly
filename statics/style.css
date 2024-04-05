@@ -284,19 +284,32 @@ ul p, ol p
 
 #EditWrapper
 {
-    width: var(--content-width);
-    margin: var(--nav-height) auto 0 auto;
+    width: 100%;
 }
 
 #EditWrapper > h2
 {
     margin-top: 4rem;
+    text-align: center;
+}
+
+#EditAndPreview
+{
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    flex-wrap: wrap;
+}
+
+#EditView, #Preview
+{
+    width: var(--content-width);
 }
 
 #EditView textarea
 {
     width: 100%;
-    height: 64rem;
+    height: 50rem;
     border: none;
     background-color: var(--color-hidden);
     font-family: monospace;
