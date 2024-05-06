@@ -131,6 +131,25 @@ h4
     font-style: italic;
 }
 
+em
+{
+    font-style: italic;
+}
+
+strong
+{
+    font-weight: bold;
+}
+
+hr
+{
+    border: none;
+    margin: 2em auto;
+    width: 40px;
+    height: 4px;
+    background-color: var(--color-hidden);
+}
+
 nav
 {
     position: fixed;
