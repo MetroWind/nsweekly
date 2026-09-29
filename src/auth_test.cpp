@@ -64,6 +64,43 @@ TEST(Auth, CanInitiate)
     EXPECT_EQ(res->status, 200);
 }
 
+TEST(Auth, PrefersUsernameOverFullName)
+{
+    auto http = std::make_unique<HTTPSessionMock>();
+    HTTPResponse res_conf(200, R"({
+        "authorization_endpoint": "https://example.com/auth",
+        "token_endpoint": "https://example.com/token",
+        "introspection_endpoint": "https://example.com/introspect",
+        "userinfo_endpoint": "https://example.com/userinfo"
+    })");
+    EXPECT_CALL(*http, get(HTTPRequest(
+        "https://example.com/.well-known/openid-configuration")))
+        .WillOnce(Return(&res_conf));
+
+    HTTPResponse res_user(200, R"({
+        "sub": "user-id",
+        "preferred_username": "mw",
+        "name": "My Full Name",
+        "email": "me@example.com"
+    })");
+    EXPECT_CALL(*http, get(HTTPRequest("https://example.com/userinfo")
+                    .addHeader("Authorization", "Bearer token")))
+        .WillOnce(Return(&res_user));
+
+    Configuration config;
+    config.openid_url_prefix = "https://example.com";
+    auto auth = AuthOpenIDConnect::create(
+        config, "http://localhost/", std::move(http));
+    ASSERT_TRUE(auth.has_value());
+
+    Tokens tokens;
+    tokens.access_token = "token";
+    E<UserInfo> user = (*auth)->getUser(tokens);
+    ASSERT_TRUE(user.has_value());
+    EXPECT_EQ(user->id, "user-id");
+    EXPECT_EQ(user->name, "mw");
+}
+
 TEST(Auth, CreateCanHandleServerConfError)
 {
     auto http = std::make_unique<HTTPSessionMock>();

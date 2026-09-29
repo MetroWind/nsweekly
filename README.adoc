@@ -54,11 +54,10 @@ There are four configuration options involved:
   redirections. Note that right now NSWeekly does not support hosting
   at a non-root path, so this value should not contain a URL path.
 
-I should point out that NSWeekly uses the username from the OpenID
-Connect service as a unique ID for the user. If the OpenID Connect
-service provides a `name` field from the user info endpoint, NSWeekly
-will use that, otherwise NSWeekly will use `preferred_username` from
-the user info endpoint.
+NSWeekly uses `preferred_username` from the OpenID Connect user info
+endpoint as the account key. If that field is absent, it uses `name`.
+Changing the account key will make existing weeklies appear under the
+old account.
 
 Other notable options:
 

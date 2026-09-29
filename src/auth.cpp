@@ -184,13 +184,13 @@ E<UserInfo> AuthOpenIDConnect::getUser(const Tokens& tokens) const
 
     UserInfo user;
     ASSIGN_OR_RETURN(user.id, getStrProperty(data, "sub"));
-    if(data.contains("name"))
-    {
-        ASSIGN_OR_RETURN(user.name, getStrProperty(data, "name"));
-    }
-    else if(data.contains("preferred_username"))
+    if(data.contains("preferred_username"))
     {
         ASSIGN_OR_RETURN(user.name, getStrProperty(data, "preferred_username"));
+    }
+    else if(data.contains("name"))
+    {
+        ASSIGN_OR_RETURN(user.name, getStrProperty(data, "name"));
     }
     return user;
 }
