@@ -4,6 +4,7 @@
 #include <string>
 #include <string_view>
 #include <filesystem>
+#include <charconv>
 
 #include <nlohmann/json.hpp>
 #include <curl/curl.h>
