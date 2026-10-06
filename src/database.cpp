@@ -54,14 +54,24 @@ void SQLite::clear()
 E<std::unique_ptr<SQLite>>
 SQLite::connectFile(const std::string& db_file)
 {
+    if(sqlite3_threadsafe() == 0)
+    {
+        return std::unexpected(runtimeError("SQLite requires thread support"));
+    }
     auto data = std::make_unique<SQLite>();
-    if(int code = sqlite3_open(db_file.c_str(), &data->db);
+    if(int code = sqlite3_open_v2(db_file.c_str(), &data->db,
+        SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX,
+        nullptr);
        code != SQLITE_OK)
     {
         data->clear();
         return std::unexpected(runtimeError(std::string(
             "Failed to create DB connection: ") + sqlite3_errstr(code)));
     }
+    constexpr int BUSY_TIMEOUT_MS = 5000;
+    DO_OR_RETURN(internal::sqlMaybe(
+        sqlite3_busy_timeout(data->db, BUSY_TIMEOUT_MS),
+        "Failed to set SQLite busy timeout"));
     return data;
 }
 

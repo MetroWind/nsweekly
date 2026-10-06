@@ -50,3 +50,18 @@ TEST(Database, ParametrizedStatement)
         "SELECT * FROM test WHERE b = 'aaa';")));
     EXPECT_EQ(result1.size(), 1);
 }
+
+TEST(Database, NullableColumnsAndBusyTimeoutAreConfigured)
+{
+    ASSIGN_OR_FAIL(auto db, SQLite::connectMemory());
+    ASSIGN_OR_FAIL(auto timeout, db->eval<int>("PRAGMA busy_timeout;"));
+    ASSERT_EQ(timeout.size(), 1);
+    EXPECT_EQ(std::get<0>(timeout[0]), 5000);
+    ASSIGN_OR_FAIL(auto columns, (db->eval<std::optional<int64_t>,
+        std::optional<std::string>>("SELECT NULL, NULL UNION ALL SELECT 7, 'x';")));
+    ASSERT_EQ(columns.size(), 2);
+    EXPECT_FALSE(std::get<0>(columns[0]));
+    EXPECT_FALSE(std::get<1>(columns[0]));
+    EXPECT_EQ(std::get<0>(columns[1]), 7);
+    EXPECT_EQ(std::get<1>(columns[1]), "x");
+}

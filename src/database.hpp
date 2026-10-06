@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 #include <tuple>
 #include <type_traits>
 #include <vector>
@@ -122,6 +123,20 @@ inline void getValue(SQLiteStatement& sql, int i, std::string& s)
     s = reinterpret_cast<const char*>(raw);
 }
 
+// Supports explicitly nullable columns without converting NULL to text.
+template<typename T>
+inline void getValue(SQLiteStatement& sql, int i, std::optional<T>& value)
+{
+    if(sqlite3_column_type(sql.data(), i) == SQLITE_NULL)
+    {
+        value.reset();
+        return;
+    }
+    T column;
+    getValue(sql, i, column);
+    value = std::move(column);
+}
+
 // template<typename T, typename T1, typename... Types>
 // inline std::tuple<T, T1, Types...> getRowInternal(SQLiteStatement& sql, int i)
 // {
@@ -234,7 +249,6 @@ E<std::vector<std::tuple<Types...>>> SQLite::eval(SQLiteStatement sql) const
             result.push_back(internal::getRow<Types...>(sql));
             break;
         case SQLITE_BUSY:
-            sqlite3_exec(db, "ROLLBACK;", nullptr, nullptr, nullptr);
             return std::unexpected(runtimeError(sqlite3_errstr(code)));
         case SQLITE_ERROR:
         case SQLITE_MISUSE:

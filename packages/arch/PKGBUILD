@@ -6,7 +6,7 @@ arch=('x86_64')
 url="https://github.com/MetroWind/nsweekly"
 license=('WTFPL')
 groups=()
-depends=('sqlite' 'curl' 'cmark')
+depends=('sqlite>=3.35.0' 'curl' 'cmark')
 makedepends=('git' 'cmake' 'gcc')
 provides=("${pkgname%-git}")
 conflicts=("${pkgname%-git}")

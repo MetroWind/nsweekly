@@ -1,18 +1,10 @@
 #include <memory>
-#include <variant>
-#include <filesystem>
 
 #include <cxxopts.hpp>
 #include <spdlog/spdlog.h>
 
 #include "app.hpp"
-#include "auth.hpp"
 #include "config.hpp"
-#include "data.hpp"
-#include "http_client.hpp"
-#include "spdlog/spdlog.h"
-#include "utils.hpp"
-#include "url.hpp"
 
 int main(int argc, char** argv)
 {
@@ -38,38 +30,14 @@ int main(int argc, char** argv)
         return 3;
     }
 
-    auto url_prefix = URL::fromStr(conf->url_prefix);
-    if(!url_prefix.has_value())
+    int exit_code = 0;
+    auto app = App::create(*conf, exit_code);
+    if(!app.has_value())
     {
-        spdlog::error("Invalid URL prefix: {}", conf->url_prefix);
-        return 4;
+        spdlog::error("Failed to initialize service: {}", errorMsg(app.error()));
+        return exit_code;
     }
-
-    auto auth = AuthOpenIDConnect::create(
-        *conf, url_prefix->appendPath("openid-redirect").str(),
-        std::make_unique<HTTPSession>());
-    if(!auth.has_value())
-    {
-        spdlog::error("Failed to create authentication module: {}",
-                      std::visit([](const auto& e) { return e.msg; },
-                                 auth.error()));
-        return 1;
-    }
-    auto data_source = DataSourceSqlite::fromFile(
-        (std::filesystem::path(conf->data_dir) / "data.db").string());
-    if(!data_source.has_value())
-    {
-        spdlog::error("Failed to create data source: {}",
-                      errorMsg(data_source.error()));
-        return 2;
-    }
-    if(!(*data_source)->createUser("mw").has_value())
-    {
-        spdlog::error("Failed to create user");
-    }
-
-    App app(*conf, *std::move(auth), *std::move(data_source));
-    app.start();
+    (*app)->start();
 
     return 0;
 }

@@ -11,7 +11,7 @@ write weekly snippets (like a journal) in CommonMark.
 
 == Deployment
 
-NSWeekly depends on libcurl, sqlite, and https://github.com/commonmark/cmark[cmark].
+NSWeekly depends on libcurl, thread-safe SQLite 3.35.0 or newer, and https://github.com/commonmark/cmark[cmark].
 
 Arch Linux users can build NSWeekly using the
 link:packages/arch/PKGBUILD[PKGBUILD] in the repo; otherwise
@@ -69,3 +69,27 @@ Other notable options:
   shown to guests, when `guest-index` is `user-weekly`.
 - `default_lang`: The default IETF BCP 47 language tag (RFC 5646) of
   the weekly posts. Right now this is global.
+
+== Development
+
+Configure with `cmake -S . -B build`, build with
+`cmake --build build -j24`, and run
+`ctest --test-dir build --output-on-failure`.
+The route tests start a server on a temporary loopback port. Storage tests
+use isolated temporary databases; they do not open the deployed database.
+Run `python3 tests/smoke_test.py build/nsweekly` to exercise production startup,
+login, editing, and persistence against a local OpenID stub and legacy schema.
+
+`App` owns the authentication backend, shared sessions, user storage, and
+weekly storage. `AuthModule` and `WeeklyModule` register their own routes.
+User and weekly SQLite implementations own separate connections to the same
+file. New features should provide their own storage and HTTP module with
+explicit wiring in `App`.
+
+The module extraction preserves existing guest redirects, including the two
+Location headers produced for an unknown guest user, and applies refreshed
+cookies only on the root route. Two undefined accesses are corrected:
+empty weekly ranges return an empty list, and an authorized edit page with
+no weekly result returns HTTP 404. Regression tests cover both outcomes.
+The HTML fixture under `tests/fixtures` was captured before extraction;
+only its clock-dependent update timestamp is normalized for comparison.

@@ -10,7 +10,8 @@
 #include <spdlog/spdlog.h>
 #include <sqlite3.h>
 
-#include "data.hpp"
+#include "weekly_data.hpp"
+#include "user_sql.hpp"
 #include "database.hpp"
 #include "error.hpp"
 #include "utils.hpp"
@@ -43,58 +44,55 @@ std::vector<Time> allWeekStarts(const Time& begin, const Time& end)
 
 
 E<std::vector<WeeklyPost>>
-DataSourceInterface::getWeekliesOneYear(const std::string& user) const
+WeeklyDataInterface::getWeekliesOneYear(const std::string& user) const
 {
     auto now = Clock::now();
     return this->getWeeklies(user, now - std::chrono::years(1), now);
 }
 
-E<std::unique_ptr<DataSourceSqlite>>
-DataSourceSqlite::fromFile(const std::string& db_file)
+E<void> WeeklyDataSqlite::initializeSchema()
 {
-    auto data_source = std::make_unique<DataSourceSqlite>();
-    ASSIGN_OR_RETURN(data_source->db, SQLite::connectFile(db_file));
-    DO_OR_RETURN(data_source->db->execute(
-        "CREATE TABLE IF NOT EXISTS Users "
-        "(id INTEGER PRIMARY KEY ASC, name TEXT UNIQUE);"));
-    DO_OR_RETURN(data_source->db->execute(
+    return db->execute(
         "CREATE TABLE IF NOT EXISTS Weeklies "
         "(user_id INTEGER REFERENCES Users (id) ON DELETE CASCADE,"
         " week_start INTEGER, update_time INTEGER, format INTEGER,"
-        " lang TEXT, content TEXT, UNIQUE (user_id, week_start));"));
-    return data_source;
+        " lang TEXT, content TEXT, UNIQUE (user_id, week_start));");
 }
 
-E<std::unique_ptr<DataSourceSqlite>> DataSourceSqlite::newFromMemory()
-{
-    return fromFile(":memory:");
-}
-
-E<std::vector<WeeklyPost>> DataSourceSqlite::getWeeklies(
+E<std::vector<WeeklyPost>> WeeklyDataSqlite::getWeeklies(
     const std::string& username, const Time& begin, const Time& end) const
 {
-    ASSIGN_OR_RETURN(std::optional<int64_t> uid, getUserID(username));
-    if(!uid.has_value())
-    {
-        return std::unexpected(runtimeError("User not found"));
-    }
     int64_t start = timeToSeconds(begin);
     int64_t stop = timeToSeconds(end);
     // Get all rows whose week_start is in the time period.
     ASSIGN_OR_RETURN(auto sql, db->statementFromStr(
-        "SELECT content, format, lang, week_start, update_time FROM Weeklies "
-        "WHERE user_id = ? AND week_start >= ? AND week_start < ? "
-        "ORDER BY week_start ASC;"));
-    DO_OR_RETURN(sql.bind(*uid, start, stop));
-    ASSIGN_OR_RETURN(
-        auto rows, (db->eval<std::string, int, std::string, int64_t, int64_t>(
-            std::move(sql))));
+        "SELECT w.content, w.format, w.lang, w.week_start, w.update_time "
+        "FROM Users u LEFT JOIN Weeklies w ON w.user_id = u.id "
+        "AND w.week_start >= ? AND w.week_start < ? "
+        "WHERE u.name = ? ORDER BY w.week_start ASC;"));
+    DO_OR_RETURN(sql.bind(start, stop, username));
+    ASSIGN_OR_RETURN(auto rows, (db->eval<std::optional<std::string>,
+        std::optional<int>, std::optional<std::string>,
+        std::optional<int64_t>, std::optional<int64_t>>(std::move(sql))));
+    if(rows.empty())
+    {
+        return std::unexpected(runtimeError("User not found"));
+    }
     // Converting rows to weekly objects.
     std::vector<WeeklyPost> weeklies;
     weeklies.reserve(rows.size());
     for(auto& row: rows)
     {
-        int format = std::get<1>(row);
+        if(!std::get<3>(row).has_value())
+        {
+            continue;
+        }
+        if(!std::get<0>(row) || !std::get<1>(row) ||
+           !std::get<2>(row) || !std::get<4>(row))
+        {
+            return std::unexpected(runtimeError("Invalid weekly columns"));
+        }
+        int format = *std::get<1>(row);
         if(!WeeklyPost::isValidFormatInt(format))
         {
             return std::unexpected(runtimeError(std::format(
@@ -102,10 +100,10 @@ E<std::vector<WeeklyPost>> DataSourceSqlite::getWeeklies(
         }
         WeeklyPost p;
         p.format = static_cast<WeeklyPost::Format>(format);
-        p.raw_content = std::move(std::get<0>(row));
-        p.week_begin = secondsToTime(std::get<3>(row));
-        p.update_time = secondsToTime(std::get<4>(row));
-        p.language = std::move(std::get<2>(row));
+        p.raw_content = std::move(*std::get<0>(row));
+        p.week_begin = secondsToTime(*std::get<3>(row));
+        p.update_time = secondsToTime(*std::get<4>(row));
+        p.language = std::move(*std::get<2>(row));
         p.author = username;
         weeklies.push_back(std::move(p));
     }
@@ -135,7 +133,7 @@ E<std::vector<WeeklyPost>> DataSourceSqlite::getWeeklies(
     auto weekly_it = std::begin(weeklies);
     auto result_it = std::begin(result); // This should sync with monday_it.
 
-    while(true)
+    while(monday_it != std::end(week_starts))
     {
         if(weekly_it != std::end(weeklies) &&
            weekly_it->week_begin == *monday_it)
@@ -152,62 +150,27 @@ E<std::vector<WeeklyPost>> DataSourceSqlite::getWeeklies(
             ++monday_it;
             ++result_it;
         }
-        if(monday_it == std::end(week_starts))
-        {
-            break;
-        }
     }
 
     return result;
 }
 
-E<void> DataSourceSqlite::updateWeekly(
+E<void> WeeklyDataSqlite::updateWeekly(
     const std::string& username, WeeklyPost&& new_post) const
 {
-    ASSIGN_OR_RETURN(std::optional<int64_t> uid, getUserID(username));
-    if(!uid.has_value())
-    {
-        ASSIGN_OR_RETURN(uid, createUser(username));
-    }
+    DO_OR_RETURN(ensureUser(*db, username));
     ASSIGN_OR_RETURN(auto sql, db->statementFromStr(
         "INSERT INTO weeklies "
         "(user_id, week_start, update_time, format, lang, content) "
-        "VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT DO UPDATE SET update_time = ?, "
+        "VALUES ((SELECT id FROM Users WHERE name = ?), ?, ?, ?, ?, ?) "
+        "ON CONFLICT DO UPDATE SET update_time = ?, "
         "format = ?, lang = ?, content = ?;"));
     int64_t now = timeToSeconds(Clock::now());
     DO_OR_RETURN(sql.bind(
-        *uid, timeToSeconds(new_post.week_begin), now,
+        username, timeToSeconds(new_post.week_begin), now,
         static_cast<int>(new_post.format), new_post.language,
         new_post.raw_content, now, static_cast<int>(new_post.format),
         new_post.language, new_post.raw_content));
     return db->execute(std::move(sql));
 }
 
-E<std::optional<int64_t>>
-DataSourceSqlite::getUserID(const std::string& name) const
-{
-    ASSIGN_OR_RETURN(auto sql, db->statementFromStr(
-        "SELECT id FROM Users WHERE name = ?;"));
-    DO_OR_RETURN(sql.bind(name));
-    ASSIGN_OR_RETURN(std::vector<std::tuple<int64_t>> result,
-                     db->eval<int64_t>(std::move(sql)));
-    if(result.empty())
-    {
-        return std::nullopt;
-    }
-    if(result.size() > 1)
-    {
-        return std::unexpected(runtimeError(
-            std::format("Found multiple IDs for user {}", name)));
-    }
-    return std::get<0>(result[0]);
-}
-
-E<int64_t> DataSourceSqlite::createUser(const std::string& name) const
-{
-    ASSIGN_OR_RETURN(auto sql, db->statementFromStr(
-        "INSERT INTO Users (name) VALUES (?);"));
-    DO_OR_RETURN(sql.bind(name));
-    DO_OR_RETURN(db->execute(std::move(sql)));
-    return db->lastInsertRowID();
-}

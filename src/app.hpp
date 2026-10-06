@@ -1,74 +1,44 @@
 #pragma once
-
 #include <memory>
-#include <string>
-#include <string_view>
-#include <format>
-
 #include <httplib.h>
-#include <spdlog/spdlog.h>
-#include <inja.hpp>
-
-#include "auth.hpp"
+#include "auth_module.hpp"
 #include "config.hpp"
-#include "data.hpp"
-#include "http_client.hpp"
-#include "utils.hpp"
+#include "user_data.hpp"
+#include "weekly_module.hpp"
 
-void copyToHttplibReq(const HTTPRequest& src, httplib::Request& dest);
-
+// Owns dependencies and composes the service at a stable address.
 class App
 {
 public:
-    App() = delete;
-    explicit App(const Configuration& conf,
-                 std::unique_ptr<AuthInterface> openid_auth,
-                 std::unique_ptr<DataSourceInterface> data_source);
-
-    std::string urlFor(const std::string& name, const std::string& arg) const;
-
-    void handleIndex(const httplib::Request& req, httplib::Response& res) const;
-    void handleLogin(httplib::Response& res) const;
-    void handleOpenIDRedirect(const httplib::Request& req,
-                              httplib::Response& res) const;
-    void handleUserWeeklies(const httplib::Request& req, httplib::Response& res,
-                            const std::string& username);
-    void handleUserWeekly(const httplib::Request& req, httplib::Response& res,
-                          const std::string& username, const Time& date);
-    void handleEditFrontEnd(const httplib::Request& req, httplib::Response& res,
-                            const std::string& username,
-                            const Time& week_start);
-    void handleEdit(const httplib::Request& req, httplib::Response& res,
-                    const std::string& username, const Time& week_start) const;
+    // Keeps route callback targets at a stable address.
+    App(const App&) = delete;
+    App& operator=(const App&) = delete;
+    App(App&&) = delete;
+    App& operator=(App&&) = delete;
+    // Creates production dependencies; reports the existing startup category.
+    static E<std::unique_ptr<App>> create(const Configuration& conf,
+                                          int& exit_code);
+    // Injects backends without opening files or contacting a provider.
+    static E<std::unique_ptr<App>> create(
+        const Configuration& conf, std::unique_ptr<AuthInterface> auth,
+        std::unique_ptr<UserDataInterface> users,
+        std::unique_ptr<WeeklyDataInterface> weeklies);
+    // Applies the existing session and guest landing-page policy.
+    void handleIndex(const httplib::Request& req,
+                     httplib::Response& res) const;
+    // Mounts statics and registers root and module routes.
+    void registerRoutes(httplib::Server& server);
+    // Listens synchronously with a local server.
     void start();
-
 private:
-    struct SessionValidation
-    {
-        enum { VALID, REFRESHED, INVALID } status;
-        UserInfo user;
-        Tokens new_tokens;
-
-        static SessionValidation valid(UserInfo&& user_info)
-        {
-            return {VALID, user_info, {}};
-        }
-
-        static SessionValidation refreshed(UserInfo&& user_info, Tokens&& tokens)
-        {
-            return {REFRESHED, user_info, tokens};
-        }
-
-        static SessionValidation invalid()
-        {
-            return {INVALID, {}, {}};
-        }
-    };
-    E<SessionValidation> validateSession(const httplib::Request& req) const;
+    explicit App(const Configuration& conf) : config(conf) {}
+    void compose();
     void handleIndexWithInvalidSession(httplib::Response& res) const;
-
     const Configuration config;
-    inja::Environment templates;
     std::unique_ptr<AuthInterface> auth;
-    std::unique_ptr<DataSourceInterface> data;
+    std::unique_ptr<UserDataInterface> users;
+    std::unique_ptr<WeeklyDataInterface> weeklies;
+    std::unique_ptr<SessionService> sessions;
+    std::unique_ptr<AuthModule> auth_module;
+    std::unique_ptr<WeeklyModule> weekly_module;
 };

@@ -1,4 +1,4 @@
-# cmake -B build . && cmake --build build -j
+# cmake -B build . && cmake --build build -j24
 cmake_minimum_required(VERSION 3.24)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
@@ -51,7 +51,7 @@ FetchContent_MakeAvailable(json inja httplib cxxopts googletest ryml spdlog)
 unset(BUILD_BENCHMARK)
 
 find_package(CURL REQUIRED)
-find_package(SQLite3 REQUIRED)
+find_package(SQLite3 3.35.0 REQUIRED)
 find_package(cmark REQUIRED)
 
 set(SOURCE_FILES
@@ -61,8 +61,23 @@ set(SOURCE_FILES
   src/auth.hpp
   src/config.cpp
   src/config.hpp
-  src/data.cpp
-  src/data.hpp
+  src/auth_module.cpp
+  src/auth_module.hpp
+  src/session_service.cpp
+  src/session_service.hpp
+  src/weekly_module.cpp
+  src/weekly_module.hpp
+  src/weekly_data.cpp
+  src/weekly_data.hpp
+  src/user_data.cpp
+  src/user_data.hpp
+  src/user_sql.cpp
+  src/user_sql.hpp
+  src/route_urls.cpp
+  src/route_urls.hpp
+  src/http_adaptation.cpp
+  src/http_adaptation.hpp
+  src/http_response.hpp
   src/database.cpp
   src/database.hpp
   src/error.hpp
@@ -109,8 +124,17 @@ set(TEST_FILES
   src/auth_test.cpp
   src/auth_mock.hpp
   src/url_test.cpp
+  src/session_service_test.cpp
+  src/routes_test.cpp
+  src/route_urls_test.cpp
   src/app_test.cpp
-  src/data_test.cpp
+  src/auth_module_test.cpp
+  src/weekly_module_test.cpp
+  src/http_adaptation_test.cpp
+  src/user_data_test.cpp
+  src/weekly_data_test.cpp
+  src/storage_mock.hpp
+  src/storage_test_support.hpp
   src/database_test.cpp
   src/utils_test.cpp
 )
@@ -136,3 +160,6 @@ target_link_libraries(nsweekly_test PRIVATE
 enable_testing()
 include(GoogleTest)
 gtest_discover_tests(nsweekly_test)
+
+target_compile_definitions(nsweekly_test PRIVATE
+  NSWEEKLY_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
