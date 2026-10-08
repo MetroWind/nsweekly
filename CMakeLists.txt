@@ -92,7 +92,6 @@ set(SOURCE_FILES
 )
 set(LIBS
   cxxopts
-  httplib
   mw::http-server
   spdlog::spdlog
   ryml::ryml
