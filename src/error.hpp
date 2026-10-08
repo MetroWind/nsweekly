@@ -1,44 +1,18 @@
 #pragma once
 
-#include <expected>
-#include <string>
-#include <string_view>
-#include <variant>
+#include <mw/error.hpp>
 
-struct RuntimeError
-{
-    std::string msg;
-
-    bool operator==(const RuntimeError& rhs) const = default;
-};
-
-struct HTTPError
-{
-    int code;
-    std::string msg;
-
-    bool operator==(const HTTPError& rhs) const = default;
-};
-
-using Error = std::variant<RuntimeError, HTTPError>;
-
-template<class T>
-using E = std::expected<T, Error>;
-
-inline Error runtimeError(std::string_view msg)
-{
-    return RuntimeError{std::string(msg)};
-}
-
-inline Error httpError(int code, std::string_view msg)
-{
-    return HTTPError{code, std::string(msg)};
-}
-
-inline const std::string& errorMsg(const Error& e)
-{
-    return std::visit([](const auto& err) -> const std::string&
-    {
-        return err.msg;
-    }, e);
-}
+// Application results use libmw's expected type and error container.
+using mw::E;
+// Carries concrete error types through application layers.
+using mw::Error;
+// Describes failures without an HTTP status.
+using mw::RuntimeError;
+// Preserves the status and message of HTTP failures.
+using mw::HTTPError;
+// Creates an application runtime error.
+using mw::runtimeError;
+// Creates an application HTTP error.
+using mw::httpError;
+// Retrieves the message from any application error.
+using mw::errorMsg;

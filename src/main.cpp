@@ -37,7 +37,14 @@ int main(int argc, char** argv)
         spdlog::error("Failed to initialize service: {}", errorMsg(app.error()));
         return exit_code;
     }
-    (*app)->start();
+    auto started = (*app)->start();
+    if(!started.has_value())
+    {
+        spdlog::error("Failed to start service: {}",
+                      mw::errorMsg(started.error()));
+        return 5;
+    }
+    (*app)->wait();
 
     return 0;
 }

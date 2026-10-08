@@ -75,6 +75,8 @@ Other notable options:
 Configure with `cmake -S . -B build`, build with
 `cmake --build build -j24`, and run
 `ctest --test-dir build --output-on-failure`.
+To build against a local libmw checkout, configure with
+`-DFETCHCONTENT_SOURCE_DIR_LIBMW=/path/to/libmw`.
 The route tests start a server on a temporary loopback port. Storage tests
 use isolated temporary databases; they do not open the deployed database.
 Run `python3 tests/smoke_test.py build/nsweekly` to exercise production startup,
@@ -82,6 +84,9 @@ login, editing, and persistence against a local OpenID stub and legacy schema.
 
 `App` owns the authentication backend, shared sessions, user storage, and
 weekly storage. `AuthModule` and `WeeklyModule` register their own routes.
+`App` derives from `mw::HTTPServer` and registers routes in `setup()`.
+`start()` launches the server thread; `wait()` blocks until it exits.
+Call `stop()` before `wait()` when shutting down from another thread.
 User and weekly SQLite implementations own separate connections to the same
 file. New features should provide their own storage and HTTP module with
 explicit wiring in `App`.

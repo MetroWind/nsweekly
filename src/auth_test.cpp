@@ -116,7 +116,7 @@ TEST(Auth, CreateCanHandleServerConfError)
     auto auth = AuthOpenIDConnect::create(
         config, "http://localhost/", std::move(http));
     ASSERT_FALSE(auth.has_value());
-    EXPECT_EQ(std::visit([&](auto e) { return e.msg; }, auth.error()),
+    EXPECT_EQ(errorMsg(auth.error()),
               "Invalid OpenID configuration from server");
 }
 
@@ -135,7 +135,7 @@ TEST(Auth, CreateCanHandleInvalidJSON)
     auto auth = AuthOpenIDConnect::create(
         config, "http://localhost/", std::move(http));
     ASSERT_FALSE(auth.has_value());
-    EXPECT_EQ(std::visit([&](auto e) { return e.msg; }, auth.error()),
+    EXPECT_EQ(errorMsg(auth.error()),
               "Invalid OpenID configuration from server");
 }
 
@@ -153,7 +153,7 @@ TEST(Auth, CreateCanHandleFaultyServer)
     auto auth = AuthOpenIDConnect::create(
         config, "http://localhost/", std::move(http));
     ASSERT_FALSE(auth.has_value());
-    EXPECT_EQ(std::visit([&](auto e) { return e.msg; }, auth.error()),
+    EXPECT_EQ(errorMsg(auth.error()),
               "server died");
 }
 
@@ -286,8 +286,9 @@ TEST(Auth, AuthenticateCanHandleFailedQuery)
 
     E<Tokens> tokens = (*auth)->authenticate("some code");
     ASSERT_FALSE(tokens.has_value());
-    Error expected = HTTPError{500, ""};
-    EXPECT_EQ(tokens.error(), expected);
+    const auto* error = tokens.error().as<HTTPError>();
+    ASSERT_NE(error, nullptr);
+    EXPECT_EQ(*error, (HTTPError{500, ""}));
 }
 
 TEST(Auth, AuthenticateCanHandleServerFault)
@@ -326,7 +327,9 @@ TEST(Auth, AuthenticateCanHandleServerFault)
 
     E<Tokens> tokens = (*auth)->authenticate("some code");
     ASSERT_FALSE(tokens.has_value());
-    EXPECT_EQ(tokens.error(), Error(RuntimeError{"error"}));
+    const auto* error = tokens.error().as<RuntimeError>();
+    ASSERT_NE(error, nullptr);
+    EXPECT_EQ(*error, RuntimeError{"error"});
 }
 
 TEST(Auth, AuthenticateCanHandleInvalidJSON)
@@ -366,7 +369,9 @@ TEST(Auth, AuthenticateCanHandleInvalidJSON)
 
     E<Tokens> tokens = (*auth)->authenticate("some code");
     ASSERT_FALSE(tokens.has_value());
-    EXPECT_EQ(tokens.error(), Error(RuntimeError{"Invalid token response"}));
+    const auto* error = tokens.error().as<RuntimeError>();
+    ASSERT_NE(error, nullptr);
+    EXPECT_EQ(*error, RuntimeError{"Invalid token response"});
 }
 
 TEST(Auth, CanRefreshTokens)

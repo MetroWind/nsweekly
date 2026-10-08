@@ -6,7 +6,7 @@
 
 #include "weekly_module.hpp"
 #include "route_urls.hpp"
-#include "http_response.hpp"
+#include <mw/http_server.hpp>
 
 namespace
 {
@@ -72,8 +72,9 @@ void WeeklyModule::handleUserWeeklies(
         session_user = session->user.name;
     }
 
-    ASSIGN_OR_RESPOND_ERROR(std::vector<WeeklyPost> weeklies,
-                            data.getWeekliesOneYear(username), res);
+    ASSIGN_OR_RESPOND_ERROR(
+        std::vector<WeeklyPost> weeklies,
+        data.getWeekliesOneYear(username), res);
     std::reverse(std::begin(weeklies), std::end(weeklies));
     nlohmann::json weeklies_json(nlohmann::json::value_t::array);
     for(const WeeklyPost& p: weeklies)

@@ -11,6 +11,22 @@
 using ::testing::Return;
 using ::testing::HasSubstr;
 
+TEST(App, StartsAndStopsServerThread)
+{
+    Configuration config{};
+    config.data_dir = NSWEEKLY_SOURCE_DIR;
+    config.listen_address = "127.0.0.1";
+    config.listen_port = 0;
+    ASSIGN_OR_FAIL(auto app, App::create(config,
+        std::make_unique<AuthMock>(), std::make_unique<UserDataMock>(),
+        std::make_unique<WeeklyDataMock>()));
+
+    auto started = app->start();
+    app->stop();
+    app->wait();
+    EXPECT_TRUE(started.has_value());
+}
+
 TEST(App, IndexCanRedirectWhenLoggedIn)
 {
     Configuration config{};
@@ -57,7 +73,7 @@ TEST(App, IndexCanRedirectWhenNotLoggedIn)
     app->handleIndex(http_req, res);
     EXPECT_EQ(res.status, 301);
     EXPECT_EQ(res.get_header_value("Location"), "/login");
-    EXPECT_EQ(res.get_header_value("Location", 1), weeklyURL("mw"));
+    EXPECT_EQ(res.get_header_value("Location", "", 1), weeklyURL("mw"));
 }
 
 TEST(App, IndexCanRefreshToken)

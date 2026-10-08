@@ -16,11 +16,6 @@ FetchContent_Declare(
   GIT_TAG v3.1.1
 )
 FetchContent_Declare(
-  httplib
-  GIT_REPOSITORY https://github.com/yhirose/cpp-httplib.git
-  GIT_TAG v0.14.3
-)
-FetchContent_Declare(
   ryml
   GIT_REPOSITORY https://github.com/biojppm/rapidyaml.git
   GIT_TAG
@@ -47,8 +42,15 @@ FetchContent_Declare(
   GIT_TAG v1.12.0
 )
 set(SPDLOG_USE_STD_FORMAT ON)
-FetchContent_MakeAvailable(json inja httplib cxxopts googletest ryml spdlog)
+FetchContent_MakeAvailable(json inja cxxopts googletest ryml spdlog)
 unset(BUILD_BENCHMARK)
+
+FetchContent_Declare(
+  libmw
+  GIT_REPOSITORY https://github.com/MetroWind/libmw.git
+)
+set(LIBMW_BUILD_HTTP_SERVER ON CACHE BOOL "Build libmw HTTP server")
+FetchContent_MakeAvailable(libmw)
 
 find_package(CURL REQUIRED)
 find_package(SQLite3 3.35.0 REQUIRED)
@@ -77,7 +79,6 @@ set(SOURCE_FILES
   src/route_urls.hpp
   src/http_adaptation.cpp
   src/http_adaptation.hpp
-  src/http_response.hpp
   src/database.cpp
   src/database.hpp
   src/error.hpp
@@ -92,6 +93,7 @@ set(SOURCE_FILES
 set(LIBS
   cxxopts
   httplib
+  mw::http-server
   spdlog::spdlog
   ryml::ryml
   ${CURL_LIBRARIES}

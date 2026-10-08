@@ -2,7 +2,7 @@
 
 #include "auth_module.hpp"
 #include "route_urls.hpp"
-#include "http_response.hpp"
+#include <mw/http_server.hpp>
 
 void AuthModule::handleLogin(httplib::Response& res) const
 {
@@ -33,8 +33,10 @@ void AuthModule::handleOpenIDRedirect(const httplib::Request& req,
 
     std::string code = req.get_param_value("code");
     spdlog::debug("OpenID server visited {} with code {}.", req.path, code);
-    ASSIGN_OR_RESPOND_ERROR(Tokens tokens, auth.authenticate(code), res);
-    ASSIGN_OR_RESPOND_ERROR(UserInfo user, auth.getUser(tokens), res);
+    ASSIGN_OR_RESPOND_ERROR(
+        Tokens tokens, auth.authenticate(code), res);
+    ASSIGN_OR_RESPOND_ERROR(
+        UserInfo user, auth.getUser(tokens), res);
 
     sessions.setTokenCookies(tokens, res);
     res.set_redirect(urlFor("index", ""), 301);

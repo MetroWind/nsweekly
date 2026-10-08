@@ -94,7 +94,8 @@ TEST_F(Routes, LoginCallbackAndRootRetainRedirectsAndCookies)
 
     EXPECT_CALL(*auth, refreshTokens("refresh")).WillOnce(Return(tokens));
     EXPECT_CALL(*auth, getUser(tokens)).WillOnce(Return(UserInfo{"", "mw"}));
-    auto root = client->Get("/", {{"Cookie", "refresh-token=refresh"}});
+    httplib::Headers headers{{"Cookie", "refresh-token=refresh"}};
+    auto root = client->Get("/", headers);
     ASSERT_TRUE(root);
     EXPECT_EQ(root->status, 302);
     EXPECT_EQ(root->get_header_value("Location"), "/weekly/mw");

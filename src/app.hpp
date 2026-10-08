@@ -1,13 +1,13 @@
 #pragma once
 #include <memory>
-#include <httplib.h>
+#include <mw/http_server.hpp>
 #include "auth_module.hpp"
 #include "config.hpp"
 #include "user_data.hpp"
 #include "weekly_module.hpp"
 
 // Owns dependencies and composes the service at a stable address.
-class App
+class App : public mw::HTTPServer
 {
 public:
     // Keeps route callback targets at a stable address.
@@ -24,16 +24,17 @@ public:
         std::unique_ptr<UserDataInterface> users,
         std::unique_ptr<WeeklyDataInterface> weeklies);
     // Applies the existing session and guest landing-page policy.
-    void handleIndex(const httplib::Request& req,
-                     httplib::Response& res) const;
+    void handleIndex(const Request& req, Response& res) const;
     // Mounts statics and registers root and module routes.
     void registerRoutes(httplib::Server& server);
-    // Listens synchronously with a local server.
-    void start();
 private:
-    explicit App(const Configuration& conf) : config(conf) {}
+    explicit App(const Configuration& conf)
+        : mw::HTTPServer(mw::IPSocketInfo{
+              conf.listen_address, conf.listen_port}), config(conf)
+    {}
+    void setup() override;
     void compose();
-    void handleIndexWithInvalidSession(httplib::Response& res) const;
+    void handleIndexWithInvalidSession(Response& res) const;
     const Configuration config;
     std::unique_ptr<AuthInterface> auth;
     std::unique_ptr<UserDataInterface> users;

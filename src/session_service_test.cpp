@@ -70,7 +70,9 @@ TEST(SessionService, RefreshAndIdentityFailuresPropagate)
     bad.set_header("Cookie", "refresh-token=bad");
     auto failed = sessions.validateSession(bad);
     ASSERT_FALSE(failed);
-    EXPECT_EQ(failed.error(), httpError(401, "Expired"));
+    const auto* error = failed.error().as<HTTPError>();
+    ASSERT_NE(error, nullptr);
+    EXPECT_EQ(*error, (HTTPError{401, "Expired"}));
     httplib::Request good;
     good.set_header("Cookie", "refresh-token=good");
     failed = sessions.validateSession(good);
@@ -87,9 +89,9 @@ TEST(SessionService, CookieFormattingRetainsEncodingAndDefaultAges)
     tokens.refresh_token = "x+y";
     httplib::Response res;
     sessions.setTokenCookies(tokens, res);
-    EXPECT_EQ(res.get_header_value("Set-Cookie", 0),
+    EXPECT_EQ(res.get_header_value("Set-Cookie"),
               "access-token=a%20b; Max-Age=300");
-    EXPECT_EQ(res.get_header_value("Set-Cookie", 1),
+    EXPECT_EQ(res.get_header_value("Set-Cookie", "", 1),
               "refresh-token=x%2By; Max-Age=1800");
     EXPECT_EQ(res.get_header_value_count("Set-Cookie"), 2);
 }

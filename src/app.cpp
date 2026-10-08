@@ -3,7 +3,6 @@
 
 #include "app.hpp"
 #include "route_urls.hpp"
-#include "http_response.hpp"
 #include "url.hpp"
 
 E<std::unique_ptr<App>> App::create(const Configuration& conf,
@@ -60,7 +59,7 @@ void App::compose()
         config, *weeklies, *sessions);
 }
 
-void App::handleIndexWithInvalidSession(httplib::Response& res) const
+void App::handleIndexWithInvalidSession(Response& res) const
 {
     switch(config.guest_index)
     {
@@ -78,7 +77,7 @@ void App::handleIndexWithInvalidSession(httplib::Response& res) const
     res.set_content("Someone forgot to add a switch case 🤣", "text/plain");
 }
 
-void App::handleIndex(const httplib::Request& req, httplib::Response& res) const
+void App::handleIndex(const Request& req, Response& res) const
 {
     E<SessionValidation> session = sessions->validateSession(req);
     if(!session.has_value())
@@ -111,7 +110,7 @@ void App::registerRoutes(httplib::Server& server)
     {
         spdlog::error("Failed to mount statics");
     }
-    server.Get("/", [this](const httplib::Request& req, httplib::Response& res)
+    server.Get("/", [this](const Request& req, Response& res)
     {
         handleIndex(req, res);
     });
@@ -119,11 +118,9 @@ void App::registerRoutes(httplib::Server& server)
     weekly_module->registerRoutes(server);
 }
 
-void App::start()
+void App::setup()
 {
-    httplib::Server server;
     registerRoutes(server);
     spdlog::info("Listening at http://{}:{}/...", config.listen_address,
                  config.listen_port);
-    server.listen(config.listen_address, config.listen_port);
 }
