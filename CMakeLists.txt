@@ -61,6 +61,8 @@ find_package(SQLite3 3.35.0 REQUIRED)
 find_package(cmark REQUIRED)
 
 set(SOURCE_FILES
+  src/game_review.cpp
+  src/game_review_data.cpp
   src/game.cpp
   src/game_data.cpp
   src/game_markdown.cpp
@@ -138,6 +140,7 @@ if(BUILD_TESTING)
   FetchContent_MakeAvailable(googletest)
 
   set(TEST_FILES
+    src/game_review_test.cpp
     src/game_test.cpp
     src/games_module_test.cpp
     src/test_utils.hpp
@@ -178,6 +181,13 @@ if(BUILD_TESTING)
     GTest::gtest_main
     GTest::gmock_main
   )
+
+  find_program(NODE_EXECUTABLE node)
+  if(NODE_EXECUTABLE)
+    add_test(NAME ReviewBrowser.ScoreFormula
+      COMMAND ${NODE_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/reviews_score_test.js)
+  endif()
 
   include(GoogleTest)
   gtest_discover_tests(nsweekly_test)

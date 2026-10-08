@@ -68,8 +68,18 @@ stable.
 
 ## Reviewing
 
-Replicating the “Reviews” sheet. Each user has their own reviews.
-Design and implementation deferred to future.
+Replicate the “Reviews” sheet within Games. Each tracked game can have
+one review owned by the same user. Store reviews in a separate table with
+a game_id foreign key; deleting a game deletes its review. Scores cover
+Story/Lore, Gameplay, Graphics, Audio, and Special, with one optional
+overall MacroDown review. Dimensions have no comments. Each dimension
+accepts 1–10, including fractions; blank scores permit drafts. Calculate overall in browser
+JavaScript as (story + 2 * gameplay + graphics + audio + special) / 6,
+only when all dimensions are present. Never store overall in the database.
+Store creation/update dates as integer UTC Unix timestamps and display
+only yyyy-mm-dd. Public sortable review tables and owner-only native HTML
+forms follow tracker behavior. Review creation/editing use a separate
+page with a scoring rubric beside the form; review deletion uses a dialog. See designs/design-2-reviews.md.
 
 ## Journaling
 

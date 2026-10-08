@@ -81,13 +81,31 @@ CREATE TABLE IF NOT EXISTS GameTracking
     UNIQUE(user_id, name),
     CHECK(start_date IS NULL OR end_date IS NULL OR end_date >= start_date)
 ))"));
-    return db->execute(R"(
+    DO_OR_RETURN(db->execute(R"(
 CREATE TABLE IF NOT EXISTS GamePlatforms
 (
     game_id INTEGER NOT NULL REFERENCES GameTracking(id) ON DELETE CASCADE,
     platform INTEGER NOT NULL CHECK(
         typeof(platform) = 'integer' AND platform IN (0, 1, 2, 3, 4)),
     PRIMARY KEY(game_id, platform)
+))"));
+    return db->execute(R"(
+CREATE TABLE IF NOT EXISTS GameReviews
+(
+    game_id INTEGER PRIMARY KEY REFERENCES GameTracking(id) ON DELETE CASCADE,
+    story REAL CHECK(story IS NULL OR
+        (typeof(story) IN ('real', 'integer') AND story BETWEEN 1 AND 10)),
+    gameplay REAL CHECK(gameplay IS NULL OR
+        (typeof(gameplay) IN ('real', 'integer') AND gameplay BETWEEN 1 AND 10)),
+    graphics REAL CHECK(graphics IS NULL OR
+        (typeof(graphics) IN ('real', 'integer') AND graphics BETWEEN 1 AND 10)),
+    audio REAL CHECK(audio IS NULL OR
+        (typeof(audio) IN ('real', 'integer') AND audio BETWEEN 1 AND 10)),
+    special REAL CHECK(special IS NULL OR
+        (typeof(special) IN ('real', 'integer') AND special BETWEEN 1 AND 10)),
+    text TEXT NOT NULL DEFAULT '',
+    added INTEGER NOT NULL DEFAULT (CAST(strftime('%s', 'now') AS INTEGER)),
+    updated INTEGER NOT NULL DEFAULT (CAST(strftime('%s', 'now') AS INTEGER))
 ))");
 }
 

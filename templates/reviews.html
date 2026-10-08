@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  {% include "head_common.html" %}
+  <link rel="stylesheet" href="/statics/games.css">
+  <title>{{ username }}’s Game Reviews</title>
+  <script src="/statics/reviews.js" defer></script>
+  <script src="/statics/games.js" defer></script>
+</head>
+<body>
+<main id="Games" data-view="reviews">
+  {% include "nav.html" %}
+  <h1>{{ username }}’s Game Reviews</h1>
+  <p class="GameViews"><a href="{{ table_url }}">Tracker</a>
+    <a href="{{ reviews_url }}" aria-current="page">Reviews</a></p>
+  <p class="ReviewScale">1–10 · 5 means average · Gameplay counts twice</p>
+  {% if is_owner %}<p>Choose a game in the <a href="{{ table_url }}">tracker</a> to write a review.</p>{% endif %}
+  {% if length(reviews) == 0 %}<p>No reviews recorded.</p>{% endif %}
+  <div class="TableScroll">
+  <table>
+    <thead><tr>
+    {% for heading in ["Game", "Story/Lore", "Gameplay", "Graphics", "Audio", "Special", "Overall", "Hours", "Added", "Updated", "Review"] %}
+      <th scope="col" aria-sort="none"><button type="button" data-sort="{{ loop.index }}">{{ heading }}</button></th>
+    {% endfor %}
+    </tr></thead>
+    <tbody>
+    {% for review in reviews %}
+    <tr id="game-{{ review.id }}" data-id="{{ review.id }}">
+      <td class="GameName" data-key="{{ review.name }}" data-missing="false">
+        <a href="{{ review.game_url }}">{{ review.name }}</a>
+        {% if is_owner %}
+        <span class="GameActions">
+          <a href="{{ review.edit_url }}" title="Edit review" aria-label="Edit review for {{ review.name }}"><span class="ActionGlyph" aria-hidden="true">&#xf03eb;</span></a>
+          <a href="{{ review.delete_url }}" title="Delete review" aria-label="Delete review for {{ review.name }}"><span class="ActionGlyph" aria-hidden="true">&#xf01b4;</span></a>
+        </span>
+        {% endif %}
+      </td>
+      {% for dimension in review.dimensions %}
+      <td class="ReviewDimension" data-key="{{ dimension.score }}" data-missing="{{ length(dimension.score) == 0 }}">
+        <span class="DimensionScore">{{ dimension.score }}</span>
+      </td>
+      {% endfor %}
+      <td class="ReviewOverall" data-key="" data-missing="true">Incomplete</td>
+      <td data-key="{{ review.hours }}" data-missing="{{ length(review.hours) == 0 }}">{{ review.hours }}</td>
+      <td data-key="{{ review.added }}" data-missing="false">{{ review.added }}</td>
+      <td data-key="{{ review.updated }}" data-missing="false">{{ review.updated }}</td>
+      <td class="ReviewText" data-key="{{ review.text_key }}" data-missing="{{ length(review.text_key) == 0 }}">{{ review.text }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% if deletion %}
+  <dialog open data-cancel-url="{{ reviews_url }}" aria-labelledby="ActionTitle">
+    <h2 id="ActionTitle">Delete review</h2>
+    <p>{{ game_name }}</p>
+    <form method="post" action="{{ action_url }}">
+      <p>Delete this review? The tracked game will remain.</p>
+      <button type="submit">Delete</button>
+      <a href="{{ reviews_url }}">Cancel</a>
+    </form>
+  </dialog>
+  {% endif %}
+</main>
+</body>
+</html>

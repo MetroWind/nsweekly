@@ -198,6 +198,67 @@ def main():
                     with sqlite3.connect(db_path) as db:
                         game_id = db.execute(
                             "SELECT id FROM GameTracking").fetchone()[0]
+                    review_path = f"/games/mw/{game_id}/review/edit"
+                    assert request(port, "/games/mw/reviews")[0] == 200
+                    assert request(port, review_path)[0] == 401
+                    review_form = request(port, review_path, cookie=cookie)
+                    assert review_form[0] == 200
+                    assert "<dialog" not in review_form[2]
+                    assert '<main id="Games" class="ReviewPage"' in review_form[2]
+                    assert '<table>' not in review_form[2]
+                    assert review_form[2].count('value="5" data-review-score') == 5
+                    assert review_form[2].count("<textarea") == 1
+                    assert "_comment" not in review_form[2]
+                    assert 'class="ReviewRubric"' in review_form[2]
+                    assert 'aria-details="Rubric-story"' in review_form[2]
+                    assert "Mario rescues Peach" in review_form[2]
+                    assert "Scoring rubric" in review_form[2]
+                    review = request(port, review_path, "POST", urlencode({
+                        "story": "10", "gameplay": "10", "graphics": "8",
+                        "audio": "10", "special": "10",
+                        "text": "%code{review}"}), cookie)
+                    assert review[0] == 303, review
+                    public_reviews = request(port, "/games/mw/reviews")
+                    assert public_reviews[0] == 200, public_reviews
+                    assert "<code>review</code>" in public_reviews[2]
+                    assert 'class="ReviewOverall" data-key=""' in public_reviews[2]
+                    assert request(port, f"/games/other/{game_id}/review/edit",
+                        cookie=cookie)[0] == 403
+                    delete_form = request(port,
+                        f"/games/mw/{game_id}/review/delete", cookie=cookie)
+                    assert delete_form[0] == 200
+                    assert 'class="ReviewRubric"' not in delete_form[2]
+                    deleted_review = request(port,
+                        f"/games/mw/{game_id}/review/delete", "POST", "", cookie)
+                    assert deleted_review[0] == 303, deleted_review
+                    assert request(port, f"/games/mw/{game_id}/edit",
+                        cookie=cookie)[0] == 200
+                    assert request(port, f"/games/mw/{game_id}/review/delete",
+                        cookie=cookie)[0] == 404
+                    assert request(port, review_path, "POST", urlencode({
+                        "story": "10", "gameplay": "10", "graphics": "8",
+                        "audio": "10", "special": "10"}), cookie)[0] == 303
+                    assert request(port, review_path, "POST",
+                        "story=0", cookie)[0] == 422
+                    assert request(port, review_path, "POST",
+                        "overall=10", cookie)[0] == 400
+                    assert request(port, review_path, "POST",
+                        "story_comment=obsolete", cookie)[0] == 400
+                    assert request(port, review_path, "POST",
+                        "story=5&story=5", cookie)[0] == 400
+                    assert request(port, "/games/mw/reviews", "POST",
+                        "", cookie)[0] == 404
+                    assert request(port, review_path, "POST",
+                        "story=8", cookie)[0] == 303
+                    draft_form = request(port, review_path, cookie=cookie)
+                    assert draft_form[0] == 200
+                    assert draft_form[2].count('value="8" data-review-score') == 1
+                    assert draft_form[2].count('value="" data-review-score') == 4
+                    with sqlite3.connect(db_path) as db:
+                        timestamps = db.execute(
+                            "SELECT typeof(added), typeof(updated) "
+                            "FROM GameReviews").fetchone()
+                        assert timestamps == ("integer", "integer")
                     edited = request(port, f"/games/mw/{game_id}/edit", "POST",
                         urlencode({"name": "Renamed Game", "status": "done"}),
                         cookie)
@@ -210,6 +271,8 @@ def main():
                     assert deleted[0] == 303, deleted
                     assert request(port, f"/games/mw/{game_id}/edit",
                                    cookie=cookie)[0] == 404
+                    with sqlite3.connect(db_path) as db:
+                        assert db.execute("SELECT COUNT(*) FROM GameReviews").fetchone() == (0,)
                     oversized = request(port, "/games/mw/new", "POST",
                                         "notes=" + "a" * (1024 * 1024), cookie)
                     assert oversized[0] == 413, oversized[0]
@@ -270,7 +333,7 @@ def main():
                 assert subprocess.run([binary, "--help"],
                     capture_output=True).returncode == 0
                 print("Production smoke passed: login, guest, pages, preview, "
-                      "save, refresh, reopen, games CRUD/import, and startup exit codes.")
+                      "save, refresh, reopen, games CRUD/import, reviews, and startup exit codes.")
     finally:
         provider.shutdown()
         provider_thread.join()

@@ -45,6 +45,15 @@ public:
     // Captures full field replacement.
     MOCK_METHOD(E<GameRecord>, updateGame,
         (const std::string&, int64_t, const GameInput&), (override));
+    // Returns configured review inputs.
+    MOCK_METHOD(E<std::vector<GameReviewRecord>>, listReviews,
+        (const std::string&), (override));
+    // Captures an owner-scoped review replacement.
+    MOCK_METHOD(E<void>, saveReview,
+        (const std::string&, int64_t, const GameReviewInput&), (override));
+    // Captures review-only deletion.
+    MOCK_METHOD(E<bool>, deleteReview,
+        (const std::string&, int64_t), (override));
     // Captures owner-scoped deletion.
     MOCK_METHOD(E<bool>, deleteGame,
         (const std::string&, int64_t), (override));

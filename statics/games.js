@@ -1,7 +1,9 @@
 "use strict";
 
 const GAME_COLLATOR = new Intl.Collator();
-const GAME_SORT_COOKIE = "nsweekly-games-sort";
+const GAME_REVIEWS = document.getElementById("Games").dataset.view === "reviews";
+const GAME_SORT_COOKIE = GAME_REVIEWS ?
+    "nsweekly-reviews-sort" : "nsweekly-games-sort";
 let game_sort_column = -1;
 let game_sort_direction = 1;
 
@@ -38,8 +40,8 @@ function applyGameSort()
 
 function restoreGameSort()
 {
-    game_sort_column = 2;
-    game_sort_direction = 1;
+    game_sort_column = GAME_REVIEWS ? 6 : 2;
+    game_sort_direction = GAME_REVIEWS ? -1 : 1;
     for(const cookie of document.cookie.split(";"))
     {
         const value = cookie.trim();
@@ -47,7 +49,7 @@ function restoreGameSort()
         {
             continue;
         }
-        const match = /^([0-7]):(asc|desc)$/.exec(
+        const match = /^(\d{1,2}):(asc|desc)$/.exec(
             value.slice(GAME_SORT_COOKIE.length + 1));
         if(!match || !document.querySelector(
             '#Games [data-sort="' + match[1] + '"]'))
@@ -74,11 +76,12 @@ function compareGames(a, b)
     let order = 0;
     if(!left_missing)
     {
-        if([2, 3, 4].includes(game_sort_column))
+        if(GAME_REVIEWS ? game_sort_column >= 1 && game_sort_column <= 7 :
+            [2, 3, 4].includes(game_sort_column))
         {
             order = Number(left.dataset.key) - Number(right.dataset.key);
         }
-        else if([5, 6].includes(game_sort_column))
+        else if((GAME_REVIEWS ? [8, 9] : [5, 6]).includes(game_sort_column))
         {
             order = left.dataset.key < right.dataset.key ? -1 :
                 left.dataset.key > right.dataset.key ? 1 : 0;
@@ -115,31 +118,35 @@ function cancelGameDialog(event)
 function initializeGames()
 {
     const tbody = document.querySelector("#Games tbody");
-    for(const [index, row] of Array.from(tbody.rows).entries())
+    if(tbody)
     {
-        row.dataset.originalIndex = String(index);
+        for(const [index, row] of Array.from(tbody.rows).entries())
+        {
+            row.dataset.originalIndex = String(index);
+        }
+        for(const button of document.querySelectorAll("#Games [data-sort]"))
+        {
+            button.addEventListener("click", sortGames);
+        }
+        restoreGameSort();
     }
-    for(const button of document.querySelectorAll("#Games [data-sort]"))
-    {
-        button.addEventListener("click", sortGames);
-    }
-    restoreGameSort();
     const dialog = document.querySelector("#Games dialog");
-    if(!dialog)
+    const editor = dialog || document.getElementById("ReviewForm");
+    if(!editor)
     {
         return;
     }
-    if(typeof dialog.showModal === "function")
+    if(dialog && typeof dialog.showModal === "function")
     {
         dialog.removeAttribute("open");
         dialog.showModal();
         dialog.addEventListener("cancel", cancelGameDialog);
     }
-    const errors = Array.from(dialog.querySelectorAll(".FieldError"));
+    const errors = Array.from(editor.querySelectorAll(".FieldError"));
     const error = errors.find(hasFieldError);
     let focus = error && error.id ?
-        dialog.querySelector('[aria-describedby="' + error.id + '"]') :
-        dialog.querySelector("input, select, textarea, button");
+        editor.querySelector('[aria-describedby="' + error.id + '"]') :
+        editor.querySelector("input, select, textarea, button");
     if(focus && focus.tagName === "FIELDSET")
     {
         focus = focus.querySelector("input");

@@ -72,7 +72,7 @@ Other notable options:
 
 == Development
 
-Configure with `cmake -S . -B build`, build with
+Configure tests with `cmake -S . -B build -DBUILD_TESTING=ON`, build with
 `cmake --build build -j24`, and run
 `ctest --test-dir build --output-on-failure`.
 To build against a local libmw checkout, configure with
@@ -110,7 +110,7 @@ direction for one year across tracker pages. Forms work without
 JavaScript; JavaScript enhances dialogs and sorting. POSTs require an
 Origin matching `url-prefix`.
 
-Game storage creates `GameTracking` and `GamePlatforms` alongside the
+Game storage creates `GameTracking`, `GamePlatforms`, and `GameReviews` alongside the
 existing tables, using a separate connection. Scalar and platform saves
 commit together. Missing hours and zero hours remain distinct. Names are
 stripped, case-sensitive, and unique within an account.
@@ -172,3 +172,33 @@ The Tracker fixture contains observed blank/end-only/two-platform patterns;
 its `Synthetic zero` record adds synthetic zero-hour and multiline cases.
 Run the smoke test for production games CRUD and CLI import, and use
 `tests/games_browser.html` for repeatable browser sorting and dialog checks.
+
+== Game reviews
+
+Open Reviews within Games, or visit `/games/USERNAME/reviews`. To write a
+review, hover or focus a game's name cell in the tracker and use its review
+icon. Creation and editing open a separate page with the rubric beside
+the form (below it on mobile). Each tracked game has at most one review,
+editable by its owner and
+readable publicly. Review names link back to the tracked game.
+
+Story/Lore, Gameplay, Graphics, Audio, and Special accept scores from 1 to
+10, including fractions; 5 means average. Each game has one optional
+overall MacroDown review; individual dimensions have no comments.
+Blank scores keep a review incomplete. The browser computes overall as
+`(story + 2 * gameplay + graphics + audio + special) / 6`, displays one
+decimal place, and sorts using the unrounded value. Overall is never
+stored. Without JavaScript the inputs and review remain readable, and
+native forms still work, but overall and sorting require JavaScript.
+
+Reviews default to overall descending and preserve sorting for one year in
+a separate `nsweekly-reviews-sort` cookie. Hours comes from the tracker.
+Creation/update times are stored as integer UTC Unix timestamps and shown
+as UTC `yyyy-mm-dd`. Deleting a review leaves the game; deleting a game
+also deletes its review. Tracker CSV import continues to ignore the Review
+column and does not import scores from the Reviews sheet.
+
+See `designs/design-2-reviews.md` for the schema, routes, formula, and checks.
+
+When Node.js is available, CTest also runs the review formula checks. They
+can be run directly with `node tests/reviews_score_test.js`.

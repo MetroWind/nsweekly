@@ -10,6 +10,8 @@
 <main id="Games">
   {% include "nav.html" %}
   <h1>{{ username }}’s Game Tracker</h1>
+  <p class="GameViews"><a href="{{ table_url }}" aria-current="page">Tracker</a>
+    <a href="{{ reviews_url }}">Reviews</a></p>
   {% if is_owner %}<p><a href="{{ new_url }}">Add game</a></p>{% endif %}
   {% if length(games) == 0 %}<p>No games recorded.</p>{% endif %}
   <div class="TableScroll">
@@ -21,14 +23,16 @@
     </tr></thead>
     <tbody>
     {% for game in games %}
-    <tr data-id="{{ game.id }}">
+    <tr id="game-{{ game.id }}" data-id="{{ game.id }}">
       {% for cell in game.cells %}
       <td data-key="{{ cell.key }}" data-missing="{{ cell.missing }}"
           {% if loop.index == 0 %}class="GameName"{% endif %}>
         {%- if loop.index == 0 -%}
-          {{ cell.value }}
+          <a href="{{ game.review_view_url }}">{{ cell.value }}</a>
           {% if is_owner %}
           <span class="GameActions">
+            <a href="{{ game.review_url }}" title="Write or edit review"
+               aria-label="Review {{ cell.value }}"><span class="ActionGlyph" aria-hidden="true">&#xf040e;</span></a>
             <a href="{{ game.edit_url }}" title="Edit game"
                aria-label="Edit {{ cell.value }}">
               <span class="ActionGlyph" aria-hidden="true">&#xf03eb;</span>
@@ -60,7 +64,7 @@
     <h2 id="ActionTitle">{% if action == "delete" %}Delete game{% else if action == "edit" %}Edit game{% else %}Add game{% endif %}</h2>
     <form method="post" action="{{ action_url }}">
     {% if action == "delete" %}
-      <p>Delete {{ form.name }}?</p>
+      <p>Delete {{ form.name }} and its review?</p>
       <button type="submit">Delete</button>
     {% else %}
       <label for="GameName">Name</label>

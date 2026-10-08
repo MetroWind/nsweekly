@@ -42,6 +42,10 @@ class GamesModule
                  mw::HTTPServer::Response &res,
                  const httplib::ContentReader &reader, const std::string &user,
                  const std::string &action, const std::string &id_text);
+    void handleReviews(const mw::HTTPServer::Request &req,
+                       mw::HTTPServer::Response &res, const std::string &user,
+                       const std::string &session_user,
+                       const std::string &action, int64_t id);
     void render(mw::HTTPServer::Response &res, const std::string &user,
                 const std::string &session_user, const std::string &action,
                 int64_t id, const GameFields &fields,

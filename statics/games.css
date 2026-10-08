@@ -102,7 +102,6 @@ button, input, select, textarea
     font-size: clamp(2rem, 5vw, 4.5rem);
     font-weight: 900;
     line-height: 1;
-    letter-spacing: -.065em;
     text-transform: uppercase;
 }
 
@@ -257,7 +256,7 @@ button, input, select, textarea
     text-align: left;
     vertical-align: top;
 }
-#Games td:nth-child(8)
+#Games:not([data-view="reviews"]) td:nth-child(8)
 {
     min-width: 16rem;
     max-width: 35rem;
@@ -417,45 +416,45 @@ button, input, select, textarea
     background: #30303e;
 }
 
-#Games td:nth-child(3)
+#Games:not([data-view="reviews"]) td:nth-child(3)
 {
     color: var(--color-bg);
     font-weight: 700;
 }
 
 /* Status keys follow GameStatus; labels remain visible alongside color. */
-#Games td:nth-child(3)[data-key="0"]
+#Games:not([data-view="reviews"]) td:nth-child(3)[data-key="0"]
 {
     background: #d5ff45;
 }
 
-#Games td:nth-child(3)[data-key="1"]
+#Games:not([data-view="reviews"]) td:nth-child(3)[data-key="1"]
 {
     background: #75d9ff;
 }
 
-#Games td:nth-child(3)[data-key="2"]
+#Games:not([data-view="reviews"]) td:nth-child(3)[data-key="2"]
 {
     background: #ffbf69;
 }
 
-#Games td:nth-child(3)[data-key="3"]
+#Games:not([data-view="reviews"]) td:nth-child(3)[data-key="3"]
 {
     background: #c1a2ff;
 }
 
-#Games td:nth-child(3)[data-key="4"]
+#Games:not([data-view="reviews"]) td:nth-child(3)[data-key="4"]
 {
     background: #ff87d5;
 }
 
-#Games td:nth-child(4)
+#Games:not([data-view="reviews"]) td:nth-child(4)
 {
     color: #ff87d5;
 }
 
-#Games td:nth-child(5), #Games td:nth-child(6),
-#Games td:nth-child(7)
+#Games:not([data-view="reviews"]) td:nth-child(5), #Games:not([data-view="reviews"]) td:nth-child(6),
+#Games:not([data-view="reviews"]) td:nth-child(7)
 {
     font-family: ui-monospace, monospace;
     font-size: .85rem;
@@ -519,5 +518,169 @@ button, input, select, textarea
         width: calc(100vw - 2rem);
         padding: 1rem;
         max-height: 90vh;
+    }
+}
+
+#Games .GameViews
+{
+    display: flex;
+    gap: 1rem;
+    margin: 1.5rem 0;
+}
+
+#Games .GameViews a
+{
+    background: var(--color-panel);
+    color: var(--color-fg);
+    box-shadow: none;
+    outline-color: var(--color-border);
+}
+
+#Games .GameViews a[aria-current="page"]
+{
+    color: var(--color-bg);
+    background: var(--color-accent);
+    box-shadow: 4px 4px 0 #a26dff;
+}
+
+#Games .ReviewOverall, #Games .DimensionScore
+{
+    color: var(--color-accent);
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+}
+
+#Games .ReviewOverall
+{
+    background: #303426;
+    font-size: 1.2rem;
+}
+
+#Games .ReviewDimension
+{
+    min-width: 6rem;
+    max-width: 15rem;
+    overflow-wrap: anywhere;
+}
+
+#Games .ReviewText
+{
+    min-width: 16rem;
+    max-width: 35rem;
+    overflow-wrap: anywhere;
+}
+
+#Games .ReviewScale
+{
+    color: var(--color-muted);
+    font-family: ui-monospace, monospace;
+}
+
+#Games .ReviewSummary
+{
+    position: sticky;
+    bottom: 0;
+    padding: .75rem;
+    border: 1px solid var(--color-accent);
+    background: var(--color-panel);
+    color: var(--color-accent);
+    font-weight: 800;
+}
+
+#Games tr[id]
+{
+    scroll-margin-top: 72px;
+}
+
+#Games tr:target .GameName
+{
+    box-shadow: inset 4px 0 0 #ff87d5;
+}
+
+#Games.ReviewPage
+{
+    max-width: 72rem;
+    margin-inline: auto;
+    padding: 56px clamp(1rem, 3vw, 3rem) 2rem;
+}
+
+#Games .ReviewGameName
+{
+    margin: 1rem 0 2rem;
+    font-size: 1.5rem;
+    color: #c1a2ff;
+    overflow-wrap: anywhere;
+}
+
+#Games.ReviewPage form
+{
+    padding: 1.25rem;
+    border: 1px solid var(--color-border);
+    border-top: 3px solid var(--color-accent);
+    background: var(--color-bg);
+}
+
+#Games.ReviewPage .ReviewEditor
+{
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 2rem;
+    align-items: start;
+}
+
+#Games .ReviewRubric
+{
+    position: sticky;
+    top: 72px;
+    max-height: calc(100vh - 88px);
+    overflow: auto;
+    padding: 1rem 1.25rem;
+    border: 1px solid var(--color-border);
+    border-top: 3px solid #a26dff;
+    background: var(--color-panel);
+    font-size: .85rem;
+    line-height: 1.6;
+}
+
+#Games .ReviewRubric h3
+{
+    margin: 0 0 .75rem;
+    color: #c1a2ff;
+    font-family: ui-monospace, monospace;
+    font-size: 1rem;
+    text-transform: uppercase;
+}
+
+#Games .ReviewRubric dt
+{
+    margin-top: 1rem;
+    color: var(--color-accent);
+    font-weight: 800;
+}
+
+#Games .ReviewRubric dd
+{
+    margin: .35rem 0 0;
+}
+
+#Games .RubricSource
+{
+    color: var(--color-muted);
+    font-size: .75rem;
+}
+
+@media(max-width: 900px)
+{
+    #Games.ReviewPage .ReviewEditor
+    {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 1.5rem;
+    }
+
+    #Games .ReviewRubric
+    {
+        position: static;
+        max-height: none;
+        overflow: visible;
     }
 }

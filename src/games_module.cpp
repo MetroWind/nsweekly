@@ -58,15 +58,23 @@ std::string origin(const std::string &text)
            (port.empty() ? "" : ":" + port);
 }
 
-E<GameFields> parseFields(const Request &req, bool deletion)
+E<GameFields> parseFields(const Request &req, bool deletion, bool review = false)
 {
     if(req.target.find('?') != std::string::npos)
     {
         return std::unexpected(httpError(400, "Query action data forbidden"));
     }
-    const std::set<std::string> allowed{"name",       "platforms", "status",
+    std::set<std::string> allowed{"name",       "platforms", "status",
                                         "completion", "hours",     "start_date",
                                         "end_date",   "notes"};
+    if(review)
+    {
+        allowed = {"text"};
+        for(const auto key : REVIEW_KEYS)
+        {
+            allowed.insert(std::string(key));
+        }
+    }
     GameFields fields;
     // Parse each pair with httplib separately: its whole-body parser
     // deduplicates identical pairs, which would hide repeated scalars.
@@ -208,7 +216,7 @@ void GamesModule::handleSession(const Request &req, Response &res,
         }
     }
     bool owner = !session_user.empty() && session_user == user;
-    if(!action.empty())
+    if(!action.empty() && action != "reviews")
     {
         if(session_user.empty())
         {
@@ -222,7 +230,8 @@ void GamesModule::handleSession(const Request &req, Response &res,
         }
     }
     int64_t id = 0;
-    if(action == "edit" || action == "delete")
+    if(action == "edit" || action == "delete" ||
+       action == "review/edit" || action == "review/delete")
     {
         auto [end, ec] = std::from_chars(id_text.data(),
                                          id_text.data() + id_text.size(), id);
@@ -273,6 +282,11 @@ void GamesModule::handleSession(const Request &req, Response &res,
     if(!*uid)
     {
         htmlError(res, 404);
+        return;
+    }
+    if(action == "reviews" || action.starts_with("review/"))
+    {
+        handleReviews(req, res, user, session_user, action, id);
         return;
     }
     GameFields fields = gameFields(GameInput{});
@@ -432,7 +446,10 @@ void GamesModule::render(Response &res, const std::string &user,
                         {"cells", cells},
                         {"platforms", platform_icons},
                         {"edit_url", gameEscape(base + "/edit")},
-                        {"delete_url", gameEscape(base + "/delete")}});
+                        {"delete_url", gameEscape(base + "/delete")},
+                        {"review_url", gameEscape(base + "/review/edit")},
+                        {"review_view_url", gameEscape(gamesURL(user) +
+                            "/reviews#game-" + std::to_string(record.id))}});
     }
     nlohmann::json form = nlohmann::json::object();
     nlohmann::json field_errors = nlohmann::json::object();
@@ -457,6 +474,7 @@ void GamesModule::render(Response &res, const std::string &user,
         {"is_owner", !session_user.empty() && session_user == user},
         {"table_url", gameEscape(table_url)},
         {"weekly_url", gameEscape(weeklyURL(user))},
+        {"reviews_url", gameEscape(table_url + "/reviews")},
         {"new_url", gameEscape(table_url + "/new")},
         {"action_url", gameEscape(action_url)},
         {"action", action},
@@ -480,6 +498,163 @@ void GamesModule::render(Response &res, const std::string &user,
     catch(const inja::InjaError &)
     {
         spdlog::error("Games template rendering failed");
+        htmlError(res, 500);
+    }
+}
+
+void GamesModule::handleReviews(const Request &req, Response &res,
+    const std::string &user, const std::string &session_user,
+    const std::string &action, int64_t id)
+{
+    const bool editing = action != "reviews";
+    const bool deletion = action == "review/delete";
+    auto records = games.listGames(user);
+    auto reviews = games.listReviews(user);
+    if(!records || !reviews)
+    {
+        storageError(res, !records ? records.error() : reviews.error());
+        return;
+    }
+    const auto game = std::ranges::find(*records, id, &GameRecord::id);
+    auto current = std::ranges::find(*reviews, id, &GameReviewRecord::game_id);
+    if(editing && (game == records->end() ||
+                  (deletion && current == reviews->end())))
+    {
+        htmlError(res, 404);
+        return;
+    }
+    GameFields fields = reviewFields(current != reviews->end() ?
+        current->input : GameReviewInput{});
+    if(current == reviews->end())
+    {
+        for(const auto key : REVIEW_KEYS)
+        {
+            fields.scalars[std::string(key)] = "5";
+        }
+    }
+    std::map<std::string, std::string> errors;
+    const auto tracker_url = gamesURL(user);
+    const auto review_url = tracker_url + "/reviews";
+    if(req.method == "POST")
+    {
+        auto parsed = parseFields(req, deletion, true);
+        if(!parsed)
+        {
+            storageError(res, parsed.error());
+            return;
+        }
+        if(deletion)
+        {
+            auto removed = games.deleteReview(user, id);
+            if(!removed)
+            {
+                storageError(res, removed.error());
+                return;
+            }
+            if(!*removed)
+            {
+                htmlError(res, 404);
+                return;
+            }
+            res.set_redirect(review_url, 303);
+            return;
+        }
+        fields = std::move(*parsed);
+        auto input = validateReview(fields);
+        if(!input)
+        {
+            const auto *validation = input.error().as<GameValidationError>();
+            if(!validation)
+            {
+                storageError(res, input.error());
+                return;
+            }
+            errors = validation->fields;
+            res.status = 422;
+        }
+        else
+        {
+            auto saved = games.saveReview(user, id, *input);
+            if(!saved)
+            {
+                storageError(res, saved.error());
+                return;
+            }
+            res.set_redirect(review_url + "#game-" + std::to_string(id), 303);
+            return;
+        }
+    }
+    auto rows = nlohmann::json::array();
+    for(const auto &review : *reviews)
+    {
+        auto tracked = std::ranges::find(*records, review.game_id,
+                                         &GameRecord::id);
+        if(tracked == records->end())
+        {
+            continue;
+        }
+        auto dimensions = nlohmann::json::array();
+        const auto raw = reviewFields(review.input);
+        for(size_t i = 0; i < REVIEW_KEYS.size(); ++i)
+        {
+            dimensions.push_back({
+                {"score", raw.scalars.at(std::string(REVIEW_KEYS[i]))}});
+        }
+        auto text = renderGameMarkdown(review.input.text);
+        const auto base = tracker_url + "/" + std::to_string(review.game_id);
+        rows.push_back({
+            {"id", std::to_string(review.game_id)},
+            {"name", gameEscape(tracked->input.name)},
+            {"dimensions", dimensions},
+            {"text", text ? *text :
+                "<pre>" + gameEscape(review.input.text) + "</pre>"},
+            {"text_key", gameEscape(review.input.text)},
+            {"hours", tracked->input.hours ?
+                std::to_string(*tracked->input.hours) : ""},
+            {"added", std::format("{:%F}", std::chrono::floor<
+                std::chrono::days>(std::chrono::sys_seconds{
+                    std::chrono::seconds{review.added}}))},
+            {"updated", std::format("{:%F}", std::chrono::floor<
+                std::chrono::days>(std::chrono::sys_seconds{
+                    std::chrono::seconds{review.updated}}))},
+            {"edit_url", gameEscape(base + "/review/edit")},
+            {"delete_url", gameEscape(base + "/review/delete")},
+            {"game_url", gameEscape(tracker_url + "#game-" +
+                std::to_string(review.game_id))}});
+    }
+    auto dimensions = nlohmann::json::array();
+    for(size_t i = 0; i < REVIEW_KEYS.size(); ++i)
+    {
+        const std::string key(REVIEW_KEYS[i]);
+        dimensions.push_back({{"key", key}, {"label", REVIEW_LABELS[i]},
+            {"score", gameEscape(fields.scalars[key])},
+            {"error", gameEscape(errors[key])}});
+    }
+    nlohmann::json context{
+        {"username", gameEscape(user)},
+        {"session_user", gameEscape(session_user)},
+        {"is_owner", !session_user.empty() && session_user == user},
+        {"table_url", gameEscape(tracker_url)},
+        {"weekly_url", gameEscape(weeklyURL(user))},
+        {"reviews_url", gameEscape(review_url)},
+        {"reviews", rows}, {"editing", editing}, {"deletion", deletion},
+        {"existing", current != reviews->end()},
+        {"game_name", editing ? gameEscape(game->input.name) : ""},
+        {"action_url", gameEscape(tracker_url + "/" +
+            std::to_string(id) + "/" + action)},
+        {"dimensions", dimensions}, {"text", gameEscape(fields.scalars["text"])},
+        {"text_error", gameEscape(errors["text"])}};
+    try
+    {
+        std::lock_guard lock(template_mutex);
+        res.set_content(templates.render_file(
+                            editing && !deletion ? "review_edit.html" :
+                                "reviews.html", context),
+                        "text/html; charset=utf-8");
+    }
+    catch(const inja::InjaError &)
+    {
+        spdlog::error("Reviews template rendering failed");
         htmlError(res, 500);
     }
 }
@@ -569,9 +744,9 @@ void GamesModule::dispatch(const Request &req, Response &res,
     if(slash != std::string::npos)
     {
         auto suffix = path.substr(slash + 1);
-        if(suffix == "new")
+        if(suffix == "new" || suffix == "reviews")
         {
-            action = "new";
+            action = suffix;
         }
         else
         {
@@ -583,7 +758,8 @@ void GamesModule::dispatch(const Request &req, Response &res,
             }
             id = suffix.substr(0, separator);
             action = suffix.substr(separator + 1);
-            if(action != "edit" && action != "delete")
+            if(action != "edit" && action != "delete" &&
+               action != "review/edit" && action != "review/delete")
             {
                 htmlError(res, 404);
                 return;
@@ -592,7 +768,7 @@ void GamesModule::dispatch(const Request &req, Response &res,
     }
     if(reader)
     {
-        if(action.empty())
+        if(action.empty() || action == "reviews")
         {
             htmlError(res, 404);
             return;

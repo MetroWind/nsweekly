@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  {% include "head_common.html" %}
+  <link rel="stylesheet" href="/statics/games.css">
+  <title>{% if existing %}Edit review{% else %}Write review{% endif %} · {{ game_name }}</title>
+  <script src="/statics/reviews.js" defer></script>
+  <script src="/statics/games.js" defer></script>
+</head>
+<body>
+<main id="Games" class="ReviewPage" data-view="reviews">
+  {% include "nav.html" %}
+  <p class="GameViews"><a href="{{ table_url }}">Tracker</a>
+    <a href="{{ reviews_url }}">Reviews</a></p>
+  <h1>{% if existing %}Edit review{% else %}Write review{% endif %}</h1>
+  <h2 class="ReviewGameName">{{ game_name }}</h2>
+  <div class="ReviewEditor">
+    <form method="post" action="{{ action_url }}" id="ReviewForm">
+      <p>Scores run from 1 to 10; 5 means average. Blank dimensions keep the review incomplete.</p>
+      {% for dimension in dimensions %}
+      <label for="Review-{{ dimension.key }}">{{ dimension.label }}{% if dimension.key == "gameplay" %} (double weight){% endif %}</label>
+      <input id="Review-{{ dimension.key }}" name="{{ dimension.key }}" type="number" min="1" max="10" step="any" value="{{ dimension.score }}" data-review-score aria-details="Rubric-{{ dimension.key }}" aria-describedby="Error-{{ dimension.key }}">
+      <span class="FieldError" id="Error-{{ dimension.key }}">{{ dimension.error }}</span>
+      {% endfor %}
+      <p class="ReviewSummary">Overall: <output id="ReviewScore" aria-live="polite">Incomplete</output></p>
+      <label for="ReviewText">Review (optional, MacroDown)</label>
+      <textarea id="ReviewText" name="text" rows="12" aria-describedby="Error-text">{{ text }}</textarea>
+      <span class="FieldError" id="Error-text">{{ text_error }}</span>
+      <button type="submit">Save</button>
+      <a href="{{ reviews_url }}">Cancel</a>
+    </form>
+    {% include "review_rubric.html" %}
+  </div>
+</main>
+</body>
+</html>
