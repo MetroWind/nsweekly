@@ -55,7 +55,13 @@ function checkBrowserGames()
     document.cookie = GAME_SORT_COOKIE + "=invalid; Path=/; SameSite=Lax";
     game_sort_column = -1;
     restoreGameSort();
-    assertBrowser(game_sort_column === -1, "malformed cookie is ignored");
+    assertBrowser(game_sort_column === 2 && game_sort_direction === 1,
+        "malformed cookie falls back to ascending status");
+    document.cookie = GAME_SORT_COOKIE + "=; Path=/; Max-Age=0";
+    restoreGameSort();
+    assertBrowser(game_sort_column === 2 && game_sort_direction === 1 &&
+        buttons[2].closest("th").getAttribute("aria-sort") === "ascending",
+        "no cookie defaults to ascending status");
     assertBrowser(document.querySelector("#Games td code").textContent ===
         "MacroDown", "notes exist before sorting");
     const start = document.getElementById("GameStart");

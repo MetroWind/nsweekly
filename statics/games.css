@@ -1,0 +1,322 @@
+/* Standalone games UI; weekly layout rules are loaded separately. */
+:root
+{
+    --color-bg: #fff;
+    --color-fg: #243041;
+    --color-accent: #2563eb;
+    --color-border: #d8dee7;
+    --color-panel: #f5f7fa;
+    --color-muted: #64748b;
+}
+
+*
+{
+    box-sizing: border-box;
+}
+
+body
+{
+    margin: 0;
+    font-family: Inter, system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.5;
+    color: var(--color-fg);
+    background: var(--color-bg);
+}
+
+button, input, select, textarea
+{
+    font: inherit;
+}
+
+#Games a
+{
+    color: var(--color-accent);
+    text-decoration: none;
+}
+
+#Games a:hover
+{
+    text-decoration: underline;
+}
+
+#Games :focus-visible
+{
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+}
+
+#Games nav
+{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+    padding-bottom: .75rem;
+    border-bottom: 1px solid var(--color-border);
+    color: var(--color-muted);
+}
+
+#Games > h1, #Games dialog > h2
+{
+    margin: 0 0 1rem;
+    font-size: 1.5rem;
+    font-weight: 600;
+    line-height: 1.25;
+}
+
+#Games p
+{
+    margin: .75rem 0;
+}
+
+#Games button
+{
+    padding: .5rem .75rem;
+    border: 1px solid var(--color-border);
+    border-radius: .35rem;
+    color: inherit;
+    background: var(--color-panel);
+    cursor: pointer;
+}
+
+#Games button:hover
+{
+    background: #e8edf4;
+}
+
+#Games th
+{
+    background: var(--color-panel);
+    white-space: nowrap;
+}
+
+#Games th button
+{
+    width: 100%;
+    border: 0;
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+    font-weight: 600;
+    text-align: left;
+}
+
+#Games th[aria-sort="ascending"] button::after
+{
+    content: " ↑";
+}
+
+#Games th[aria-sort="descending"] button::after
+{
+    content: " ↓";
+}
+
+#Games td > :first-child
+{
+    margin-top: 0;
+}
+
+#Games td > :last-child
+{
+    margin-bottom: 0;
+}
+
+#Games td :is(h1, h2, h3, h4)
+{
+    font-size: 1.1em;
+    margin: .75rem 0 .5rem;
+}
+
+#Games td img
+{
+    max-width: 100%;
+}
+
+#Games textarea, #Games pre, #Games code
+{
+    font-family: ui-monospace, monospace;
+}
+
+#Games textarea
+{
+    resize: vertical;
+}
+
+#Games fieldset
+{
+    margin: 1rem 0;
+    padding: .75rem;
+    border: 1px solid var(--color-border);
+    border-radius: .35rem;
+}
+
+#Games legend, #Games form > label
+{
+    font-weight: 500;
+}
+
+#Games details
+{
+    margin: .75rem 0;
+    font-size: .9rem;
+    color: var(--color-muted);
+}
+
+#Games form > button
+{
+    margin-top: 1rem;
+    margin-inline-end: .75rem;
+}
+
+#Games .GameActions a:hover
+{
+    color: var(--color-bg);
+    background: var(--color-accent);
+    text-decoration: none;
+}
+
+@font-face
+{
+    font-family: "NSWeekly Symbols";
+    src: url("symbols-nerdfont.woff2") format("woff2");
+    font-style: normal;
+    font-weight: normal;
+    font-display: block;
+}
+
+#Games
+{
+    max-width: 100%;
+    margin: 1.25rem;
+}
+#Games .TableScroll
+{
+    overflow-x: auto;
+}
+#Games table
+{
+    border-collapse: collapse;
+    width: 100%;
+}
+#Games th, #Games td
+{
+    border: 1px solid var(--color-border);
+    padding: .2rem;
+    text-align: left;
+    vertical-align: top;
+}
+#Games td:nth-child(8)
+{
+    min-width: 16rem;
+    max-width: 35rem;
+    overflow-wrap: anywhere;
+}
+#Games .PlatformIcon
+{
+    display: inline-flex;
+    align-items: baseline;
+    margin-inline-end: .6rem;
+    white-space: nowrap;
+}
+#Games .PlatformIcon:last-child
+{
+    margin-inline-end: 0;
+}
+#Games .PlatformGlyph, #Games .ActionGlyph
+{
+    font-family: "NSWeekly Symbols", sans-serif;
+    font-size: 1.3em;
+    line-height: 1;
+}
+#Games .PlatformIcon sub
+{
+    font-size: .65em;
+    margin-inline-start: .1em;
+}
+#Games .GameName
+{
+    position: relative;
+    min-width: 5rem;
+}
+#Games .GameActions
+{
+    position: absolute;
+    right: 0.1rem;
+    z-index: 1;
+    display: flex;
+    background: var(--color-bg);
+    opacity: 0;
+    pointer-events: none;
+    top: 50%;
+    transform: translateY(-50%);
+
+}
+#Games .GameActions a
+{
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.1rem;
+}
+#Games .GameName:hover .GameActions,
+#Games .GameName:focus-within .GameActions
+{
+    opacity: 1;
+    pointer-events: auto;
+}
+#Games pre
+{
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+#Games dialog
+{
+    position: fixed;
+    inset: 0;
+    margin: auto;
+    height: fit-content;
+    padding: 1.5rem;
+    border: 1px solid var(--color-border);
+    border-radius: .75rem;
+    box-shadow: 0 1rem 3rem #0003;
+    z-index: 2;
+    max-height: 85vh;
+    overflow: auto;
+    width: min(38rem, 85vw);
+    color: inherit;
+    background: var(--color-bg);
+}
+#Games form > label, #Games .FieldError
+{
+    display: block;
+    margin-top: .5rem;
+}
+#Games form > input, #Games form > select, #Games textarea
+{
+    box-sizing: border-box;
+    width: 100%;
+    padding: .5rem .625rem;
+    border: 1px solid var(--color-border);
+    border-radius: .35rem;
+    background: var(--color-bg);
+    color: inherit;
+}
+#Games .FieldError
+{
+    color: #c33;
+}
+#Games .FieldError:empty
+{
+    display: none;
+}
+#Games fieldset label
+{
+    display: inline-block;
+    margin-right: 1rem;
+}
+#Games ::backdrop
+{
+    background: #0008;
+}

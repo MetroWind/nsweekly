@@ -38,6 +38,8 @@ function applyGameSort()
 
 function restoreGameSort()
 {
+    game_sort_column = 2;
+    game_sort_direction = 1;
     for(const cookie of document.cookie.split(";"))
     {
         const value = cookie.trim();
@@ -50,13 +52,13 @@ function restoreGameSort()
         if(!match || !document.querySelector(
             '#Games [data-sort="' + match[1] + '"]'))
         {
-            return;
+            break;
         }
         game_sort_column = Number(match[1]);
         game_sort_direction = match[2] === "asc" ? 1 : -1;
-        applyGameSort();
-        return;
+        break;
     }
+    applyGameSort();
 }
 
 function compareGames(a, b)

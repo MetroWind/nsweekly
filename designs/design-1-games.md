@@ -627,7 +627,8 @@ Sorting algorithm:
 Persist the selected column and direction in a host-only browser cookie
 for one year, shared across tracker pages. Restore it when loading a page,
 including after form redirects, and update aria-sort. Ignore malformed
-values. Sorting remains entirely in the browser; no database write occurs.
+values. Without a valid preference, sort by Status ascending. Sorting remains
+entirely in the browser; no database write occurs.
 
 Render one active action `<dialog>` on the requested new/edit/delete page.
 The public table page needs no action dialog. Add/edit forms have labelled
@@ -661,7 +662,9 @@ Delete's confirmation form uses the escaped game name and posts only after
 the owner clicks Delete. A GET or cancellation never changes tracking data.
 Form mutations remain usable without JavaScript; sorting, modal enhancement,
 use the games script. Notes render on the server. No Bootstrap or
-new frontend framework is needed. Scope CSS beneath the games container.
+new frontend framework is needed. Load a standalone `statics/games.css` for games pages, with compact table,
+navigation, and dialog styling independent of the weekly stylesheet. Share
+head metadata and font links through `head_common.html`.
 
 ## 7. MacroDown integration and rendering
 
@@ -849,6 +852,7 @@ the migration has been verified; keep domain validation and storage tests.
 | `src/csv_reader.hpp/.cpp` | CSV record/field state machine |
 | `templates/games.html` | Public table and owner dialogs |
 | `statics/games.js` | Dialog opening, date control minimum, local sorting |
+| `statics/games.css` | Independent table, navigation, and dialog styling |
 
 Add component tests adjacent to their components, matching the current
 repository layout. Extend route helpers, App composition, `main.cpp`, CMake
