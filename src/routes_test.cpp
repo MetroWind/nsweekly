@@ -19,6 +19,7 @@ protected:
     {
         Configuration config{};
         config.data_dir = NSWEEKLY_SOURCE_DIR;
+        config.url_prefix = "http://tracker.example";
         config.listen_address = "127.0.0.1";
         httplib::Server port_probe;
         config.listen_port = port_probe.bind_to_any_port(config.listen_address);
@@ -28,10 +29,12 @@ protected:
         auth = auth_owner.get();
         auto user_owner = std::make_unique<UserDataMock>();
         users = user_owner.get();
+        auto game_owner = std::make_unique<GameDataMock>();
+        games = game_owner.get();
         auto weekly_owner = std::make_unique<WeeklyDataMock>();
         weeklies = weekly_owner.get();
         ASSIGN_OR_FAIL(app, App::create(config, std::move(auth_owner),
-            std::move(user_owner), std::move(weekly_owner)));
+            std::move(user_owner), std::move(weekly_owner), std::move(game_owner)));
         ASSERT_TRUE(app->start().has_value());
         server_started = true;
         client = std::make_unique<httplib::Client>(
@@ -52,6 +55,7 @@ protected:
     AuthMock* auth = nullptr;
     UserDataMock* users = nullptr;
     WeeklyDataMock* weeklies = nullptr;
+    GameDataMock* games = nullptr;
     bool server_started = false;
     std::unique_ptr<httplib::Client> client;
 };
@@ -208,4 +212,26 @@ TEST_F(Routes, StaticsServeUnchangedPreviewAsset)
     ASSERT_TRUE(css);
     EXPECT_EQ(css->status, 200);
     EXPECT_THAT(css->get_header_value("Content-Type"), HasSubstr("text/css"));
+}
+
+TEST_F(Routes, GamesRoutesPublicFormsAndEncodedUsername)
+{
+    EXPECT_CALL(*users, getUserID("alice/new"))
+        .WillOnce(Return(std::optional<int64_t>{3}));
+    EXPECT_CALL(*games, listGames("alice/new"))
+        .WillOnce(Return(std::vector<GameRecord>{}));
+    auto encoded = client->Get("/games/alice%2Fnew");
+    ASSERT_TRUE(encoded);
+    EXPECT_EQ(encoded->status, 200);
+    EXPECT_THAT(encoded->body, HasSubstr("alice/new’s Games"));
+    auto canonical = client->Get("/games");
+    ASSERT_TRUE(canonical);
+    EXPECT_EQ(canonical->status, 308);
+    EXPECT_EQ(canonical->get_header_value("Location"), "/games/");
+    auto guest = client->Get("/games/alice/new");
+    ASSERT_TRUE(guest);
+    EXPECT_EQ(guest->status, 401);
+    auto json = client->Get("/games/alice/1");
+    ASSERT_TRUE(json);
+    EXPECT_EQ(json->status, 404);
 }

@@ -13,3 +13,9 @@ TEST(RouteUrls, PreservesEveryTemplateName)
     EXPECT_EQ(urlFor("statics", "preview.js"), "/statics/preview.js");
     EXPECT_EQ(urlFor("unknown", "mw"), "");
 }
+
+TEST(RouteUrls, GamesEncodesIndividualUsernameComponents)
+{
+    EXPECT_EQ(gamesURL("a b/c+é"), "/games/a%20b%2Fc%2B%C3%A9");
+    EXPECT_EQ(urlFor("games", "mw"), "/games/mw");
+}

@@ -5,6 +5,7 @@
 
 #include "app.hpp"
 #include "config.hpp"
+#include "game_import.hpp"
 
 int main(int argc, char** argv)
 {
@@ -12,13 +13,33 @@ int main(int argc, char** argv)
     cmd_options.add_options()
         ("c,config", "Config file",
          cxxopts::value<std::string>()->default_value("/etc/nsweekly.yaml"))
+        ("import-games-csv", "Import Tracker CSV and exit",
+         cxxopts::value<std::string>())
+        ("import-games-user", "Existing account to import into",
+         cxxopts::value<std::string>())
         ("h,help", "Print this message.");
-    auto opts = cmd_options.parse(argc, argv);
+    cxxopts::ParseResult opts;
+    try
+    {
+        opts = cmd_options.parse(argc, argv);
+    }
+    catch(const cxxopts::exceptions::exception& error)
+    {
+        std::cerr << error.what() << '\n';
+        return 2;
+    }
 
     if(opts.count("help"))
     {
         std::cout << cmd_options.help() << std::endl;
         return 0;
+    }
+
+    if(bool(opts.count("import-games-csv")) !=
+       bool(opts.count("import-games-user")))
+    {
+        std::cerr << "Both import arguments are required together\n";
+        return 2;
     }
 
     const std::string config_file = opts["config"].as<std::string>();
@@ -28,6 +49,12 @@ int main(int argc, char** argv)
     {
         spdlog::error("Failed to load configuration: {}", errorMsg(conf.error()));
         return 3;
+    }
+
+    if(opts.count("import-games-csv"))
+    {
+        return runGameImport(*conf, opts["import-games-csv"].as<std::string>(),
+            opts["import-games-user"].as<std::string>(), std::cout);
     }
 
     int exit_code = 0;

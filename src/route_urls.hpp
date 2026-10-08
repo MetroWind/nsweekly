@@ -7,3 +7,6 @@ std::string weeklyURL(const std::string& arg);
 std::string editURL(const std::string& arg);
 // Preserves the named URL mapping used by templates.
 std::string urlFor(const std::string& name, const std::string& arg);
+
+// Encodes a username as one path component in the games namespace.
+std::string gamesURL(const std::string& username);

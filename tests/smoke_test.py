@@ -59,6 +59,8 @@ def request(port, path, method="GET", body=None, cookie=None):
     headers = {}
     if cookie:
         headers["Cookie"] = cookie
+    if method == "POST" and path.startswith("/games/"):
+        headers["Origin"] = f"http://127.0.0.1:{port}"
     if body is not None:
         headers["Content-Type"] = "application/x-www-form-urlencoded"
     connection = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
@@ -177,6 +179,40 @@ def main():
                     cookies = [h for h in refreshed[1]
                                if h[0] == "Set-Cookie"]
                     assert len(cookies) == 2
+                    assert request(port, "/games")[0] == 308
+                    assert request(port, "/games/")[0] == 302
+                    assert request(port, "/games/mw")[0] == 200
+                    assert request(port, "/games/unknown")[0] == 404
+                    assert request(port, "/games/mw/new")[0] == 401
+                    cookie = "access-token=access"
+                    assert request(port, "/games/mw/new", cookie=cookie)[0] == 200
+                    created = request(port, "/games/mw/new", "POST",
+                        urlencode({"name": "Smoke Game", "status": "now_playing",
+                                   "platforms": ["pc", "ps_5", "switch"],
+                                   "hours": "0", "notes": "%code{macro}"},
+                                  doseq=True), cookie)
+                    assert created[0] == 303, created
+                    public = request(port, "/games/mw")
+                    assert "<code>macro</code>" in public[2]
+                    assert "PC, Switch, PS 5" in public[2]
+                    with sqlite3.connect(db_path) as db:
+                        game_id = db.execute(
+                            "SELECT id FROM GameTracking").fetchone()[0]
+                    edited = request(port, f"/games/mw/{game_id}/edit", "POST",
+                        urlencode({"name": "Renamed Game", "status": "done"}),
+                        cookie)
+                    assert edited[0] == 303, edited
+                    page = request(port, f"/games/mw/{game_id}/delete",
+                                   cookie=cookie)
+                    assert "Renamed Game" in page[2]
+                    deleted = request(port, f"/games/mw/{game_id}/delete", "POST",
+                                      "", cookie)
+                    assert deleted[0] == 303, deleted
+                    assert request(port, f"/games/mw/{game_id}/edit",
+                                   cookie=cookie)[0] == 404
+                    oversized = request(port, "/games/mw/new", "POST",
+                                        "notes=" + "a" * (1024 * 1024), cookie)
+                    assert oversized[0] == 413, oversized[0]
                 finally:
                     stop(process)
                 process = start(binary, config, port, log)
@@ -212,8 +248,29 @@ def main():
                     [binary, "-c", str(data_dir / "missing.yaml")],
                     stdout=log, stderr=log, timeout=5)
                 assert missing.returncode == 3
+                # Import uses neither templates nor a reachable provider/listener.
+                import_values = values | {
+                    "openid-url-prefix": "http://127.0.0.1:1"}
+                import_config = data_dir / "import.yaml"
+                import_config.write_text("".join(
+                    f"{key}: {json.dumps(value)}\n"
+                    for key, value in import_values.items()))
+                for name in ["templates", "statics"]:
+                    (data_dir / name).unlink()
+                arguments = [binary, "-c", str(import_config),
+                    "--import-games-csv", str(root / "tests/fixtures/tracker.csv"),
+                    "--import-games-user", "mw"]
+                for count in [3, 0]:
+                    imported = subprocess.run(arguments, capture_output=True,
+                                              text=True, timeout=10)
+                    assert imported.returncode == 0, imported.stdout + imported.stderr
+                    assert f"inserted={count}" in imported.stdout, imported.stdout
+                assert subprocess.run([binary, "--import-games-user", "mw"],
+                    capture_output=True).returncode == 2
+                assert subprocess.run([binary, "--help"],
+                    capture_output=True).returncode == 0
                 print("Production smoke passed: login, guest, pages, preview, "
-                      "save, refresh, reopen, and startup exit codes.")
+                      "save, refresh, reopen, games CRUD/import, and startup exit codes.")
     finally:
         provider.shutdown()
         provider_thread.join()

@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+  {% include "head.html" %}
+  <title>{{ username }}’s Games</title>
+  <script src="/statics/games.js" defer></script>
+</head>
+<body>
+<main id="Games">
+  <nav>
+    <a href="{{ weekly_url }}">Weeklies</a>
+    {% if length(session_user) > 0 %}
+    <span>{{ session_user }}</span>
+    {% else %}<a href="/login">Login</a>{% endif %}
+  </nav>
+  <h1>{{ username }}’s Games</h1>
+  {% if is_owner %}<p><a href="{{ new_url }}">Add game</a></p>{% endif %}
+  {% if length(games) == 0 %}<p>No games recorded.</p>{% endif %}
+  <div class="TableScroll">
+  <table>
+    <thead><tr>
+      {% for heading in ["Name", "Platforms", "Status", "Completion", "Hours", "Start date", "End date", "Notes"] %}
+      <th scope="col" aria-sort="none"><button type="button" data-sort="{{ loop.index }}">{{ heading }}</button></th>
+      {% endfor %}
+      {% if is_owner %}<th scope="col">Actions</th>{% endif %}
+    </tr></thead>
+    <tbody>
+    {% for game in games %}
+    <tr data-id="{{ game.id }}">
+      {% for cell in game.cells %}
+      <td data-key="{{ cell.key }}" data-missing="{{ cell.missing }}">{{ cell.value }}</td>
+      {% endfor %}
+      {% if is_owner %}<td><a href="{{ game.edit_url }}">Edit</a>
+        <a href="{{ game.delete_url }}">Delete</a></td>{% endif %}
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% if length(action) > 0 %}
+  <dialog open data-cancel-url="{{ table_url }}" aria-labelledby="ActionTitle">
+    <h2 id="ActionTitle">{% if action == "delete" %}Delete game{% else if action == "edit" %}Edit game{% else %}Add game{% endif %}</h2>
+    <form method="post" action="{{ action_url }}">
+    {% if action == "delete" %}
+      <p>Delete {{ form.name }}?</p>
+      <button type="submit">Delete</button>
+    {% else %}
+      <label for="GameName">Name</label>
+      <input id="GameName" name="name" value="{{ form.name }}" required aria-describedby="ErrorName">
+      <span class="FieldError" id="ErrorName">{{ errors.name }}</span>
+      <fieldset aria-describedby="ErrorPlatforms"><legend>Platforms</legend>
+        {% for platform in platforms %}
+        <label><input type="checkbox" name="platforms" value="{{ platform.code }}" {% if platform.selected %}checked{% endif %}>{{ platform.label }}</label>
+        {% endfor %}
+        <span class="FieldError" id="ErrorPlatforms">{{ errors.platforms }}</span>
+      </fieldset>
+      <label for="GameStatus">Status</label>
+      <select id="GameStatus" name="status" required aria-describedby="ErrorStatus">
+        <option value="">Choose a status</option>
+        {% for status in statuses %}<option value="{{ status.code }}" {% if status.selected %}selected{% endif %}>{{ status.label }}</option>{% endfor %}
+      </select>
+      <span class="FieldError" id="ErrorStatus">{{ errors.status }}</span>
+      <details><summary>Status meanings</summary>
+        <p>Now Playing: actively playing. Queue: intend to play in the near future, roughly within a year. Shelved: previously played, may return without a near-term plan. Done: no intention to play anymore. Wishlist: a reminder to consider buying later.</p>
+      </details>
+      <label for="GameCompletion">Completion</label>
+      <select id="GameCompletion" name="completion" aria-describedby="ErrorCompletion">
+        <option value="">Not recorded</option>
+        {% for completion in completions %}<option value="{{ completion.code }}" {% if completion.selected %}selected{% endif %}>{{ completion.label }}</option>{% endfor %}
+      </select>
+      <span class="FieldError" id="ErrorCompletion">{{ errors.completion }}</span>
+      <label for="GameHours">Hours</label>
+      <input id="GameHours" name="hours" type="number" min="0" step="1" max="2147483647" inputmode="numeric" value="{{ form.hours }}" aria-describedby="ErrorHours">
+      <span class="FieldError" id="ErrorHours">{{ errors.hours }}{% if length(errors.hours) > 0 %} (entered: {{ form.hours }}){% endif %}</span>
+      <label for="GameStart">Start date</label>
+      <input id="GameStart" name="start_date" type="date" min="0001-01-01" max="9999-12-31" value="{{ form.start_date }}" aria-describedby="ErrorStart">
+      <span class="FieldError" id="ErrorStart">{{ errors.start_date }}{% if length(errors.start_date) > 0 %} (entered: {{ form.start_date }}){% endif %}</span>
+      <label for="GameEnd">End date</label>
+      <input id="GameEnd" name="end_date" type="date" min="0001-01-01" max="9999-12-31" value="{{ form.end_date }}" aria-describedby="ErrorEnd">
+      <span class="FieldError" id="ErrorEnd">{{ errors.end_date }}{% if length(errors.end_date) > 0 %} (entered: {{ form.end_date }}){% endif %}</span>
+      <label for="GameNotes">Notes (MacroDown)</label>
+      <textarea id="GameNotes" name="notes" rows="8" aria-describedby="ErrorNotes">{{ form.notes }}</textarea>
+      <span class="FieldError" id="ErrorNotes">{{ errors.notes }}</span>
+      <button type="submit">Save</button>
+    {% endif %}
+      <a href="{{ table_url }}">Cancel</a>
+    </form>
+  </dialog>
+  {% endif %}
+</main>
+</body>
+</html>

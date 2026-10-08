@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <memory>
 #include <optional>
 #include <tuple>
@@ -82,8 +83,14 @@ public:
 
     int64_t lastInsertRowID() const;
 
+    // Reports whether no explicit transaction remains active.
+    bool autocommit() const { return sqlite3_get_autocommit(db) != 0; }
+    // Rejects future work after unrecoverable transaction cleanup.
+    void invalidate() { usable = false; }
+
 private:
     sqlite3* db = nullptr;
+    std::atomic<bool> usable{true};
     void clear();
 };
 
@@ -120,7 +127,8 @@ template<>
 inline void getValue(SQLiteStatement& sql, int i, std::string& s)
 {
     const unsigned char* raw = sqlite3_column_text(sql.data(), i);
-    s = reinterpret_cast<const char*>(raw);
+    s.assign(reinterpret_cast<const char*>(raw),
+             sqlite3_column_bytes(sql.data(), i));
 }
 
 // Supports explicitly nullable columns without converting NULL to text.
@@ -208,6 +216,19 @@ inline E<void> bindOne(const SQLiteStatement& sql, int i, const char* x)
                     "Failed to bind parameter");
 }
 
+inline E<void> bindOne(const SQLiteStatement& sql, int i, std::nullopt_t)
+{
+    return sqlMaybe(sqlite3_bind_null(sql.data(), i),
+                    "Failed to bind NULL parameter");
+}
+
+template<typename T>
+inline E<void> bindOne(const SQLiteStatement& sql, int i,
+                       const std::optional<T>& value)
+{
+    return value ? bindOne(sql, i, *value) : bindOne(sql, i, std::nullopt);
+}
+
 template<typename T>
 inline E<void> bindInternal(const SQLiteStatement& sql, int i, T x)
 {
@@ -237,6 +258,10 @@ E<void> SQLiteStatement::bind(Types... args) const
 template<typename... Types>
 E<std::vector<std::tuple<Types...>>> SQLite::eval(SQLiteStatement sql) const
 {
+    if(!usable)
+    {
+        return std::unexpected(runtimeError("Database requires restart"));
+    }
     std::vector<std::tuple<Types...>> result;
     while(true)
     {

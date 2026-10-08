@@ -23,12 +23,16 @@ E<std::unique_ptr<App>> App::create(const Configuration& conf,
     auto weeklies = std::make_unique<WeeklyDataSqlite>(std::move(weekly_db));
     DO_OR_RETURN(users->initializeSchema());
     DO_OR_RETURN(weeklies->initializeSchema());
+    ASSIGN_OR_RETURN(auto game_db, SQLite::connectFile(path));
+    auto games = std::make_unique<GameDataSqlite>(std::move(game_db));
+    DO_OR_RETURN(games->initializeSchema());
     if(!users->createUser("mw").has_value())
     {
         spdlog::error("Failed to create user");
     }
     app->users = std::move(users);
     app->weeklies = std::move(weeklies);
+    app->games = std::move(games);
     app->compose();
     exit_code = 0;
     return app;
@@ -37,9 +41,10 @@ E<std::unique_ptr<App>> App::create(const Configuration& conf,
 E<std::unique_ptr<App>> App::create(
     const Configuration& conf, std::unique_ptr<AuthInterface> auth,
     std::unique_ptr<UserDataInterface> users,
-    std::unique_ptr<WeeklyDataInterface> weeklies)
+    std::unique_ptr<WeeklyDataInterface> weeklies,
+    std::unique_ptr<GameDataInterface> games)
 {
-    if(!auth || !users || !weeklies)
+    if(!auth || !users || !weeklies || !games)
     {
         return std::unexpected(runtimeError("Missing application dependency"));
     }
@@ -47,6 +52,7 @@ E<std::unique_ptr<App>> App::create(
     app->auth = std::move(auth);
     app->users = std::move(users);
     app->weeklies = std::move(weeklies);
+    app->games = std::move(games);
     app->compose();
     return app;
 }
@@ -57,6 +63,8 @@ void App::compose()
     auth_module = std::make_unique<AuthModule>(*auth, *sessions);
     weekly_module = std::make_unique<WeeklyModule>(
         config, *weeklies, *sessions);
+    games_module = std::make_unique<GamesModule>(
+        config, *games, *users, *sessions);
 }
 
 void App::handleIndexWithInvalidSession(Response& res) const
@@ -116,6 +124,7 @@ void App::setup()
     });
     auth_module->registerRoutes(server);
     weekly_module->registerRoutes(server);
+    games_module->registerRoutes(server);
     spdlog::info("Listening at http://{}:{}/...", config.listen_address,
                  config.listen_port);
 }

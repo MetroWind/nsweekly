@@ -345,3 +345,71 @@ ul p, ol p
     font-size: 1rem;
     padding: 10px 14px 10px 14px;
 }
+
+#Games
+{
+    max-width: 100%;
+    margin: 1rem;
+}
+#Games .TableScroll
+{
+    overflow-x: auto;
+}
+#Games table
+{
+    border-collapse: collapse;
+    width: 100%;
+}
+#Games th, #Games td
+{
+    border: 1px solid #8888;
+    padding: .5rem;
+    text-align: left;
+    vertical-align: top;
+}
+#Games td:nth-child(8)
+{
+    min-width: 16rem;
+    max-width: 35rem;
+    overflow-wrap: anywhere;
+}
+#Games pre
+{
+    white-space: pre-wrap;
+}
+#Games dialog
+{
+    position: fixed;
+    max-height: 85vh;
+    overflow: auto;
+    width: min(38rem, 85vw);
+    color: inherit;
+    background: Canvas;
+}
+#Games form > label, #Games .FieldError
+{
+    display: block;
+    margin-top: .5rem;
+}
+#Games form > input, #Games form > select, #Games textarea
+{
+    box-sizing: border-box;
+    width: 100%;
+}
+#Games .FieldError
+{
+    color: #c33;
+}
+#Games .FieldError:empty
+{
+    display: none;
+}
+#Games fieldset label
+{
+    display: inline-block;
+    margin-right: 1rem;
+}
+#Games ::backdrop
+{
+    background: #0008;
+}

@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>Games browser fixture</title>
+<link rel="stylesheet" href="../statics/style.css">
+<script src="../statics/games.js" defer></script>
+<script src="games_browser.js" defer></script></head><body>
+<main id="Games"><h1>Games browser fixture</h1>
+<p id="BrowserResult" role="status">Checking…</p>
+<p>Serve the repository with python3 -m http.server, then open
+/tests/games_browser.html. This fixture performs no tracking writes.
+Check horizontal scrolling at mobile width. Disable JavaScript and reload
+to check that the form and notes stay visible.</p>
+<div class="TableScroll"><table><thead><tr>
+<th scope="col" aria-sort="none"><button type="button" data-sort="0">Name</button></th>
+<th scope="col" aria-sort="none"><button type="button" data-sort="1">Platforms</button></th>
+<th scope="col" aria-sort="none"><button type="button" data-sort="2">Status</button></th>
+<th scope="col" aria-sort="none"><button type="button" data-sort="3">Completion</button></th>
+<th scope="col" aria-sort="none"><button type="button" data-sort="4">Hours</button></th>
+<th scope="col" aria-sort="none"><button type="button" data-sort="5">Start date</button></th>
+<th scope="col" aria-sort="none"><button type="button" data-sort="6">End date</button></th>
+<th scope="col" aria-sort="none"><button type="button" data-sort="7">Notes</button></th>
+</tr></thead><tbody>
+<tr data-id="0">
+<td data-key="Zelda" data-missing="false">Zelda</td>
+<td data-key="Switch" data-missing="false">Switch</td>
+<td data-key="4" data-missing="false">4</td>
+<td data-key="4" data-missing="false">4</td>
+<td data-key="2147483647" data-missing="false">2147483647</td>
+<td data-key="2025-01-01" data-missing="false">2025-01-01</td>
+<td data-key="2025-02-01" data-missing="false">2025-02-01</td>
+<td data-key="z" data-missing="false"><code>MacroDown</code></td>
+</tr>
+<tr data-id="1">
+<td data-key="Equal" data-missing="false">Equal</td>
+<td data-key="PC" data-missing="false">PC</td>
+<td data-key="1" data-missing="false">1</td>
+<td data-key="1" data-missing="false">1</td>
+<td data-key="0" data-missing="false">0</td>
+<td data-key="2024-02-29" data-missing="false">2024-02-29</td>
+<td data-key="2024-02-29" data-missing="false">2024-02-29</td>
+<td data-key="equal" data-missing="false"><code>MacroDown</code></td>
+</tr>
+<tr data-id="2">
+<td data-key="Equal" data-missing="false">Equal</td>
+<td data-key="PC" data-missing="false">PC</td>
+<td data-key="1" data-missing="false">1</td>
+<td data-key="1" data-missing="false">1</td>
+<td data-key="0" data-missing="false">0</td>
+<td data-key="2024-02-29" data-missing="false">2024-02-29</td>
+<td data-key="2024-02-29" data-missing="false">2024-02-29</td>
+<td data-key="equal" data-missing="false"><code>MacroDown</code></td>
+</tr>
+<tr data-id="3">
+<td data-key="éclair" data-missing="false">éclair</td>
+<td data-key="PC, PS 5" data-missing="false">PC, PS 5</td>
+<td data-key="0" data-missing="false">0</td>
+<td data-key="0" data-missing="false">0</td>
+<td data-key="42" data-missing="false">42</td>
+<td data-key="2020-01-01" data-missing="false">2020-01-01</td>
+<td data-key="2020-01-02" data-missing="false">2020-01-02</td>
+<td data-key="a" data-missing="false"><code>MacroDown</code></td>
+</tr>
+<tr data-id="4">
+<td data-key="" data-missing="true"></td>
+<td data-key="" data-missing="true"></td>
+<td data-key="" data-missing="true"></td>
+<td data-key="" data-missing="true"></td>
+<td data-key="" data-missing="true"></td>
+<td data-key="" data-missing="true"></td>
+<td data-key="" data-missing="true"></td>
+<td data-key="" data-missing="true"></td>
+</tr>
+</tbody></table></div>
+<dialog open data-cancel-url="games_browser.html">
+<form method="dialog">
+<label for="GameName">Name</label><input id="GameName" name="name">
+<label for="GameStart">Start date</label>
+<input type="date" id="GameStart" name="start_date">
+<label for="GameEnd">End date</label>
+<input type="date" id="GameEnd" name="end_date">
+<button>Close fixture dialog</button>
+</form></dialog></main></body></html>

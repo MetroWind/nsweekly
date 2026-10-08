@@ -98,3 +98,76 @@ empty weekly ranges return an empty list, and an authorized edit page with
 no weekly result returns HTTP 404. Regression tests cover both outcomes.
 The HTML fixture under `tests/fixtures` was captured before extraction;
 only its clock-dependent update timestamp is normalized for comparison.
+
+== Game tracking
+
+Visit `/games/` after signing in, or `/games/USERNAME` to read a public
+tracker. Games links on weekly pages provide navigation. Owners can add,
+edit, rename, and delete games through native forms. Notes and every other
+tracking field are public. Notes use MacroDown; weeklies retain CommonMark.
+Sorting is local to the page and resets on reload. Forms work without
+JavaScript; JavaScript enhances dialogs and sorting. POSTs require an
+Origin matching `url-prefix`.
+
+Game storage creates `GameTracking` and `GamePlatforms` alongside the
+existing tables, using a separate connection. Scalar and platform saves
+commit together. Missing hours and zero hours remain distinct. Names are
+stripped, case-sensitive, and unique within an account.
+
+MacroDown is pinned to `31e42d5f8ed10f3cf19028d9773bdd0cdcccdf7f`, and libmw
+to `2d68269cd97f47e46bcf6007595919bfe0cbea9e`. CMake consumes both upstream sources without modifying either dependency.
+libmw, uni-algo, and Unicode data notices are preserved in `licenses/`
+and installed by the Arch package.
+The pinned MacroDown tree has no standalone license file. The existing cmark
+license and dependency remain in place. MacroDown has no resource budgets
+in this release, as agreed in the implementation design.
+
+For local development, pass
+`-DFETCHCONTENT_SOURCE_DIR_MACRODOWN=/path/to/macrodown` as well as the
+libmw override. MacroDown uses uni-algo v1.2.0. libmw supplies httplib
+transitively through `mw::http-server`; the version verified here is
+`edc9760005c7358adc7a6170ff0be4c2e242ee09`. libmw currently follows httplib's
+upstream default branch. For reproducible release builds, check out that
+httplib revision and pass `-DFETCHCONTENT_SOURCE_DIR_HTTPLIB=/path/to/httplib`.
+Local dependency overrides intentionally take precedence over pins; verify
+the checkout revisions when preparing a release. Do not add a separate
+httplib target or link to the application.
+
+=== Temporary Tracker migration
+
+Stop the service and back up the closed database, or use SQLite's backup
+API. Export only the Tracker sheet as UTF-8 CSV. Run:
+
+[source,sh]
+----
+nsweekly --config /etc/nsweekly.yaml \
+    --import-games-csv /tmp/tracker.csv --import-games-user mw
+----
+
+The target account must already exist. Import runs without OpenID discovery,
+templates, or an HTTP listener. All rows are validated before inserting any
+games. Invalid rows exit 2; configuration failures exit 3; storage failures
+exit 4. Successful imports exit 0 and report input, blank, inserted, and
+both duplicate counts. `Game` (or `Name`) and `Status` headers are required;
+optional headers may be omitted or reordered. Platforms from both columns
+are combined. Review and extra columns are ignored and reported.
+
+The importer never overwrites existing games. Repeating an import skips
+existing names. If storage fails partway through, the report identifies the
+record and committed insert count; correct the failure and rerun. Dates
+must use `YYYY-MM-DD`; hours must be nonnegative 32-bit integers. Notes
+retain internal whitespace and MacroDown source.
+
+For read-only preflight, run the import on a copy of the stopped database
+in a temporary data directory, using a configuration pointing there. Compare
+its report with the CSV before running against the deployment. Restart and
+inspect totals, platforms, notes, dates, zero hours, and missing hours. Keep
+the original export and backup until verified. An older binary can ignore
+the games tables; do not delete them on rollback. Remove the temporary import
+flags in a separate change after the operator verifies the migration and
+one repeat run.
+
+The Tracker fixture contains observed blank/end-only/two-platform patterns;
+its `Synthetic zero` record adds synthetic zero-hour and multiline cases.
+Run the smoke test for production games CRUD and CLI import, and use
+`tests/games_browser.html` for repeatable browser sorting and dialog checks.

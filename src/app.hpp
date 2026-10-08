@@ -3,6 +3,7 @@
 #include <mw/http_server.hpp>
 #include "auth_module.hpp"
 #include "config.hpp"
+#include "games_module.hpp"
 #include "user_data.hpp"
 #include "weekly_module.hpp"
 
@@ -22,7 +23,8 @@ public:
     static E<std::unique_ptr<App>> create(
         const Configuration& conf, std::unique_ptr<AuthInterface> auth,
         std::unique_ptr<UserDataInterface> users,
-        std::unique_ptr<WeeklyDataInterface> weeklies);
+        std::unique_ptr<WeeklyDataInterface> weeklies,
+        std::unique_ptr<GameDataInterface> games);
     // Applies the existing session and guest landing-page policy.
     void handleIndex(const Request& req, Response& res) const;
 private:
@@ -37,7 +39,9 @@ private:
     std::unique_ptr<AuthInterface> auth;
     std::unique_ptr<UserDataInterface> users;
     std::unique_ptr<WeeklyDataInterface> weeklies;
+    std::unique_ptr<GameDataInterface> games;
     std::unique_ptr<SessionService> sessions;
     std::unique_ptr<AuthModule> auth_module;
     std::unique_ptr<WeeklyModule> weekly_module;
+    std::unique_ptr<GamesModule> games_module;
 };

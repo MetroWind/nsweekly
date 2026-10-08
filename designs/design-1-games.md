@@ -26,9 +26,10 @@ particular, neither the tracking model nor its dialog has a Review field.
 The principal implementation decisions are:
 
 - Add `GamesModule` and `GameDataInterface` alongside the weekly module.
-- Keep one tracking row per user and normalized game name, enforced by SQL.
-- Store platforms as a JSON array in the tracking row, so editing a game
-  requires one atomic statement rather than several child-table writes.
+- Keep one tracking row per user and stripped game name, enforced by SQL.
+- Store each selected platform in a `GamePlatforms` join table, with integer
+  enum values and SQL constraints. Save the game and its platforms together
+  in a transaction.
 - Preserve missing values explicitly. Zero hours is a recorded value.
 - Return the complete table and sort its existing rows in the browser.
 - Share validation between HTTP writes and the CSV importer.
@@ -122,35 +123,40 @@ There is no shared game catalogue in this release.
 
 | Field | C++ representation | Empty representation | Rule |
 | --- | --- | --- | --- |
-| Name | `std::string` | Prohibited | Trim outer ASCII whitespace; nonempty |
-| Platforms | `std::vector<std::string>` | Empty vector | Codes from `PLATFORM_CHOICES`; unique |
+| Name | `std::string` | Prohibited | Apply `mw::strip()`; nonempty |
+| Platforms | `std::vector<GamePlatform>` | Empty vector | Values from `PLATFORM_CHOICES`; unique |
 | Status | `GameStatus` | Prohibited | Exactly one of five choices |
 | Completion | `std::optional<GameCompletion>` | `nullopt` | Independent of status |
-| Hours | `std::optional<std::string>` | `nullopt` | Exact nonnegative decimal |
+| Hours | `std::optional<int32_t>` | `nullopt` | Nonnegative integer |
 | Start date | `std::optional<std::chrono::year_month_day>` | `nullopt` | Valid calendar date |
-| End date | Same as start date | `nullopt` | Independently optional |
-| Notes | `std::optional<std::string>` | `nullopt` | Raw MacroDown source |
+| End date | Same as start date | `nullopt` | If both dates exist, end >= start |
+| Notes | `std::optional<std::string>` | `nullopt` | Stripped MacroDown source |
 
-Use uppercase enum members and explicit conversion tables:
+Use uppercase enum members, explicit integer assignments in C++, and these
+conversion tables. Database enum values are integers; form codes and display
+labels remain strings at the HTTP and presentation boundaries.
 
-| `GameStatus` | Stored/API code | Display label |
-| --- | --- | --- |
-| `NOW_PLAYING` | `now_playing` | Now Playing |
-| `QUEUE` | `queue` | Queue |
-| `SHELVED` | `shelved` | Shelved |
-| `DONE` | `done` | Done |
-| `WISHLIST` | `wishlist` | Wishlist |
+| `GameStatus` | DB integer | Form code | Display label |
+| --- | --- | --- | --- |
+| `NOW_PLAYING` | 0 | `now_playing` | Now Playing |
+| `QUEUE` | 1 | `queue` | Queue |
+| `SHELVED` | 2 | `shelved` | Shelved |
+| `DONE` | 3 | `done` | Done |
+| `WISHLIST` | 4 | `wishlist` | Wishlist |
 
-| `GameCompletion` | Stored/API code | Display label |
-| --- | --- | --- |
-| `NOT_STARTED` | `not_started` | Not Started |
-| `PARTIAL` | `partial` | Partial |
-| `FINISHED` | `finished` | Finished |
-| `PLATINUM` | `platinum` | Platinum |
-| `ENDLESS` | `endless` | Endless |
+| `GameCompletion` | DB integer | Form code | Display label |
+| --- | --- | --- | --- |
+| `NOT_STARTED` | 0 | `not_started` | Not Started |
+| `PARTIAL` | 1 | `partial` | Partial |
+| `FINISHED` | 2 | `finished` | Finished |
+| `PLATINUM` | 3 | `platinum` | Platinum |
+| `ENDLESS` | 4 | `endless` | Endless |
 
-Do not encode enum ordinals in storage: changing declaration order must not
-reinterpret saved records. Retain these meanings from the
+Persist the explicitly assigned integers, never ordinals inferred from
+declaration order. Reordering declarations must preserve their assigned
+values. Never renumber or reuse a persisted value; add future choices with
+new integers. Absent completion is SQL NULL, distinct from integer 0.
+Retain these meanings from the
 [spreadsheet README](https://docs.google.com/spreadsheets/d/1BK6kReBhj3xyfv-4wJdDBMUCZeZwdjLU3FxTdDkFL1Y/edit#gid=619044953),
 also suitable as help text in the dialog:
 
@@ -167,35 +173,38 @@ Now Playing record with Finished completion.
 
 ### 3.2 Names and deduplication
 
-`normalizeGameName()` trims ASCII space, tab, CR, and LF at both ends and
-maps ASCII `A` through `Z` to lowercase. The stored display name retains
-case. Preserve all internal whitespace, punctuation, accents, and other
-UTF-8 bytes. Reject invalid UTF-8 and NUL in names and other text inputs.
+Apply `mw::strip()` to the supplied name and copy its returned string view
+into the owned name string before the input buffer expires. Reject a name
+that is empty after stripping. Store this stripped name directly, preserving
+case, internal whitespace, punctuation, accents, and other UTF-8 bytes.
+Reject invalid UTF-8 and NUL in names and other text inputs.
 
-Thus ` Hades ` and `hades` conflict for one user. `Hades II` and `Hades  II`
-remain different. This intentionally simple policy meets the PRD without
-fuzzy matching, title lookup, or a Unicode collation dependency. Apply the
-same normalization to creates, renames, CSV rows, and duplicate diagnostics.
+Thus ` Hades ` and `Hades` conflict for one user; `Hades` and `hades` are
+different names. `Hades II` and `Hades  II` also remain different. Use exact,
+case-sensitive comparison of stripped names for creates, renames, CSV rows,
+and duplicate diagnostics. No separate normalization function or name key
+is needed.
 
-A duplicate create or rename returns a conflict; it never merges or
+A duplicate create or rename returns a runtime error; it never merges or
 overwrites records. Two different users may both track `Hades`.
 
 ### 3.3 Platforms
 
-Define `PLATFORM_CHOICES` as a compile-time list of code/label pairs in
+Define `GamePlatform` with explicit integer values and `PLATFORM_CHOICES`
+as a compile-time list of enum/form-code/label entries in
 `game_choices.hpp`. Use it to generate dialog checkboxes, validate input,
 render labels, and interpret CSV platform labels. No two-selection cap
 exists: a record can select any subset of the list.
 
 The initial list is the validation list observed in Tracker B2 and C2:
 
-| Stable code | Display and CSV label |
-| --- | --- |
-| `pc` | PC |
-| `switch` | Switch |
-| `switch_2` | Switch 2 |
-| `ps_5` | PS 5 |
-| `emulator` | Emulator |
+| `GamePlatform` | Stored integer | Form code | Display and CSV label |
+| --- | --- | --- | --- |
+| `PC` | 0 | `pc` | PC |
+| `SWITCH` | 1 | `switch` | Switch |
+| `SWITCH_2` | 2 | `switch_2` | Switch 2 |
+| `PS_5` | 3 | `ps_5` | PS 5 |
+| `EMULATOR` | 4 | `emulator` | Emulator |
 
 Keep codes stable after release, even if labels change. Deduplicate repeated
 input codes and store selections in this declaration order, giving consistent
@@ -206,25 +215,34 @@ records, providing real examples for the two-column merge.
 
 ### 3.4 Hours, dates, and notes
 
-Hours accept an ASCII decimal matching `[0-9]+(\.[0-9]+)?`. Empty text maps
-to absent hours; `0` maps to present hours. Reject negative values, exponent
-notation, NaN, infinity, partial parses, and grouping separators in the
-normal HTTP contract. Canonicalize leading integer zeros and trailing
-fraction zeros; `000.500` becomes `0.5`. Store the resulting decimal as
-text, avoiding binary floating-point rounding and arbitrary precision loss.
-No gameplay-hour ceiling or rounding rule is introduced.
+Hours are optional nonnegative integers. Use `std::optional<int32_t>` in
+C++ and SQLite INTEGER in storage. Accept values from 0 through 2147483647,
+the representation's upper bound, without imposing a smaller gameplay limit.
+Empty form/CSV text maps to absent hours; `0` maps to present hours. Parse
+text consisting entirely of ASCII digits with `std::from_chars()` and check
+both overflow and complete consumption. Leading zeros are harmless: `00042`
+becomes integer 42. Reject fractional values, negative values, exponent
+notation, NaN, infinity, grouping separators, and trailing junk. Never round
+or truncate an invalid fractional value. This range is exactly representable
+as a JavaScript number for sorting.
 
 Dates use exact `YYYY-MM-DD`, years 0001 through 9999, and calendar validation
 through `year_month_day::ok()`. They are calendar days, not timestamps;
 there is no timezone conversion. Either may be empty. Do not auto-fill or
-clear dates when status changes, and do not require an ordering between
-them: the PRD requires preservation and defines no ordering validation.
+clear dates when status changes. When both dates are present, require
+`end_date >= start_date`; equal dates are valid. Return an `end_date` field
+error when the end date precedes the start date. Apply this rule in the
+shared validator for creates, edits, and CSV imports. Never swap dates or
+adjust their values automatically. A missing date imposes no ordering check.
 
-Notes retain their original source, including line breaks and whitespace.
-Only a zero-length string becomes `nullopt`; whitespace-only source is
-preserved. Do not trim Markdown. Other optional scalar form values can have
-outer ASCII whitespace trimmed before parsing. An empty completion remains
-absent, distinct from Not Started.
+Apply `mw::strip()` to notes before storing them. Copy a nonempty result
+into the owned source string; an empty result becomes `nullopt` and SQL
+NULL. Thus empty and whitespace-only notes both mean no notes. Preserve
+internal whitespace and line breaks after removing outer whitespace; do not
+collapse spaces or reformat Markdown. Apply this in shared validation for
+HTTP creates, edits, and CSV imports. Other optional scalar form values can
+have outer ASCII whitespace trimmed before parsing. An empty completion
+remains absent, distinct from Not Started.
 
 `validateGameInput()` performs these rules and returns all field errors
 together. Status and completion never constrain each other. In particular,
@@ -235,25 +253,38 @@ valid. Browser checks aid input; server and importer validation are final.
 
 ### 4.1 Schema
 
-Create the following table with `CREATE TABLE IF NOT EXISTS` at startup:
+Create these tables with `CREATE TABLE IF NOT EXISTS` at startup, in the
+order shown:
 
 ```sql
 CREATE TABLE IF NOT EXISTS GameTracking
 (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL REFERENCES Users(id),
-    name TEXT NOT NULL CHECK(length(name) > 0),
-    name_key TEXT NOT NULL CHECK(length(name_key) > 0),
-    platforms TEXT NOT NULL DEFAULT '[]',
-    status TEXT NOT NULL CHECK(status IN
-        ('now_playing', 'queue', 'shelved', 'done', 'wishlist')),
-    completion TEXT CHECK(completion IN
-        ('not_started', 'partial', 'finished', 'platinum', 'endless')),
-    hours TEXT,
+    name TEXT COLLATE BINARY NOT NULL CHECK(length(name) > 0),
+    status INTEGER NOT NULL CHECK(
+        typeof(status) = 'integer' AND status IN (0, 1, 2, 3, 4)),
+    completion INTEGER CHECK(completion IS NULL OR
+        (typeof(completion) = 'integer' AND
+         completion IN (0, 1, 2, 3, 4))),
+    hours INTEGER CHECK(hours IS NULL OR
+        (typeof(hours) = 'integer' AND
+         hours BETWEEN 0 AND 2147483647)),
     start_date TEXT,
     end_date TEXT,
     notes TEXT,
-    UNIQUE(user_id, name_key)
+    UNIQUE(user_id, name),
+    CHECK(start_date IS NULL OR end_date IS NULL OR
+          end_date >= start_date)
+);
+
+CREATE TABLE IF NOT EXISTS GamePlatforms
+(
+    game_id INTEGER NOT NULL
+        REFERENCES GameTracking(id) ON DELETE CASCADE,
+    platform INTEGER NOT NULL CHECK(
+        typeof(platform) = 'integer' AND platform IN (0, 1, 2, 3, 4)),
+    PRIMARY KEY(game_id, platform)
 );
 ```
 
@@ -261,12 +292,34 @@ CREATE TABLE IF NOT EXISTS GameTracking
 record; a stale edit dialog must not accidentally target a later game.
 The extra allocation overhead is acceptable for a personal tracker.
 
-Serialize platforms using nlohmann/json. SQLite treats the value as TEXT;
-this design does not require the SQLite JSON extension. On read, validate
-that the array contains unique known strings. Treat malformed persisted
-values as storage errors rather than silently displaying incomplete data.
-The C++ validator enforces decimal/date syntax and normalized-name equality;
+Each `GamePlatforms` row associates one user's tracking record with one
+integer `GamePlatform` value. PC and PS 5 produce two rows, with platform
+values 0 and 3, for the same game ID. No selected platforms means no child
+rows. The composite primary key rejects duplicate assignments and indexes
+lookup by game ID. The CHECK enforces the hard-coded platform choices, so
+no separate platform catalogue table is needed. `ON DELETE CASCADE` removes
+assignments when a tracking record is deleted. See
+[SQLite foreign keys](https://sqlite.org/foreignkeys.html).
+
+Read games and platforms with one owner-scoped SELECT using a LEFT JOIN
+from GameTracking to GamePlatforms, ordered by game name, ID, and platform.
+Group rows by game ID in C++; a NULL joined platform means an empty list.
+Use a LEFT JOIN so games without platforms remain visible. Reads may overlap
+writes on the same connection, so the result need not be a consistent
+snapshot: incomplete or uncommitted records are acceptable. Group with an
+ID-keyed map and deduplicate platform values rather than assuming each game
+appears in exactly one contiguous run. If repeated rows disagree on scalar
+values, retain the first observed values. Sort assembled games by name and
+ID before returning. Decode
+platform/status/completion integers with membership validation before
+converting to enums. Treat malformed persisted values as storage errors.
+Convert enums to form codes and display labels at the HTML boundary.
+No JSON is stored in SQLite or exposed as a games HTTP API.
+The C++ validator enforces integer-hour/date syntax, checks date ordering,
+and strips names with `mw::strip()` before storage;
 SQL enforces required values, enum membership, and race-safe uniqueness.
+The date-order CHECK additionally enforces the same ordering for persisted
+ISO dates; their fixed-width format makes text comparison chronological.
 
 Nullable scalar values bind as SQL NULL and read as `std::optional<T>`.
 Extend the existing SQLite wrapper with `nullopt` and optional binding;
@@ -292,25 +345,28 @@ writers. Keep existing Users and Weeklies definitions intact.
 | `updateGame(username, id, input)` | `GameRecord` | Full field replacement |
 | `deleteGame(username, id)` | `bool` | Whether one row was removed |
 
-All methods take the username explicitly. All statements resolve the owner
-through `Users` and include that owner in their predicate. No implementation
-method updates or deletes by record ID alone. The storage layer validates
-inputs too, so the CLI cannot bypass the rules enforced for HTTP callers.
+All methods take the username explicitly. Parent reads and writes resolve
+the owner through Users and include it in their predicate. Child-table
+operations use owner-scoped GameTracking subqueries or joins. No public
+storage operation updates or deletes by record ID alone. The storage layer
+validates inputs too, so the CLI cannot bypass HTTP validation rules.
 
-Use custom error structs carried by `mw::Error`: `GameValidationError`
-contains a field-to-message map and `msg`; `DuplicateGameError` identifies a
-name conflict; `GameNotFoundError` identifies a missing owner-scoped record.
-Unexpected database failures remain runtime/storage errors. Do not classify
-errors by matching English text.
+Use the existing RuntimeError for duplicate names and other failures that
+only need a message. Use the existing HTTPError with status 404 for missing
+owner-scoped records. Do not introduce a type for each failure condition or
+classify runtime errors by matching English text.
+
+Retain GameValidationError only because callers need its structured
+field-to-message map, in addition to `msg`, to highlight several invalid
+fields. A custom type is justified by that additional data, not simply by
+giving an error condition a name.
 
 `src/error.hpp` already re-exports `mw::E`, `mw::Error`, and the runtime/HTTP
 error utilities. Existing `E<T>` signatures and explicit `mw::E<T>` denote
 the same result type. Storage, sessions, and App creation need no legacy
-error adapters. Define games-specific error structs with a `std::string msg`
-member and store them directly in `mw::Error`. Inspect concrete errors with
-`error.as<GameValidationError>()` or the corresponding type, rather than
-variant operations. Keep game-specific errors typed until the HTTP/CLI
-boundary maps them to responses or diagnostics. Use libmw's existing
+error adapters. Store GameValidationError directly in `mw::Error` and
+inspect it with `error.as<GameValidationError>()`. Reuse RuntimeError and
+HTTPError for other failures. Use libmw's existing
 propagation macros from `src/utils.hpp` for functions returning results.
 
 ### 4.3 SQL behavior and concurrency
@@ -321,53 +377,98 @@ libmw SQLite implementation unconditionally enables WAL on open; using it
 here would change persistent journal mode for the existing application.
 Use libmw error utilities now and defer database-wrapper consolidation.
 
+Add a write mutex to GameDataSqlite. Hold it for the complete duration of
+create, update, and delete operations, including commit or rollback. This
+prevents overlapping transactions and prevents an unrelated write from
+joining another operation's transaction. Keep the mutex local to games
+storage; user and weekly connections remain independent. Validate inputs
+before locking, and do no Markdown rendering, network calls, or template
+work while holding the lock. Private write helpers assume the caller holds
+it and must not reacquire it through public methods.
+
+`listGames()` and `getGame()` do not acquire the write mutex. They may run
+on the same FULLMUTEX connection while a write transaction is active. Accept
+uncommitted, incomplete, or mixed scalar/platform results, including data
+that is subsequently rolled back. Concurrent reads may also omit or repeat
+rows; the grouping rules above keep the returned structure usable. There
+is no snapshot-consistency promise for these public reads. SQLite still
+serializes individual connection calls internally, so this removes waiting
+for the application transaction lock, not all possible database waiting.
+Read paths must never issue BEGIN, COMMIT, or ROLLBACK or perform writes.
+See [SQLite same-connection isolation](https://sqlite.org/isolation.html).
+
 For a new authenticated account, HTTP creation calls `users.ensureUser()`
 before insertion. The importer requires an existing user. Game storage
 itself never creates an unknown user. A failed game insert may leave an
 empty user account after an HTTP ensure; no cross-connection transaction is
 claimed or needed for that harmless case.
 
-Create uses `INSERT ... SELECT ... FROM Users WHERE name = ? RETURNING id`.
-Update uses `UPDATE ... WHERE id = ? AND user_id = (SELECT id FROM Users
-WHERE name = ?) RETURNING id`. Delete uses the same owner predicate and
-`DELETE ... RETURNING id`. Fetch the created/updated row by owner and ID if
-the statement does not return all columns. Prefer returning all columns in
-the write statement to avoid another request deleting it before that fetch.
-Consume every returned row and finish the statement before reporting success.
-The existing SQLite minimum already supports
+Create uses a transaction on the games connection:
+
+1. Acquire the write mutex and execute `BEGIN IMMEDIATE`.
+2. Resolve the owner and check for an existing GameTracking row with that
+   user's ID and the stripped name. A missing owner is not found; an
+   existing name returns `runtimeError("Game name already exists")`.
+3. Insert the scalar fields with `INSERT ... SELECT ... FROM Users WHERE
+   name = ? RETURNING id`. No returned ID means the user is missing.
+4. Insert one GamePlatforms row per selected enum using the returned ID and
+   an owner-scoped parent SELECT. An empty selection inserts no child rows.
+5. Read back the complete record inside the transaction, finish all
+   statements, and execute COMMIT. Return success only after COMMIT succeeds.
+
+Update follows the same transaction pattern. After BEGIN, verify the
+owner-scoped target exists, then check whether another record for that user
+has the proposed stripped name, excluding the target ID. Return not found
+or the same duplicate-name RuntimeError as appropriate. Then update scalar fields
+with `WHERE id = ? AND user_id = (SELECT id FROM Users WHERE name = ?)
+RETURNING id`; no row means not found. Then delete that owner's platform
+assignments and insert the complete replacement set. Read back and commit.
+A platform-insert failure must restore both the old scalar values and the
+old platform set. Never commit the scalar edit independently.
+
+Delete uses one owner-scoped `DELETE ... RETURNING id`; the foreign-key
+cascade deletes its platform rows atomically. Delete holds the write mutex
+so it cannot join another operation's transaction. Reads take no application
+lock. Consume and finalize every statement before returning. The SQLite minimum
+already supports
 [RETURNING](https://sqlite.org/lang_returning.html).
 
-Define a structured `SQLiteError` with `code`, `extended_code`, and `msg` in
-the existing SQLite wrapper and carry it directly in `mw::Error`, preserving
-the existing `errorMsg()` contract. No central variant or libmw error-type
-registration needs modification. Inspect it with `error.as<SQLiteError>()`.
-Capture the statement's actual SQLite return code immediately.
-Use `sqlite3_extended_errcode()` only while that connection error state is
-protected from another request; alternatively enable extended result codes
-at connection setup and classify the returned step code directly. The
-latter is preferred. Handle extended codes in the wrapper's stepping loop
-using their primary code for the switch. Convert only
-`SQLITE_CONSTRAINT_UNIQUE` for this table's name key to a duplicate error;
-other constraint failures must remain visible as implementation/data errors.
+Introduce a small transaction guard for the existing SQLite wrapper. It
+begins explicitly, exposes checked commit, and rolls back an active
+transaction on every error or early return. A failed COMMIT is an error and
+must trigger rollback before releasing the mutex. Preserve the original
+failure and log any rollback failure; if cleanup cannot restore autocommit,
+mark the connection unusable and reject subsequent operations until restart.
+Do not return a success response for uncommitted work. Keep the existing
+busy timeout and propagate contention failures. See
+[SQLite transaction rules](https://sqlite.org/lang_transaction.html).
 
-The database unique constraint is authoritative. A preflight duplicate query
-alone is insufficient because concurrent creates can both pass it. Use
-normal constraint-aborting INSERT/UPDATE, never `INSERT OR REPLACE`, which
-can delete an existing record. See
+Use the existing `mw::E<>` and runtime errors for database failures; add no
+SQLite-specific error type and do not parse database error messages.
+
+The duplicate query is safe because it runs after successful BEGIN IMMEDIATE
+and before commit or rollback. SQLite excludes other writers during this
+interval, and the application write mutex excludes unrelated writes on the
+same connection. A query before BEGIN would not provide this guarantee.
+The database unique constraint remains a final integrity check. Unexpected
+constraint failures roll back the save and propagate the existing database
+error; they are not reclassified as duplicate names. Use normal
+constraint-aborting INSERT/UPDATE, never `INSERT OR REPLACE`, which can
+delete an existing record. See
 [SQLite conflict handling](https://sqlite.org/lang_conflict.html).
 
-All ordinary writes are one statement containing platforms and all scalar
-values. SQLite makes each statement atomic; failed renames retain the old
-record and failed edits cannot save only some platforms. Use fresh bound
-statements per call, the existing FULLMUTEX connection mode, and the existing
-five-second busy timeout. Serialized SQLite calls do not make several SQL
-statements a transaction; see
+Create/update transactions make scalar and platform changes atomic. Failed
+renames retain the old record, and failed edits cannot save only some
+platforms. Use fresh bound statements, the existing FULLMUTEX connection
+mode, the write mutex, and the existing five-second busy timeout. Atomicity
+applies to committed writes; same-connection reads may observe intermediate
+state as explicitly allowed above. See
 [SQLite threading modes](https://sqlite.org/threadsafe.html).
 
 Concurrent edits to the same existing game use last successful write wins.
 Optimistic versions and conflict-resolution UI are outside this PRD. A
 concurrent deletion results in not found, and an edit never recreates a row.
-Default list order is `ORDER BY name_key, id`; UI sorts never affect storage.
+Default list order is `ORDER BY name, id`; UI sorts never affect storage.
 
 ## 5. HTTP contract
 
@@ -377,84 +478,91 @@ Default list order is `ORDER BY name_key, id`; UI sorts never affect storage.
 | --- | --- | --- |
 | GET | `/games/` | Redirect signed-in user to their table; guest to `/login` |
 | GET | `/games/:username` | Public HTML table, 200 |
-| GET | `/games/:username/records/:id` | Public JSON record for edit population |
-| POST | `/games/:username/records` | Owner creates a record, 201 JSON |
-| PUT | `/games/:username/records/:id` | Owner replaces a record, 200 JSON |
-| DELETE | `/games/:username/records/:id` | Owner deletes a record, 204 |
+| GET | `/games/:username/new` | Owner table with an empty add form |
+| GET | `/games/:username/:id/edit` | Owner table with a populated edit form |
+| GET | `/games/:username/:id/delete` | Owner table with delete confirmation |
+| POST | `/games/:username/new` | Owner creates a record, then 303 to table |
+| POST | `/games/:username/:id/edit` | Owner saves all fields, then 303 to table |
+| POST | `/games/:username/:id/delete` | Owner deletes a record, then 303 to table |
+
+All responses are HTML or redirects. There are no record JSON endpoints,
+PUT routes, DELETE routes, fetch calls, or client-side request serialization.
+GET edit/delete pages only display forms and never mutate a tracking record.
+Register the literal `/new` route and specific action routes explicitly.
 
 Register `/games` as a 308 redirect to `/games/`. A known user without
 games gets an empty table. An unknown user gets 404; public reads never
 create users. A valid account visiting its own table may be materialized
 with `ensureUser()` so a first-time games user can see an empty tracker.
 Do that only when the validated identity equals the requested username.
+The form GET routes require the same authenticated owner as their POSTs;
+all tracking data remains public through the table page.
 
 Encode usernames as individual URL path components in a new `gamesURL()`
 helper. Do not concatenate unescaped usernames or use the current generic
 form encoder blindly: inspect its treatment of spaces and slash first.
 Record IDs must parse completely as positive signed 64-bit integers.
 
-### 5.2 Request and response payloads
+### 5.2 HTML forms and responses
 
-Create and update accept `application/json` with this complete shape:
+Create and edit use ordinary `<form method="post">` elements with
+`application/x-www-form-urlencoded` encoding and explicit action URLs.
+Submit these controls:
 
-```json
-{
-    "name": "Hades",
-    "platforms": [],
-    "status": "now_playing",
-    "completion": "finished",
-    "hours": "42.5",
-    "start_date": "2026-09-01",
-    "end_date": null,
-    "notes": "Finished the main story; **still playing**."
-}
-```
+| Form field | Submitted value | Empty handling |
+| --- | --- | --- |
+| `name` | Text input | Required after `mw::strip()` |
+| `platforms` | Repeated checkbox field, one string code per selection | Missing means none |
+| `status` | Select with a string code | Required |
+| `completion` | Select with a blank option or string code | Blank/missing means absent |
+| `hours` | Integer text from number input | Blank/missing means absent |
+| `start_date` | ISO date input | Blank/missing means absent |
+| `end_date` | ISO date input | Blank/missing means absent |
+| `notes` | MacroDown source from textarea | Strip; empty means absent |
 
-On create, omitted optional keys become empty values. On PUT, require all
-eight field keys, using `[]` and `null` to clear optional values. This makes
-replacement explicit and catches a frontend accidentally omitting fields.
-Empty optional strings normalize as described in section 3. Reject unknown
-keys, wrong types, numeric JSON hours, unknown enum codes, and duplicate
-scalar query/body interpretations. Names remain strings with no lookup.
+Read all repeated platform values rather than only the first parameter.
+Reject repeated scalar fields, unexpected field names, and action data in
+query parameters. Decode the POST body using the existing HTTP library,
+then apply the shared validator. Edit replaces all fields; unchecked
+platform boxes and empty optional controls clear their stored values.
+Names remain strings with no lookup. Form codes are converted to enums
+before integer persistence; no integer representation leaks into labels.
 
-Successful record JSON contains `id` as a decimal string and the normalized
-input fields, including raw notes. String IDs avoid JavaScript's integer
-precision ceiling. Do not use HTML rendering as the edit source. A response
-may be `{ "game": { ... } }`; it has no Review or private tracking fields.
-The table reload obtains rendered notes after a successful write.
+Delete has its own POST form targeting the record's delete URL. The URL
+identifies the record; it does not need hidden owner/name/ID fields. The
+confirmation page displays the game's name as escaped text and offers
+Delete and Cancel. Cancel links back to the user's table.
 
-Errors use a stable envelope, for example:
+After a successful POST, return HTTP 303 with Location set to the user's
+canonical games table. This Post/Redirect/Get flow reloads saved data and
+prevents refresh from repeating the form submission. Do not redirect after
+validation failure: return 422 HTML with the active form, submitted values,
+and field errors. Store the unmodified submitted values in the response
+context so invalid dates/hours and whitespace remain available for correction;
+only validated values are persisted. Date/number inputs cannot display every
+invalid string, so include such a value as escaped text beside its field.
+No browser request code is needed to preserve input or show errors.
 
-```json
-{
-    "error": {
-        "code": "validation_failed",
-        "message": "Correct the highlighted fields.",
-        "fields": {"status": "Choose a status."}
-    }
-}
-```
+Map malformed IDs/form structure to 400, unsupported content type to 415,
+invalid field values to 422, missing authentication to 401, a different
+logged-in owner or invalid request origin to 403, and missing user/record to
+404. Duplicate-name RuntimeError follows the existing runtime-error path
+with status 500; do not recover a special status by comparing messages.
+Map runtime/storage/rendering failures to 500 with a generic HTML error and
+detailed server logging. Do not disclose SQL, tokens, or notes in logs.
+A failed POST must not redirect as though it succeeded. An already-deleted
+ID returns 404.
 
-Map malformed JSON/IDs to 400, unsupported content type to 415, invalid
-field values to 422, missing authentication to 401, a different logged-in
-owner or invalid request origin to 403, missing user/record to 404, and a
-duplicate name to 409. Map remaining storage/rendering failures to 500 with
-a generic response and detailed server logging. Do not disclose SQL, token
-values, or raw notes in logs. An already-deleted ID returns 404.
+Use a small HTML error-response helper for games handlers. Existing libmw
+`ASSIGN_OR_RESPOND_ERROR` produces plain text and exposes runtime messages;
+explicit boundary handling preserves these HTML and generic-message rules.
+Continue using result-propagation macros in storage/domain code. Do not
+restore the removed `src/http_response.hpp` or create a JSON error envelope.
 
-Use a games-specific JSON error-response function for these endpoints.
-The existing `ASSIGN_OR_RESPOND_ERROR` macro now comes from
-`<mw/http_server.hpp>` and emits plain text, including runtime messages.
-Using it directly in a games JSON handler would violate both this envelope
-and the generic 500-message contract. Continue using result-propagation
-macros in storage/domain code, and explicitly map errors at HTTP boundaries.
-Do not restore the removed `src/http_response.hpp`.
-
-Set an initial games-body limit of 1 MiB before JSON parsing, including a
-bounded content receiver where required by the httplib revision supplied
-by the selected libmw dependency.
-Return 413 for oversized writes. Avoid reducing the body limit for weekly
-routes. This transport limit also bounds large individual field values.
+Set an initial encoded form-body limit of 1 MiB before parsing, using a
+bounded content receiver if required by the resolved httplib revision.
+Return 413 for oversized writes without reducing the weekly-route limit.
+URL encoding can expand text, so this is a limit on transmitted bytes.
 
 ### 5.3 Authentication and request flow
 
@@ -462,26 +570,26 @@ For each write:
 
 1. Validate the session using `SessionService`.
 2. Accept VALID and REFRESHED, and reject INVALID or failed validation.
-3. Compare `session.user.name` exactly with the route username. Never trust
-   a username, `user_id`, or `owner` supplied inside JSON.
-4. Check the Origin header against the origin in `config.url_prefix`.
-   Reject missing, `null`, or mismatched Origin on write requests. The
-   browser's same-origin fetch requests supply this header. Do not enable
-   cross-origin writes or wildcard CORS. This is a games-specific contract;
-   there is no need for a public HTTP automation API in this release.
-5. Validate content type, size, JSON shape, and field values.
-6. Perform an owner-scoped storage operation and map its result.
+3. Compare `session.user.name` exactly with the route username. Derive
+   ownership from that session and route, never from form fields.
+4. Check Origin against the origin in `config.url_prefix`. Reject missing,
+   `null`, or mismatched Origin on POST. Native same-origin browser form
+   submissions satisfy this contract; forms are not CSRF protection by
+   themselves. Do not enable cross-origin writes.
+5. Validate content type, size, form fields, and field values.
+6. Perform the owner-scoped storage operation; return HTML errors or a 303.
 7. Apply replacement cookies for a REFRESHED session on games responses,
-   including field errors, so validation retries do not repeat refreshes.
+   including field errors, so retries do not repeat refreshes.
 
-Read handlers attempt session validation only to choose owner controls and
-navigation. Invalid or unavailable authentication does not prevent public
-reads. Hide mutations for visitors, but enforce every check again on the
-server. Shared-session changes must not alter existing weekly semantics.
+Public table reads attempt session validation only to choose owner controls
+and navigation. Invalid or unavailable authentication does not prevent
+public reads. Form GETs authenticate the owner before rendering controls.
+Hide mutations for visitors and enforce checks again on every POST.
+Shared-session changes must not alter existing weekly semantics.
 
-Games HTML and JSON include authentication-dependent responses and should
-use `Cache-Control: no-store`. Record JSON remains readable by any visitor;
-no authentication decision hides notes or any other tracking field.
+Games HTML includes authentication-dependent controls and should use
+`Cache-Control: no-store`. Every tracking field remains publicly readable
+on the table page, including notes.
 
 ## 6. Table, dialogs, and sorting
 
@@ -505,9 +613,9 @@ Sorting algorithm:
 2. Build row/key pairs from existing DOM rows.
 3. Compare missing values after present values in both directions. Compare
    text using one `Intl.Collator` instance and dates as ISO strings.
-4. Compare hours exactly: compare canonical integer-part lengths, then
-   integer digits, then fractional digits padded on the right with zeros.
-   Do not convert decimal strings to `Number`.
+4. Compare present hours numerically. The validated 32-bit integer range is
+   exactly representable by JavaScript `Number`; absent hours still sort
+   last and remain distinct from zero.
 5. Compare status and completion using declaration order from section 3;
    empty completion remains last. Use the original table-row index as the
    tie-breaker for equal keys, yielding deterministic stable ordering.
@@ -517,30 +625,41 @@ Sorting algorithm:
 Refreshing the page restores the default order. Do not use cookies,
 localStorage, URL parameters, or database columns for sort persistence.
 
-Use one add/edit `<dialog>` with labelled fields, platform checkboxes,
-explicit blank completion, decimal text input with `inputmode="decimal"`,
-date controls, a notes textarea, Save, and Cancel. `showModal()` provides
-modal behavior; see the
+Render one active action `<dialog>` on the requested new/edit/delete page.
+The public table page needs no action dialog. Add/edit forms have labelled
+fields, platform checkboxes, explicit blank completion, an hours number
+input with `min="0"`, `step="1"`, `max="2147483647"`, and
+`inputmode="numeric"`, date controls, a notes textarea, Save, and Cancel.
+Set the end-date control's
+minimum to the selected start date when present, and clear that minimum when
+the start date is cleared. Server validation remains authoritative.
+`showModal()` provides modal behavior; see the
 [dialog API](https://developer.mozilla.org/en-US/docs/Web/API/HTMLDialogElement).
 Name and status are the only required controls. Do not preselect a platform
 or silently convert absent completion to Not Started.
 
-Add opens an empty form. Edit fetches the public record JSON and assigns
-raw values through DOM properties such as `.value` and `.checked`. It never
-copies rendered notes into the textarea. Save sends JSON, disables repeated
-submissions, and retains the open dialog and entered values on errors.
-Display server field errors beside their controls and focus the first error.
-On success reload the table page; resetting sort is consistent with its
-non-persistent behavior. Cancel or Escape restores focus to the opener.
+Add, Edit, and Delete controls are links to their owner action GET pages.
+The server loads the selected record and renders the form's values, checked
+platforms, selected choices, and raw stripped notes. Edit never uses rendered
+notes as source. These links navigate normally; JavaScript does not fetch
+records, populate controls, intercept submission, or manage request state.
 
-Delete opens a confirmation dialog naming the game as text. Confirm sends
-DELETE, then reloads after 204. Cancellation sends no request. A failed
-delete leaves the row visible with an error. Edits and deletes never use
-GET requests. Basic table content remains readable without JavaScript;
-dialogs and sorting require it. No Bootstrap or new frontend framework is
-needed. Scope additional CSS beneath the games page container.
+Render the active dialog with `open` so its form is visible and usable
+without JavaScript. The small enhancement script removes `open` and calls
+`showModal()` to make it modal. Render server field errors next to controls
+and focus the first invalid control, or the first input for a new form.
+Save performs the native form POST and follows the server's 303 on success.
+Validation responses contain the populated form and errors without requiring
+client state preservation. Cancel links to the table; Escape in the enhanced
+dialog navigates there too without posting.
 
-## 7. MacroDown integration and safe output
+Delete's confirmation form uses the escaped game name and posts only after
+the owner clicks Delete. A GET or cancellation never changes tracking data.
+Form mutations remain usable without JavaScript; sorting, modal enhancement,
+use the games script. Notes render on the server. No Bootstrap or
+new frontend framework is needed. Scope CSS beneath the games container.
+
+## 7. MacroDown integration and rendering
 
 The inspected local checkout at `~/programs/macrodown` exposes
 `macrodown::MacroDown`, `parse(source)`, and `render(*root)`, and exports
@@ -555,57 +674,37 @@ Provide `renderGameMarkdown(source)` returning `mw::E<std::string>`:
 1. Construct a fresh MacroDown processor for each document.
 2. Parse the complete raw source into its tree.
 3. Render through MacroDown, preserving supported macro syntax.
-4. Return rendered HTML as data, never as an implicitly trusted template
-   fragment. Normalize dependency failures at this single boundary.
+4. Return rendered HTML for direct insertion in the server-rendered notes
+   cell. Normalize dependency failures at this single boundary.
 
 Fresh instances matter because `%def` mutates the evaluator. A shared
 instance could leak macros between games or users and race across requests.
 Do not implement games preview with the existing CommonMark browser script.
 Live preview is not required for this release and is omitted.
 
-The current MacroDown evaluator returns text verbatim and expands link/image
-attributes from macro arguments. Its output is not an HTML sanitization
-boundary. Use a pinned, locally served
-[DOMPurify distribution](https://github.com/cure53/DOMPurify) for browser
-insertion. In the server-rendered page, put rendered HTML inside a hidden
-element as explicitly HTML-escaped text. The external games script reads
-`textContent`, sanitizes it, and only then inserts it into the visible notes
-cell. Raw notes appear as escaped plain text until enhancement completes.
-Never place unsanitized output directly inside live HTML, a script block,
-an attribute, or a client `innerHTML` assignment.
-
-Use an explicit allowlist: paragraph/div/span, headings, lists, blockquote,
-pre/code, emphasis/strong, links, horizontal rules, breaks, tables, and
-images; attributes are limited to href, src, alt, title, and table spans.
-Allow HTTP(S), fragment links, and ordinary relative URLs; optionally allow
-mailto on links only. Reject protocol-relative URLs, all other schemes,
-event handlers, styles, scripts, frames, forms, SVG, MathML, and DOM ID/name
-attributes. Keep DOMPurify's own URI filtering active as well. If scripts
-or sanitizer loading fails, leave the escaped source visible. Serve these
-assets from `/statics/`, without a runtime CDN requirement.
+Treat MacroDown output as trusted HTML and insert it directly into the
+notes cell without sanitizing, filtering, or escaping the generated markup.
+This preserves the processor's HTML and custom macro output. There is no
+DOMPurify dependency, HTML allowlist, hidden output carrier, or browser-side
+notes rendering. Rendered notes remain available with JavaScript disabled.
 
 Do not assume inja escapes interpolation by default: explicitly escape
-every name, label, raw note, rendered-note carrier, and attribute value.
-This includes `</textarea>` in raw edit content and HTML in game names.
-DOMPurify applies to MacroDown output only; ordinary values use text APIs.
+names, labels, raw notes in edit controls, and attribute values. This
+includes `</textarea>` in raw edit content and HTML in game names. Only
+MacroDown-produced HTML is inserted as markup; ordinary values remain
+escaped text. Keep raw source separate from rendered output in the template
+context so edit controls never receive rendered HTML.
 
-The inspected MacroDown API has no visible recursion or expansion budget.
-Before release, add or select a pinned MacroDown revision that bounds parse
-nesting, evaluation depth, macro invocation count, and cumulative generated
-bytes. Initial limits are depth 128, 100,000 evaluation steps, and 4 MiB
-generated output per document. Every append must check the remaining
-output budget before allocating the combined string. Test recursive macros
-and exponentially expanding macros, not just long input strings. A timeout
-around an uncancellable C++ thread is insufficient. Treat this as a concrete
-dependency prerequisite; the adapter cannot promise limits absent in the
-library. A narrow catch for documented dependency exceptions is acceptable
-at this boundary; ordinary games failures use `mw::E<>`.
+MacroDown resource limits are outside this release's scope. Use the pinned
+upstream API directly, with fresh document state and an exception boundary.
+No nesting, evaluation-step, or generated-output budget is required.
 
 Render failure for one stored note displays an escaped source fallback and
 a small rendering-error indicator for that cell; other rows still load.
-Keep original notes unchanged in SQLite and JSON. Imports validate source
-encoding but need not render it, so renderer changes cannot corrupt or
-discard migrated source.
+Keep the stripped source unchanged in SQLite and edit forms after input
+validation. Rendering never rewrites stored notes. Imports validate source
+encoding and strip outer whitespace but need not render it, so renderer
+changes cannot corrupt or discard migrated source.
 
 ## 8. Temporary Tracker CSV import
 
@@ -654,7 +753,7 @@ canonical header error. The source mapping is:
 
 | Source column | Destination | Handling |
 | --- | --- | --- |
-| Game | name | Required; shared normalization |
+| Game | name | Required; shared `mw::strip()` handling |
 | Platform | platforms | First optional platform label |
 | 2nd Platform | platforms | Second optional platform label |
 | Status | status | Exact label-to-code mapping |
@@ -662,7 +761,7 @@ canonical header error. The source mapping is:
 | Hours | hours | Empty stays absent; zero is retained |
 | Start date | start_date | Empty stays absent |
 | End date | end_date | Empty stays absent |
-| Notes | notes | Preserve decoded cell text |
+| Notes | notes | Strip decoded cell text; empty becomes absent |
 | Review | Nothing | Ignore all content |
 
 Only name and status columns are required. Missing optional columns mean
@@ -681,10 +780,10 @@ Tracker uses locale `en_US`, but its G/H date columns explicitly format dates
 as `yyyy-mm-dd`. Observed cells include `2020-12-20` and `2023-02-22`.
 Import those displayed/exported ISO strings with the shared calendar-date
 parser, rather than interpreting underlying Google Sheets serial numbers.
-Observed hours are plain ungrouped decimal integers such as `138`, `32`, and
-`380`; the shared decimal parser also accepts fractional values. No locale
-guessing, serial-date conversion, grouping normalization, or rounding is
-required. Unsupported formats fail with a row/column diagnostic.
+Observed hours are plain ungrouped integers such as `138`, `32`, and
+`380`; the shared integer parser accepts these values and rejects fractions.
+No locale guessing, serial-date conversion, grouping normalization, or
+rounding is required. Unsupported formats fail with a row/column diagnostic.
 
 For example, the observed BioShock row has blank hours and both dates blank;
 Outer Wilds has an end date without a start date. Keep those omissions.
@@ -703,11 +802,15 @@ Import proceeds in two phases:
    For notes report the location/error only, avoiding full note dumps.
 3. If any row is invalid, exit 2 without inserting any game records. Schema
    initialization is the only allowed database change at this stage.
-4. Deduplicate normalized names within the file. Retain the first valid
+4. Deduplicate stripped names exactly within the file. Retain the first valid
    occurrence; report later occurrences and their original row numbers.
-5. Insert each remaining record with the ordinary create operation. Existing
-   per-user names are skipped and counted, without overwriting any field.
-   A concurrent duplicate receives the same skip treatment.
+5. Read existing games for the target user and build a set of stripped
+   names. Skip and count names already in that set. Insert each remaining
+   record with the ordinary create operation and add its name to the set
+   after success. Never overwrite existing records. If another process
+   creates the same name after the read, the create returns RuntimeError;
+   handle it as an import failure and rerun after resolving the conflict.
+   Do not distinguish this race from storage failures by parsing messages.
 6. Print input, blank, inserted, duplicate-in-file, and duplicate-in-database
    counts, plus ignored columns. Exit 0 if no storage failure occurred.
 
@@ -715,8 +818,9 @@ This policy makes rerunning a completed migration harmless. To correct an
 existing game's data, use the owner edit dialog rather than an implicit
 import upsert. The same title in another user's tracker is never a duplicate.
 
-Do not introduce a multi-statement transaction on the shared HTTP connection.
-The importer runs before serving and uses one atomic create per record. If
+The importer runs before serving and uses the same per-game create
+transaction, including platform assignments. Do not wrap the entire CSV in
+one transaction. If
 a storage failure happens after some inserts, stop immediately, exit 4,
 and clearly report how many inserts committed and the failing record.
 There is no file-wide rollback promise. Correcting the failure and rerunning
@@ -732,16 +836,15 @@ the migration has been verified; keep domain validation and storage tests.
 
 | File | Responsibility |
 | --- | --- |
-| `src/game.hpp/.cpp` | Record types, normalization, parsing, validation |
+| `src/game.hpp/.cpp` | Record types, input parsing, validation |
 | `src/game_choices.hpp` | Stable platform/status/completion code-label lists |
 | `src/game_data.hpp/.cpp` | Storage interface, schema, SQLite implementation |
-| `src/games_module.hpp/.cpp` | Routes, ownership checks, JSON, template context |
+| `src/games_module.hpp/.cpp` | Routes, ownership checks, forms, template context |
 | `src/game_markdown.hpp/.cpp` | MacroDown adapter and error boundary |
 | `src/game_import.hpp/.cpp` | Temporary CSV mapping and import report |
 | `src/csv_reader.hpp/.cpp` | CSV record/field state machine |
 | `templates/games.html` | Public table and owner dialogs |
-| `statics/games.js` | Dialogs, fetches, safe note rendering, local sorting |
-| `statics/dompurify.min.js` | Pinned sanitizer distribution and license |
+| `statics/games.js` | Dialog opening, date control minimum, local sorting |
 
 Add component tests adjacent to their components, matching the current
 repository layout. Extend route helpers, App composition, `main.cpp`, CMake
@@ -754,10 +857,11 @@ test targets. Keep the existing libmw FetchContent dependency,
 already exports the public libmw include directory and httplib dependency;
 do not add another httplib declaration, direct httplib link, or manual libmw
 include path for games. Leave unused libmw subsystem builds disabled.
-The present libmw declaration has no immutable revision; select a reviewed
-pin together with its dependency-resolution policy before release. Check
-the actual resolved httplib API when adding PUT/DELETE routes or content
-receivers, rather than assuming the former standalone v0.14.3 pin.
+MacroDown and libmw use immutable revisions recorded in CMake. The README
+records the verified transitive httplib revision and the source override
+required for reproducible release builds. Check
+the actual resolved httplib form-parameter and content-receiver APIs, rather
+than assuming the former standalone v0.14.3 pin.
 
 Use `FETCHCONTENT_SOURCE_DIR_LIBMW` for local libmw development, as already
 documented in README. Use libmw utilities where applicable; its inspected
@@ -765,23 +869,27 @@ tree has no CSV utility, so the small CSV reader is justified. Keep the
 existing cmark dependency for weekly rendering.
 
 Document pinned revisions and preserve dependency licenses. Package installs
-must include the new template/scripts and sanitizer license. Changes remain
-inside this repository; any needed MacroDown budget implementation is a
-separate reviewed dependency change, not an undocumented local-only patch.
+must include the new template and script. Changes remain
+inside this repository; MacroDown is consumed without local patches.
 
 ## 10. Template context and browser data boundaries
 
 The page context contains `username`, `session_user`, `is_owner`, the
-games/weekly/login URLs, code-label choices, and `games`. Each row contains
-string `id`, display values, typed sort keys, escaped raw notes, and escaped
-MacroDown-produced HTML for the inert carrier. Dates remain ISO strings;
+games/weekly/login/action URLs, code-label choices, and `games`. Action pages
+also contain the active form, its POST action, submitted/display values,
+field errors, and the selected record ID. Each table row contains
+string `id`, display values, typed sort keys, and MacroDown-produced HTML
+for direct insertion in its notes cell. Dates remain ISO strings;
 optional values remain null until formatting chooses an empty cell.
 
 Do not serialize the whole context directly into executable JavaScript.
-Use escaped HTML data attributes for small scalar keys and inert escaped
-text nodes for notes. Edit fetches obtain the record JSON when needed,
-avoiding a second giant inline JSON copy of all notes. Scripts attach
-events through named functions rather than inline event-handler attributes.
+Use escaped HTML data attributes for scalar sort keys, including raw source
+when sorting notes. Only the active edit form includes a textarea copy
+of that record's raw source. The server renders its values directly into
+escaped form controls; no inline record JSON or browser population logic
+is needed. Scripts attach events through named functions rather than inline
+event-handler attributes. Inja's internal context may still use
+nlohmann/json; it is template data, not an HTTP API.
 
 The public table must not fail just because optional session validation
 fails or one note fails rendering. A storage failure is different: show an
@@ -793,17 +901,19 @@ error response rather than presenting a misleading empty tracker.
    status meanings, headings, and ISO dates in this design. Include observed
    blank/end-only/two-platform cases and synthetic zero/multiline cases.
    Do not claim synthetic examples were present in the source.
-2. Pin MacroDown/libmw; implement and verify MacroDown budgets. Add the
-   renderer adapter and locally served sanitizer with malicious-output tests.
-3. Implement record types, choices, exact decimal/date parsing, shared
-   validation, and normalized name keys.
-4. Add SQLite optional binding and typed error codes. Implement the games
-   schema and owner-scoped CRUD with isolated database tests.
+2. Pin MacroDown/libmw. Add the
+   renderer adapter and server-rendered notes with macro-output tests.
+3. Implement record types, choices, integer-hour/date parsing, shared
+   validation, and `mw::strip()` name handling.
+4. Add SQLite optional binding and a transaction guard.
+   Implement both games tables, owner-scoped reads, and write-mutex-protected
+   mutations with
+   isolated database tests.
 5. Wire storage/module ownership into production and injected App creation.
    Preserve current root, authentication, and weekly behavior.
-6. Implement public table/record routes, then owner write routes with the
-   JSON contract, Origin checks, session refresh, and error mapping.
-7. Add templates, navigation, dialog behavior, safe note enhancement, and
+6. Implement the public table, owner form GETs and POST actions, Origin
+   checks, session refresh, redirects, and HTML validation/error responses.
+7. Add templates, navigation, dialog behavior, server-rendered notes, and
    deterministic browser sorting.
 8. Implement the separate import startup branch, CSV reader/mapping,
    validation-before-insertion, duplicate reporting, and exit behavior.
@@ -822,21 +932,49 @@ configuration and temporary databases for development and verification.
   Now Playing. Clearing each optional field round-trips as absent.
 - Test names with outer whitespace, ASCII case differences, internal double
   spaces, accents, punctuation, and distinct users. Reject malformed UTF-8.
+  Verify stripping-equivalent names conflict, differently cased names remain
+  distinct, and a whitespace-only name fails validation in HTTP and import.
 - Test no platforms, three or more platforms, repeated platforms, and the
   full configured list. Unknown platforms fail HTTP and import validation.
-- Test absent hours versus `0`, fractional hours, canonicalization, very
-  precise decimals, negatives, exponent forms, trailing junk, and NaN.
-- Test leap days, invalid dates, start-only/end-only dates, both empty, and
-  dates before/after each other without automatic correction.
-- Round-trip multiline MacroDown source exactly, including whitespace and
-  braces. Raw input must remain available after a render failure.
+- Assert actual SQLite status/completion types are integer or nullable
+  completion, with the assigned values above. Verify integer 0 round-trips
+  distinctly from NULL. Assert GamePlatforms stores integer enum values,
+  rejects duplicate assignments and unknown values, and rejects orphan game
+  IDs. Verify deleting a game cascades its platform rows and an empty
+  selection stores no child rows. HTML form choices still use string codes.
+- Test absent hours versus `0`, leading zeros in form/CSV text, and integer
+  upper-bound handling. Reject fractions, negatives, overflow, exponent forms,
+  trailing junk, and NaN. Assert SQLite stores present hours as INTEGER and
+  absent hours as NULL; empty form input remains distinct from zero.
+- Test leap days, invalid dates, start-only/end-only dates, and both empty.
+  Equal dates and end-after-start succeed; end-before-start fails with an
+  `end_date` field error. Failed edits preserve the original record, and
+  invalid CSV date ordering prevents all game inserts. Test the SQL CHECK
+  rejects reversed dates as well. No dates are swapped or corrected.
+- Test empty and whitespace-only notes become NULL in storage and render
+  as an empty edit textarea. Verify stripping is consistent on create, edit,
+  and import, including clearing existing notes with whitespace-only input.
+  Round-trip the remaining multiline MacroDown source exactly, including
+  internal whitespace and braces. Stored source remains available after a
+  render failure.
 - Create schema on both empty and legacy weekly databases. Confirm Users
   and Weeklies and their data are unchanged.
 - Test insert/edit/rename/delete, duplicate create/rename, missing IDs,
   cross-owner record IDs, foreign-key enforcement, and no reuse of a deleted
   ID. Failed edits preserve every field, including platforms.
+- Inject failure after a scalar update, after deleting old platforms, during
+  platform insertion, and at commit. Verify rollback restores the full old
+  record and failed creates leave no parent or child rows. A successful
+  empty-platform edit must remove every old assignment. Test transaction
+  cleanup on early return and rejection after unrecoverable rollback failure.
+- Pause a write transaction between scalar and platform changes and verify
+  a read can complete without acquiring the write mutex. Accept intermediate
+  results and ensure grouping handles repeated IDs/platforms. Verify a
+  second create/update/delete waits until the first write commits or rolls
+  back. On separate connections, retain SQLite's committed-read isolation
+  checks; relaxed visibility applies to the shared games connection.
 - Run competing same-name inserts on separate connections. Exactly one
-  succeeds; the other gets a typed duplicate error. Ensure completed writes
+  succeeds; the other gets a RuntimeError. Ensure completed writes
   are visible to other connections without connection-wide last-ID races.
 
 ### 12.2 HTTP and rendering
@@ -847,8 +985,12 @@ all fields visible, correct empty-state behavior, login redirection, owner
 controls, and 401/403/404 distinctions. Forged body ownership and another
 user's numeric ID must never modify data. Test valid and refreshed sessions,
 provider failure, cookies on games responses, and same-origin/missing/null/
-foreign Origin cases. Exercise malformed JSON, all payload types, partial
-PUT, name collisions, oversized bodies, and generic storage error responses.
+foreign Origin cases. Exercise malformed form fields, repeated scalars,
+repeated platform fields, empty optional controls, name collisions, oversized
+bodies, and generic HTML error responses. Verify successful POSTs return
+303 to the table and field errors return 422 with the entered values. Check
+GET action pages perform no tracking mutations and refresh after a successful
+redirect does not resubmit the POST. No record JSON routes should exist.
 Retain the App start/stop/wait lifecycle test and extend its injected
 dependencies with fake game storage. Extend the existing route fixture:
 configure a loopback address and available port, construct the injected
@@ -857,33 +999,36 @@ Track successful startup and call `app->stop()` followed by `app->wait()`
 in teardown before destroying App. Do not introduce a second route server
 or restore App's removed public route-registration method. Direct handler
 tests construct the libmw request/response aliases without starting a server.
-Verify typed games/SQLite errors survive propagation through the shared
-libmw result type and JSON handlers never fall back to plain-text errors.
+Verify application-level game errors survive propagation through the shared
+libmw result type and HTML handlers retain the intended error responses.
 
 MacroDown tests must include a macro-specific input, not just Markdown that
 cmark could also render. Check document-local macro definitions, independent
-requests, concurrent renders, invalid source, and budget failures. Verify
-raw HTML, quote-breaking attributes, `javascript:` URLs, malicious macro
-output, `</textarea>`, `</script>`, and hostile names cannot execute in the
-browser. Test failed sanitizer loading leaves only escaped text.
+requests, concurrent renders, invalid source, and dependency exceptions. Verify
+MacroDown-produced HTML and custom macro output are inserted unchanged.
+Separately verify names, attributes, and raw edit text are escaped, including
+HTML in names and `</textarea>` in notes source. Renderer failures must
+display the escaped source fallback without rewriting stored notes.
 
 ### 12.3 Browser behavior
 
 Use browser automation or a repeatable manual fixture for these DOM-specific
 checks; C++ response tests alone cannot prove them:
 
-- Add/edit dialogs populate raw values, retain input after errors, and clear
-  previously recorded optional values. Cancel/Escape save nothing.
+- Action links load server-populated forms. Add/edit forms show raw values,
+  retain input after errors, and clear previously recorded optional values.
+  Cancel/Escape save nothing. Repeat create/edit/delete with JavaScript
+  disabled to verify native form submission and visible action forms.
 - Selecting more than two platforms survives save/reload. Delete requires
   confirmation; failed deletion leaves the row intact.
 - Sort every data column both ways. Include equal keys, missing values,
-  zero and fractional hours, very long exact decimals, Unicode names,
+  zero and positive integer hours, maximum integer hours, Unicode names,
   several platforms, and Markdown notes. Check `aria-sort`, keyboard access,
   empty table, and stable ties.
 - Confirm sorting sends no network requests and refresh restores default
   ordering. Check mobile horizontal scrolling, focus, and readable notes.
-- Confirm notes are sanitized before live DOM insertion, and the page still
-  exposes safe public content with JavaScript disabled.
+- Confirm notes are already rendered in the HTML response and remain
+  readable with JavaScript disabled. No script is needed to insert notes.
 
 ### 12.4 CSV and process behavior
 
@@ -922,7 +1067,7 @@ scenario. Run browser checks against fixture accounts and a temporary
 database. Existing weekly HTML, auth, route, and storage tests must continue
 passing. This design-only change does not require compiling the application.
 
-Deployment creates only the new table. Before a real migration, stop the
+Deployment creates the two new tables. Before a real migration, stop the
 service and back up its SQLite file with a consistent SQLite backup or a
 closed-database copy. Export only Tracker to CSV, inspect the real headings
 and value formats, run the importer for the intended existing username,
@@ -930,8 +1075,8 @@ and inspect inserted/duplicate counts. Then restart and compare table totals
 and representative notes, platforms, dates, zero hours, and blank hours
 against the export. Preserve the original CSV and backup until verified.
 
-If deployment must roll back, the previous binary can ignore GameTracking;
-keep the table and its data rather than automatically dropping it. The
+If deployment must roll back, the previous binary can ignore GameTracking
+and GamePlatforms; keep both tables and their data. The
 importer never changes existing game rows, so an import rerun is preferable
 to a restore after an ordinary partial import failure. A database restore
 also restores weekly data and must be treated accordingly by the operator.
@@ -950,15 +1095,16 @@ validation, CRUD coverage, and operator notes about what was imported.
 | Only owner can add/edit/delete | Session, identity, Origin, and SQL predicates |
 | Spreadsheet-like table | All eight fields in section 6 |
 | Browser-only non-persistent sorting | DOM sort algorithm; no-request/reload checks |
-| Dialog editing and deletion | Raw JSON population and explicit delete dialog |
+| Dialog editing and deletion | Server-populated forms and POST actions |
 | Name/status required; others optional | Shared validator and NULL round-trips |
-| Plain names; per-user deduplication | No catalogue; normalized unique key |
+| Plain names; per-user deduplication | Stripped names; per-user unique key |
 | Multiple hard-coded platforms | Choice list with no two-selection limit |
 | Exact status/completion choices | Code-label tables and independent validation |
-| Empty hours distinct from zero | Nullable exact-decimal text and tests |
+| Empty hours distinct from zero | Nullable integer storage and tests |
 | Either/both dates may be empty | Independent nullable calendar dates |
+| End date equal to or after start | Shared validation and SQL CHECK |
 | MacroDown for all games Markdown | Explicit renderer, dependency and macro tests |
-| No Review or replay/day tracking | Scope and payload reject unknown fields |
+| No Review or replay/day tracking | Scope and forms reject unknown fields |
 | Temporary CLI import then exit | Pre-App branch and no-network/no-listener tests |
 | Combine Platform and 2nd Platform | CSV mapping; omit blanks and deduplicate |
 | Ignore Review; preserve values | Mapping, exact hours/date parsing, fixtures |
@@ -985,8 +1131,7 @@ this is source evidence for fixtures, not a permanent import-count target.
 The live sheet may grow before migration. No spreadsheet content was edited.
 
 Before implementation ships, select reviewed, immutable MacroDown/libmw
-revisions. Confirm MacroDown resource limits exist in the pinned dependency,
-and verify both production and test targets inherit libmw/httplib through
+revisions. Verify both production and test targets inherit libmw/httplib through
 the existing `mw::http-server` target and link MacroDown. Test the final
 exported Tracker CSV end to end before claiming a
 completed migration; live cell inspection establishes the format contract

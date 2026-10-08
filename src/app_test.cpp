@@ -19,7 +19,8 @@ TEST(App, StartsAndStopsServerThread)
     config.listen_port = 0;
     ASSIGN_OR_FAIL(auto app, App::create(config,
         std::make_unique<AuthMock>(), std::make_unique<UserDataMock>(),
-        std::make_unique<WeeklyDataMock>()));
+        std::make_unique<WeeklyDataMock>(),
+        std::make_unique<GameDataMock>()));
 
     auto started = app->start();
     app->stop();
@@ -43,7 +44,7 @@ TEST(App, IndexCanRedirectWhenLoggedIn)
     ASSIGN_OR_FAIL(auto weekly_db, SQLite::connectMemory());
     auto weeklies = std::make_unique<WeeklyDataSqlite>(std::move(weekly_db));
     ASSIGN_OR_FAIL(auto app, App::create(config, std::move(auth),
-        std::move(users), std::move(weeklies)));
+        std::move(users), std::move(weeklies), std::make_unique<GameDataMock>()));
 
     mw::HTTPServer::Request http_req;
     http_req.set_header("Cookie", "access-token=aaa");
@@ -66,7 +67,7 @@ TEST(App, IndexCanRedirectWhenNotLoggedIn)
     ASSIGN_OR_FAIL(auto weekly_db, SQLite::connectMemory());
     auto weeklies = std::make_unique<WeeklyDataSqlite>(std::move(weekly_db));
     ASSIGN_OR_FAIL(auto app, App::create(config, std::move(auth),
-        std::move(users), std::move(weeklies)));
+        std::move(users), std::move(weeklies), std::make_unique<GameDataMock>()));
 
     mw::HTTPServer::Request http_req;
     mw::HTTPServer::Response res;
@@ -98,7 +99,7 @@ TEST(App, IndexCanRefreshToken)
     ASSIGN_OR_FAIL(auto weekly_db, SQLite::connectMemory());
     auto weeklies = std::make_unique<WeeklyDataSqlite>(std::move(weekly_db));
     ASSIGN_OR_FAIL(auto app, App::create(config, std::move(auth),
-        std::move(users), std::move(weeklies)));
+        std::move(users), std::move(weeklies), std::make_unique<GameDataMock>()));
 
     mw::HTTPServer::Request req;
     req.set_header("Cookie", "refresh-token=bbb");
@@ -117,7 +118,8 @@ TEST(App, InjectionRequiresAllDependencies)
 {
     Configuration config{};
     auto app = App::create(config, nullptr,
-        std::make_unique<UserDataMock>(), std::make_unique<WeeklyDataMock>());
+        std::make_unique<UserDataMock>(), std::make_unique<WeeklyDataMock>(),
+        std::make_unique<GameDataMock>());
     ASSERT_FALSE(app);
     EXPECT_EQ(errorMsg(app.error()), "Missing application dependency");
 }
@@ -133,7 +135,8 @@ TEST(App, FailedRefreshFallsBackToGuestLookup)
     EXPECT_CALL(*users, getUserID("guest"))
         .WillOnce(Return(std::optional<int64_t>{7}));
     ASSIGN_OR_FAIL(auto app, App::create(config, std::move(auth),
-        std::move(users), std::make_unique<WeeklyDataMock>()));
+        std::move(users), std::make_unique<WeeklyDataMock>(),
+        std::make_unique<GameDataMock>()));
     mw::HTTPServer::Request req;
     req.set_header("Cookie", "refresh-token=expired");
     mw::HTTPServer::Response res;

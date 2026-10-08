@@ -9,6 +9,7 @@
   </head>
   <body>
     {% include "nav.html" %}
+    <p><a href="{{ url_for("games", username) }}">{{ username }}’s Games</a></p>
     <div id="Weeklies">
       {% for p in weeklies %}
       <section class="Weekly{% if length(p.content) == 0 %} EmptyWeekly{%- endif %}"

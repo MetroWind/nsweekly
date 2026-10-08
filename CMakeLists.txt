@@ -48,15 +48,29 @@ unset(BUILD_BENCHMARK)
 FetchContent_Declare(
   libmw
   GIT_REPOSITORY https://github.com/MetroWind/libmw.git
+  GIT_TAG 2d68269cd97f47e46bcf6007595919bfe0cbea9e
 )
 set(LIBMW_BUILD_HTTP_SERVER ON CACHE BOOL "Build libmw HTTP server")
 FetchContent_MakeAvailable(libmw)
+
+FetchContent_Declare(
+  macrodown
+  GIT_REPOSITORY https://git.xeno.darksair.org/macrodown.git
+  GIT_TAG 31e42d5f8ed10f3cf19028d9773bdd0cdcccdf7f
+)
+FetchContent_MakeAvailable(macrodown)
 
 find_package(CURL REQUIRED)
 find_package(SQLite3 3.35.0 REQUIRED)
 find_package(cmark REQUIRED)
 
 set(SOURCE_FILES
+  src/game.cpp
+  src/game_data.cpp
+  src/game_markdown.cpp
+  src/games_module.cpp
+  src/csv_reader.cpp
+  src/game_import.cpp
   src/app.cpp
   src/app.hpp
   src/auth.cpp
@@ -91,6 +105,7 @@ set(SOURCE_FILES
   src/weekly.hpp
 )
 set(LIBS
+  MacroDown::MacroDown
   cxxopts
   mw::http-server
   spdlog::spdlog
@@ -119,6 +134,8 @@ target_include_directories(nsweekly PRIVATE ${INCLUDES})
 target_link_libraries(nsweekly PRIVATE ${LIBS})
 
 set(TEST_FILES
+  src/game_test.cpp
+  src/games_module_test.cpp
   src/test_utils.hpp
   src/http_client_test.cpp
   src/http_client_mock.hpp
