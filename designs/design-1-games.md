@@ -5,6 +5,10 @@ Status: proposed implementation design.
 Requirements: [prd-games.md](../prd-games.md).
 Architecture baseline: [module design](design-0-modules.md) and the current
 `App`, `SessionService`, user storage, and weekly module implementations.
+Code baseline reviewed through `07c7c6a`, including the libmw HTTP/error
+migration and direct App setup with libmw request/response aliases. Current
+code takes precedence over the earlier module design's server-lifetime,
+route-registration, and error-container descriptions.
 
 ## 1. Scope and decisions
 
@@ -40,10 +44,12 @@ and Tracker are inputs to this design; Reviews remains outside its scope.
 
 ## 2. Existing system and integration boundaries
 
-The service is C++23, using cpp-httplib, inja, nlohmann/json, SQLite, and
-cxxopts. `App` owns backends and modules and registers their routes before
-listening. User and weekly storage each own a separate connection to
-`<data-dir>/data.db`. `Users.name` is the existing account key. Identity
+The service is C++23, using libmw's HTTP server and errors, cpp-httplib,
+inja, nlohmann/json, SQLite, and cxxopts. `App` derives from `mw::HTTPServer`
+and owns backends and modules. Its `setup()` mounts statics and registers
+root and module routes directly before listening. User and weekly storage
+each own a separate connection to `<data-dir>/data.db`.
+`Users.name` is the existing account key. Identity
 comes from OpenID Connect, via `SessionService`; games introduces no account
 management or new authentication scheme.
 
@@ -57,6 +63,25 @@ startup opens a third configured connection, initializes `Users` before
 the games schema, then composes the games module. Extend the injected
 `App::create()` path to accept fake game storage. Update existing test
 callers with an empty fake rather than opening a real database implicitly.
+
+Add `games_module->registerRoutes(server)` directly in `App::setup()`
+alongside the existing module calls. `App` no longer exposes a public
+`registerRoutes()` method. Keep the module entry point
+`GamesModule::registerRoutes(httplib::Server&)`, matching AuthModule and
+WeeklyModule. Use `mw::HTTPServer::Request` and `mw::HTTPServer::Response`
+in games handler signatures, route callbacks, and handler tests, with
+`<mw/http_server.hpp>` included by the module header. These aliases preserve
+httplib behavior while following the current application interface.
+
+Preserve the current lifecycle: `main()` checks the `mw::E<void>` returned
+by `start()` and calls `wait()` after success. `start()` launches the server
+thread; it is no longer a synchronous listen call. When a test or another
+thread requests shutdown, call `stop()` and then `wait()` before destroying
+App or any borrowed dependency. Do not rely on member destruction or the
+base destructor to drain requests. Start each instance once, register routes
+once through setup, and join its server thread once. Composed route tests
+exercise the App-owned server through this lifecycle rather than creating
+a second listener or calling setup directly.
 
 Declare game storage before the module members so borrowers are destroyed
 first. The module borrows configuration, game storage, user storage, and
@@ -278,12 +303,15 @@ name conflict; `GameNotFoundError` identifies a missing owner-scoped record.
 Unexpected database failures remain runtime/storage errors. Do not classify
 errors by matching English text.
 
-The project currently has a separate global `E<T>` and error variant.
-Do not replace them throughout the application. New games code uses libmw's
-`mw::E<T>` and converts legacy errors at calls to user storage, sessions,
-SQLite, and App creation. These narrow adapters preserve messages and HTTP
-codes where present. Keep game-specific errors typed until the HTTP/CLI
-boundary maps them to responses or diagnostics.
+`src/error.hpp` already re-exports `mw::E`, `mw::Error`, and the runtime/HTTP
+error utilities. Existing `E<T>` signatures and explicit `mw::E<T>` denote
+the same result type. Storage, sessions, and App creation need no legacy
+error adapters. Define games-specific error structs with a `std::string msg`
+member and store them directly in `mw::Error`. Inspect concrete errors with
+`error.as<GameValidationError>()` or the corresponding type, rather than
+variant operations. Keep game-specific errors typed until the HTTP/CLI
+boundary maps them to responses or diagnostics. Use libmw's existing
+propagation macros from `src/utils.hpp` for functions returning results.
 
 ### 4.3 SQL behavior and concurrency
 
@@ -309,9 +337,11 @@ Consume every returned row and finish the statement before reporting success.
 The existing SQLite minimum already supports
 [RETURNING](https://sqlite.org/lang_returning.html).
 
-Add a structured `SQLiteError` with `code`, `extended_code`, and `msg` to the
-existing wrapper's error variant, preserving its existing `errorMsg()`
-contract. Capture the statement's actual SQLite return code immediately.
+Define a structured `SQLiteError` with `code`, `extended_code`, and `msg` in
+the existing SQLite wrapper and carry it directly in `mw::Error`, preserving
+the existing `errorMsg()` contract. No central variant or libmw error-type
+registration needs modification. Inspect it with `error.as<SQLiteError>()`.
+Capture the statement's actual SQLite return code immediately.
 Use `sqlite3_extended_errcode()` only while that connection error state is
 protected from another request; alternatively enable extended result codes
 at connection setup and classify the returned step code directly. The
@@ -412,8 +442,17 @@ duplicate name to 409. Map remaining storage/rendering failures to 500 with
 a generic response and detailed server logging. Do not disclose SQL, token
 values, or raw notes in logs. An already-deleted ID returns 404.
 
+Use a games-specific JSON error-response function for these endpoints.
+The existing `ASSIGN_OR_RESPOND_ERROR` macro now comes from
+`<mw/http_server.hpp>` and emits plain text, including runtime messages.
+Using it directly in a games JSON handler would violate both this envelope
+and the generic 500-message contract. Continue using result-propagation
+macros in storage/domain code, and explicitly map errors at HTTP boundaries.
+Do not restore the removed `src/http_response.hpp`.
+
 Set an initial games-body limit of 1 MiB before JSON parsing, including a
-bounded content receiver where required by the pinned httplib version.
+bounded content receiver where required by the httplib revision supplied
+by the selected libmw dependency.
 Return 413 for oversized writes. Avoid reducing the body limit for weekly
 routes. This transport limit also bounds large individual field values.
 
@@ -594,7 +633,8 @@ administrator operation and does not require HTTP session cookies.
 Use exit 0 for success, including duplicate skips; 2 for bad CLI usage,
 unknown user, unreadable/invalid CSV, or invalid rows; 3 for configuration
 failure as today; and 4 for storage failure. These meanings apply to the
-new import branch without renumbering normal server startup errors.
+new import branch without renumbering normal server startup errors,
+including the existing exit 5 when `App::start()` returns an error.
 
 ### 8.2 CSV parsing and column mapping
 
@@ -708,14 +748,21 @@ repository layout. Extend route helpers, App composition, `main.cpp`, CMake
 source lists, navigation templates, scoped stylesheet rules, package assets,
 and README deployment/migration instructions.
 
-Add pinned MacroDown and libmw dependencies. Link `MacroDown::MacroDown`
-and `mw::mw`; keep libmw optional subsystem builds disabled for this change.
-The inspected libmw target does not export its public include path, so add
-`${libmw_SOURCE_DIR}/includes` explicitly for `<mw/error.hpp>` in both
-NSWeekly targets, or use a reviewed upstream target fix. Do not assume the
-include path appears transitively. Use libmw utilities where applicable;
-its inspected tree has no CSV utility, so the small CSV reader is justified.
-Keep the existing cmark dependency for weekly rendering.
+Add pinned MacroDown and link `MacroDown::MacroDown` to both application and
+test targets. Keep the existing libmw FetchContent dependency,
+`LIBMW_BUILD_HTTP_SERVER=ON`, and `mw::http-server` linkage. That target
+already exports the public libmw include directory and httplib dependency;
+do not add another httplib declaration, direct httplib link, or manual libmw
+include path for games. Leave unused libmw subsystem builds disabled.
+The present libmw declaration has no immutable revision; select a reviewed
+pin together with its dependency-resolution policy before release. Check
+the actual resolved httplib API when adding PUT/DELETE routes or content
+receivers, rather than assuming the former standalone v0.14.3 pin.
+
+Use `FETCHCONTENT_SOURCE_DIR_LIBMW` for local libmw development, as already
+documented in README. Use libmw utilities where applicable; its inspected
+tree has no CSV utility, so the small CSV reader is justified. Keep the
+existing cmark dependency for weekly rendering.
 
 Document pinned revisions and preserve dependency licenses. Package installs
 must include the new template/scripts and sanitizer license. Changes remain
@@ -802,6 +849,16 @@ user's numeric ID must never modify data. Test valid and refreshed sessions,
 provider failure, cookies on games responses, and same-origin/missing/null/
 foreign Origin cases. Exercise malformed JSON, all payload types, partial
 PUT, name collisions, oversized bodies, and generic storage error responses.
+Retain the App start/stop/wait lifecycle test and extend its injected
+dependencies with fake game storage. Extend the existing route fixture:
+configure a loopback address and available port, construct the injected
+App, and call `app->start()` so setup registers games with the other routes.
+Track successful startup and call `app->stop()` followed by `app->wait()`
+in teardown before destroying App. Do not introduce a second route server
+or restore App's removed public route-registration method. Direct handler
+tests construct the libmw request/response aliases without starting a server.
+Verify typed games/SQLite errors survive propagation through the shared
+libmw result type and JSON handlers never fall back to plain-text errors.
 
 MacroDown tests must include a macro-specific input, not just Markdown that
 cmark could also render. Check document-local macro definitions, independent
@@ -929,7 +986,8 @@ The live sheet may grow before migration. No spreadsheet content was edited.
 
 Before implementation ships, select reviewed, immutable MacroDown/libmw
 revisions. Confirm MacroDown resource limits exist in the pinned dependency,
-and verify both production and test targets use actual exported include
-paths. Test the final exported Tracker CSV end to end before claiming a
+and verify both production and test targets inherit libmw/httplib through
+the existing `mw::http-server` target and link MacroDown. Test the final
+exported Tracker CSV end to end before claiming a
 completed migration; live cell inspection establishes the format contract
 but does not replace exercising the CSV parser against exported bytes.
