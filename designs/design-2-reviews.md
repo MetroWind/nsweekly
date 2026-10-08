@@ -17,7 +17,8 @@ README and Reviews!A1:L5 were inspected read-only on 2026-10-08 through the
 Google Drive connector. Reviews has five scored dimensions, per-cell
 comments, an overall formula, addition/update dates, hours looked up from
 Tracker, and a calculated text export. This change implements reviewing;
-it does not import the Reviews sheet or implement its text-export column.
+it also supports CSV migration from Reviews. The calculated text-export
+column is not imported.
 
 ## Inputs and formula
 
@@ -155,3 +156,53 @@ through the real server. Browser checks cover the known spreadsheet sample
 (10,10,8,10,10 gives 9.7), draft behavior, live updates, raw-score sorting,
 cookie restoration, action links, mobile table overflow, and native forms.
 Run the existing tracker and weekly regressions as well.
+
+## Reviews CSV migration
+
+`--import-reviews-csv FILE --import-reviews-user USER` runs before Auth or
+App construction, just like tracker import. Both arguments must be present;
+combining tracker and review import modes returns 2 before configuration
+loading. Reuse storage-only startup, existing-user validation, and exit codes
+through `GameImportKind`. No templates, network provider, or listener is
+needed. The importer never creates a user or parent game.
+
+`importReviewsCsv` uses the existing RFC-style CSV reader, preserving BOM,
+quoted commas, embedded newlines, and physical starting lines for errors.
+Map columns by stripped header names. Require Game and all five dimension
+headers. Name aliases Game; Gameplay aliases Game Play. Duplicate named
+headers are errors, including aliases. Unnamed spacer columns are ignored;
+multiple unnamed columns are permitted. Entirely blank records are skipped.
+Other nonblank records must match the header width.
+
+Review text is ignored and reported, like Text export. Imported reviews
+have empty prose. Addition and Update are optional ISO calendar dates. Validate names/dates through the
+existing game validator and score fields through review validation.
+Missing scores stay missing. Addition maps to UTC midnight Unix seconds;
+Update maps similarly and must not precede Addition. A supplied Update
+requires Addition. Missing Update uses Addition. When neither is supplied,
+use one captured migration timestamp for both fields and all rows without
+dates. Ignore Overall, Hours, Text export, and all other unknown columns,
+reporting each ignored header. These values are derived in the browser or
+from the tracker and must not become authoritative inputs.
+
+Load only the target user's games and match stripped, case-sensitive names
+to their IDs. Any unknown game or invalid row aborts before all writes.
+Validate duplicate rows too; retain only the first valid row for each game.
+Storage reads failing return 4. Once validation succeeds, call the dedicated
+`importReview` storage operation for each row. It binds dimensions, optional
+text, and explicit integer timestamps into an owner-filtered INSERT SELECT
+with ON CONFLICT(game_id) DO NOTHING and RETURNING. This differs from editor
+upsert: concurrent/import-existing reviews cannot be overwritten. A missing
+or foreign parent is a storage error, not a newly created game. Each insert
+is atomic under the existing write mutex.
+
+On success report input records, blank records, inserted rows, duplicates
+within the file, and existing reviews. On a write failure return 4, identify
+the source record, and report the number already committed. Previously
+committed inserts remain valid; rerunning skips them and resumes the rest.
+Tests cover unknown targets, invalid late rows/dates, fractional scores,
+ignored calculated columns and multiline review text, duplicate safety, preserved
+timestamps, owner isolation, and a storage failure followed by a safe rerun.
+Production smoke invokes the CLI with templates removed and an unreachable
+provider, verifies preserved integer epochs, and repeats it with zero new
+inserts.

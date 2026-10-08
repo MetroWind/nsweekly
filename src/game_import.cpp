@@ -223,7 +223,8 @@ int importGamesCsv(const std::string &text, const std::string &user,
 }
 
 int runGameImport(const Configuration &config, const std::string &file,
-                  const std::string &user, std::ostream &output)
+                  const std::string &user, std::ostream &output,
+                  GameImportKind kind)
 {
     std::ifstream stream(file, std::ios::binary);
     if(!stream)
@@ -263,5 +264,7 @@ int runGameImport(const Configuration &config, const std::string &file,
         output << "Unknown target user\n";
         return 2;
     }
-    return importGamesCsv(text, user, games, output);
+    return kind == GameImportKind::REVIEWS ?
+        importReviewsCsv(text, user, games, output) :
+        importGamesCsv(text, user, games, output);
 }

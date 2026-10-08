@@ -69,6 +69,7 @@ set(SOURCE_FILES
   src/games_module.cpp
   src/csv_reader.cpp
   src/game_import.cpp
+  src/review_import.cpp
   src/app.cpp
   src/app.hpp
   src/auth.cpp

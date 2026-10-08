@@ -27,6 +27,9 @@ class GameDataInterface
     // Creates or replaces the single review for an owner-scoped game.
     virtual E<void> saveReview(const std::string &user, int64_t game_id,
                               const GameReviewInput &input) = 0;
+    // Imports a review without replacing an existing one; false means duplicate.
+    virtual E<bool> importReview(const std::string &user, int64_t game_id,
+        const GameReviewInput &input, int64_t added, int64_t updated) = 0;
     // Deletes only the review; a missing or foreign review returns false.
     virtual E<bool> deleteReview(const std::string &user, int64_t game_id) = 0;
     // Deletes the owner-scoped row and its platform assignments.
@@ -64,6 +67,9 @@ class GameDataSqlite : public GameDataInterface
     // Validates and atomically upserts a review without changing its game.
     E<void> saveReview(const std::string &user, int64_t game_id,
                        const GameReviewInput &input) override;
+    // Preserves imported Unix timestamps and never overwrites existing reviews.
+    E<bool> importReview(const std::string &user, int64_t game_id,
+        const GameReviewInput &input, int64_t added, int64_t updated) override;
     // Removes a review without removing tracking data.
     E<bool> deleteReview(const std::string &user, int64_t game_id) override;
 

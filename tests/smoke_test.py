@@ -328,12 +328,38 @@ def main():
                                               text=True, timeout=10)
                     assert imported.returncode == 0, imported.stdout + imported.stderr
                     assert f"inserted={count}" in imported.stdout, imported.stdout
+                review_arguments = [binary, "-c", str(import_config),
+                    "--import-reviews-csv", str(root / "tests/fixtures/reviews.csv"),
+                    "--import-reviews-user", "mw"]
+                for count in [2, 0]:
+                    imported = subprocess.run(review_arguments, capture_output=True,
+                                              text=True, timeout=10)
+                    assert imported.returncode == 0, imported.stdout + imported.stderr
+                    assert f"inserted={count}" in imported.stdout, imported.stdout
+                with sqlite3.connect(db_path) as db:
+                    migrated = db.execute(
+                        "SELECT r.added, r.updated, typeof(r.added), r.text "
+                        "FROM GameReviews r JOIN GameTracking g ON g.id=r.game_id "
+                        "WHERE g.name='Outer Wilds'").fetchone()
+                    assert migrated[:3] == (1709164800, 1709251200, "integer")
+                    assert migrated[3] == ""
+                for arguments in [
+                    ["--import-reviews-user", "mw"],
+                    ["--import-reviews-csv", "missing.csv"],
+                    ["--import-reviews-csv", "a", "--import-reviews-user", "mw",
+                     "--import-games-csv", "b", "--import-games-user", "mw"],
+                ]:
+                    assert subprocess.run([binary] + arguments,
+                        capture_output=True).returncode == 2
+                unknown = subprocess.run(review_arguments[:-1] + ["unknown"],
+                    capture_output=True, text=True, timeout=10)
+                assert unknown.returncode == 2
                 assert subprocess.run([binary, "--import-games-user", "mw"],
                     capture_output=True).returncode == 2
                 assert subprocess.run([binary, "--help"],
                     capture_output=True).returncode == 0
                 print("Production smoke passed: login, guest, pages, preview, "
-                      "save, refresh, reopen, games CRUD/import, reviews, and startup exit codes.")
+                      "save, refresh, reopen, games and reviews CRUD/import, and startup exit codes.")
     finally:
         provider.shutdown()
         provider_thread.join()

@@ -51,6 +51,10 @@ public:
     // Captures an owner-scoped review replacement.
     MOCK_METHOD(E<void>, saveReview,
         (const std::string&, int64_t, const GameReviewInput&), (override));
+    // Captures insert-only review migration with source timestamps.
+    MOCK_METHOD(E<bool>, importReview,
+        (const std::string&, int64_t, const GameReviewInput&, int64_t, int64_t),
+        (override));
     // Captures review-only deletion.
     MOCK_METHOD(E<bool>, deleteReview,
         (const std::string&, int64_t), (override));

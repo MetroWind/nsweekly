@@ -17,6 +17,10 @@ int main(int argc, char** argv)
          cxxopts::value<std::string>())
         ("import-games-user", "Existing account to import into",
          cxxopts::value<std::string>())
+        ("import-reviews-csv", "Import Reviews CSV and exit",
+         cxxopts::value<std::string>())
+        ("import-reviews-user", "Existing account to import reviews into",
+         cxxopts::value<std::string>())
         ("h,help", "Print this message.");
     cxxopts::ParseResult opts;
     try
@@ -36,9 +40,16 @@ int main(int argc, char** argv)
     }
 
     if(bool(opts.count("import-games-csv")) !=
-       bool(opts.count("import-games-user")))
+           bool(opts.count("import-games-user")) ||
+       bool(opts.count("import-reviews-csv")) !=
+           bool(opts.count("import-reviews-user")))
     {
-        std::cerr << "Both import arguments are required together\n";
+        std::cerr << "Both CSV and user arguments are required together\n";
+        return 2;
+    }
+    if(opts.count("import-games-csv") && opts.count("import-reviews-csv"))
+    {
+        std::cerr << "Import Tracker and Reviews separately\n";
         return 2;
     }
 
@@ -55,6 +66,13 @@ int main(int argc, char** argv)
     {
         return runGameImport(*conf, opts["import-games-csv"].as<std::string>(),
             opts["import-games-user"].as<std::string>(), std::cout);
+    }
+
+    if(opts.count("import-reviews-csv"))
+    {
+        return runGameImport(*conf, opts["import-reviews-csv"].as<std::string>(),
+            opts["import-reviews-user"].as<std::string>(), std::cout,
+            GameImportKind::REVIEWS);
     }
 
     int exit_code = 0;

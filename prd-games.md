@@ -79,7 +79,12 @@ only when all dimensions are present. Never store overall in the database.
 Store creation/update dates as integer UTC Unix timestamps and display
 only yyyy-mm-dd. Public sortable review tables and owner-only native HTML
 forms follow tracker behavior. Review creation/editing use a separate
-page with a scoring rubric beside the form; review deletion uses a dialog. See designs/design-2-reviews.md.
+page with a scoring rubric beside the form; review deletion uses a dialog. Reviews CSV migration uses --import-reviews-csv and --import-reviews-user.
+Import Tracker first; match existing games by owner and name, preserve
+Addition/Update dates as UTC integer timestamps, and skip existing reviews.
+Ignore review text and calculated columns. Validate the whole CSV before
+inserting.
+See designs/design-2-reviews.md.
 
 ## Journaling
 

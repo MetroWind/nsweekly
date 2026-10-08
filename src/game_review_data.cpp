@@ -68,3 +68,37 @@ DELETE FROM GameReviews WHERE game_id IN
     ASSIGN_OR_RETURN(auto removed, db->eval<int64_t>(std::move(sql)));
     return !removed.empty();
 }
+
+E<bool> GameDataSqlite::importReview(const std::string &user, int64_t game_id,
+    const GameReviewInput &input, int64_t added, int64_t updated)
+{
+    ASSIGN_OR_RETURN(auto valid, validateReview(reviewFields(input)));
+    if(updated < added)
+    {
+        return std::unexpected(runtimeError("Update precedes addition"));
+    }
+    std::lock_guard lock(write_mutex);
+    ASSIGN_OR_RETURN(auto sql, db->statementFromStr(R"(
+INSERT INTO GameReviews
+(game_id, story, gameplay, graphics, audio, special, text, added, updated)
+SELECT g.id, ?, ?, ?, ?, ?, ?, ?, ?
+FROM GameTracking g JOIN Users u ON u.id = g.user_id
+WHERE g.id = ? AND u.name = ?
+ON CONFLICT(game_id) DO NOTHING
+RETURNING game_id
+)"));
+    DO_OR_RETURN(sql.bind(valid.scores[0], valid.scores[1], valid.scores[2],
+        valid.scores[3], valid.scores[4], valid.text, added, updated,
+        game_id, user));
+    ASSIGN_OR_RETURN(auto saved, db->eval<int64_t>(std::move(sql)));
+    if(!saved.empty())
+    {
+        return true;
+    }
+    ASSIGN_OR_RETURN(auto game, getGame(user, game_id));
+    if(!game)
+    {
+        return std::unexpected(httpError(404, "Game not found"));
+    }
+    return false;
+}

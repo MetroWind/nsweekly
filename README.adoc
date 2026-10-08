@@ -196,9 +196,45 @@ a separate `nsweekly-reviews-sort` cookie. Hours comes from the tracker.
 Creation/update times are stored as integer UTC Unix timestamps and shown
 as UTC `yyyy-mm-dd`. Deleting a review leaves the game; deleting a game
 also deletes its review. Tracker CSV import continues to ignore the Review
-column and does not import scores from the Reviews sheet.
+column. Import the Reviews sheet separately with the command below.
 
 See `designs/design-2-reviews.md` for the schema, routes, formula, and checks.
 
 When Node.js is available, CTest also runs the review formula checks. They
 can be run directly with `node tests/reviews_score_test.js`.
+
+=== Reviews spreadsheet migration
+
+Export the Reviews tab as CSV. Import the Tracker first, then run:
+
+[source,sh]
+----
+nsweekly -c /path/to/nsweekly.yaml \
+    --import-reviews-csv /tmp/reviews.csv --import-reviews-user mw
+----
+
+The account must already exist. Game names match its tracker exactly after
+stripping outer whitespace; unknown names fail validation before any review
+is inserted. Required headers are `Game`, `Story/Lore`, `Game Play`,
+`Graphics`, `Audio`, and `Special`. `Name` and `Gameplay` are accepted aliases.
+Columns may be reordered. `Review` text is ignored; imported reviews
+start with empty prose. Blank dimension cells remain blank; migration does not apply the
+editor's default scores of five.
+
+Optional `Addition` and `Update` dates use `yyyy-mm-dd` and become UTC
+midnight Unix timestamp integers. A missing Update uses Addition; when both
+are absent, both use the migration time. Update without Addition, invalid
+calendar dates, or an update preceding addition fail validation.
+
+Calculated `Overall`, `Hours`, and `Text export` columns, unnamed spacer
+columns, and other unrecognized columns are ignored and reported. CSV does
+not carry spreadsheet cell comments. Overall remains browser-calculated,
+and hours still comes from the tracker.
+
+All rows are validated before writes. The first duplicate game in the file
+wins; an existing database review is never overwritten, including if another
+process creates it during migration. A summary reports blank rows, inserts,
+and both kinds of duplicates. A storage failure reports how many inserts
+committed; rerun safely to resume. Exit codes match tracker migration: 0 for
+success, 2 for input errors, 3 for configuration errors, and 4 for storage
+errors. Tracker and review imports cannot be combined in one invocation.
