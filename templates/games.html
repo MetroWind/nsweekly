@@ -3,7 +3,7 @@
 <head>
   {% include "head_common.html" %}
   <link rel="stylesheet" href="/statics/games.css">
-  <title>{{ username }}’s Games</title>
+  <title>{{ username }}’s Game Tracker</title>
   <script src="/statics/games.js" defer></script>
 </head>
 <body>
@@ -14,7 +14,7 @@
     <span>{{ session_user }}</span>
     {% else %}<a href="/login">Login</a>{% endif %}
   </nav>
-  <h1>{{ username }}’s Games</h1>
+  <h1>{{ username }}’s Game Tracker</h1>
   {% if is_owner %}<p><a href="{{ new_url }}">Add game</a></p>{% endif %}
   {% if length(games) == 0 %}<p>No games recorded.</p>{% endif %}
   <div class="TableScroll">
@@ -84,7 +84,13 @@
       </select>
       <span class="FieldError" id="ErrorStatus">{{ errors.status }}</span>
       <details><summary>Status meanings</summary>
-        <p>Now Playing: actively playing. Queue: intend to play in the near future, roughly within a year. Shelved: previously played, may return without a near-term plan. Done: no intention to play anymore. Wishlist: a reminder to consider buying later.</p>
+        <p>Now Playing: actively playing.</p>
+        <p>Queue: intend to play in the near future, roughly within a
+          year.</p>
+        <p>Shelved: previously played, may return without a near-term
+          plan.</p>
+        <p>Done: no intention to play anymore.</p>
+        <p>Wishlist: a reminder to consider buying later.</p>
       </details>
       <label for="GameCompletion">Completion</label>
       <select id="GameCompletion" name="completion" aria-describedby="ErrorCompletion">

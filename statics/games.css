@@ -267,9 +267,9 @@ button, input, select, textarea
     background: var(--color-bg);
     opacity: 0;
     pointer-events: none;
-    top: .2rem;
     border: 1px solid var(--color-accent);
-
+    top: 50%;
+    transform: translateY(-50%);
 }
 #Games .GameActions a
 {
@@ -386,8 +386,34 @@ button, input, select, textarea
 
 #Games td:nth-child(3)
 {
-    color: #d5ff45;
+    color: var(--color-bg);
     font-weight: 700;
+}
+
+/* Status keys follow GameStatus; labels remain visible alongside color. */
+#Games td:nth-child(3)[data-key="0"]
+{
+    background: #d5ff45;
+}
+
+#Games td:nth-child(3)[data-key="1"]
+{
+    background: #75d9ff;
+}
+
+#Games td:nth-child(3)[data-key="2"]
+{
+    background: #ffbf69;
+}
+
+#Games td:nth-child(3)[data-key="3"]
+{
+    background: #c1a2ff;
+}
+
+#Games td:nth-child(3)[data-key="4"]
+{
+    background: #ff87d5;
 }
 
 #Games td:nth-child(4)
