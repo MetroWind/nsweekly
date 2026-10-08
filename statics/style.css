@@ -48,7 +48,7 @@ table {
 :root
 {
     --content-width: 760px;
-    --nav-height: 30px;
+    --nav-height: 48px;
     --color-bg: white;
     --color-fg: #2f3542;
     --color-accent: #ff4757;
@@ -153,13 +153,42 @@ hr
 nav
 {
     position: fixed;
-    top: 0px;
-    left: 0px;
+    top: 0;
+    left: 0;
+    z-index: 10;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+    box-sizing: border-box;
     height: var(--nav-height);
-    width: 100vw;
-    text-align: right;
+    width: 100%;
     background-color: var(--color-hidden);
-    padding: 0 10px 0 10px;
+    padding: 0 12px;
+    font-size: 14px;
+}
+
+nav .ModuleLinks
+{
+    grid-column: 2;
+    display: flex;
+    gap: 1.5rem;
+}
+
+nav .NavAccount
+{
+    grid-column: 3;
+    justify-self: end;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+nav a[aria-current="page"]
+{
+    font-weight: 700;
+    text-decoration: underline;
+    text-underline-offset: 5px;
 }
 
 ul

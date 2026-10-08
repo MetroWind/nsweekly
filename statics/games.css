@@ -51,17 +51,49 @@ button, input, select, textarea
 
 #Games nav
 {
-    display: flex;
+    position: fixed;
+    inset: 0 0 auto;
+    z-index: 10;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
     align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    margin-bottom: 2rem;
-    padding-bottom: 1rem;
-    border-bottom: 2px solid var(--color-border);
+    height: 56px;
+    padding: 0 1rem;
+    border-bottom: 2px solid var(--color-accent);
+    background: var(--color-bg);
+    color: var(--color-muted);
     font-family: ui-monospace, monospace;
+    font-size: .85rem;
     text-transform: uppercase;
     letter-spacing: .08em;
-    color: var(--color-muted);
+}
+
+#Games nav .ModuleLinks
+{
+    grid-column: 2;
+    display: flex;
+    gap: 1.5rem;
+    height: 100%;
+    align-items: center;
+}
+
+#Games nav .NavAccount
+{
+    grid-column: 3;
+    justify-self: end;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#Games nav a[aria-current="page"]
+{
+    padding: .4rem .6rem;
+    background: var(--color-accent);
+    color: var(--color-bg);
+    font-weight: 800;
+    box-shadow: 3px 3px 0 #a26dff;
 }
 
 #Games > h1, #Games dialog > h2
@@ -204,6 +236,7 @@ button, input, select, textarea
 {
     max-width: 100%;
     margin: clamp(1rem, 3vw, 3rem);
+    padding-top: 56px;
 }
 #Games .TableScroll
 {

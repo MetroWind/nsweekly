@@ -1,10 +1,23 @@
-<nav>
-  <span>
-    {% if length(session_user) > 0 %}
-    {{ session_user }}
+<nav aria-label="Main navigation">
+  <div class="ModuleLinks">
+{% if exists("table_url") %}
+    <a href="{{ weekly_url }}">Weeklies</a>
+    <a href="{{ table_url }}" aria-current="page">Games</a>
+{% else %}
+{% if exists("username") %}
+    <a href="{{ url_for("weekly", username) }}" aria-current="page">Weeklies</a>
+    <a href="{{ url_for("games", username) }}">Games</a>
+{% else %}
+    <a href="{{ url_for("weekly", session_user) }}" aria-current="page">Weeklies</a>
     <a href="{{ url_for("games", session_user) }}">Games</a>
-    {% else %}
-    <a href="{{ url_for("login", "") }}">Login</a>
-    {% endif %}
+{% endif %}
+{% endif %}
+  </div>
+  <span class="NavAccount">
+{% if length(session_user) > 0 %}
+    {{ session_user }}
+{% else %}
+    <a href="/login">Login</a>
+{% endif %}
   </span>
 </nav>

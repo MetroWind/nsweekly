@@ -223,7 +223,7 @@ TEST_F(Routes, GamesRoutesPublicFormsAndEncodedUsername)
     auto encoded = client->Get("/games/alice%2Fnew");
     ASSERT_TRUE(encoded);
     EXPECT_EQ(encoded->status, 200);
-    EXPECT_THAT(encoded->body, HasSubstr("alice/new’s Games"));
+    EXPECT_THAT(encoded->body, HasSubstr("alice/new’s Game Tracker"));
     auto canonical = client->Get("/games");
     ASSERT_TRUE(canonical);
     EXPECT_EQ(canonical->status, 308);

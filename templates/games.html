@@ -8,12 +8,7 @@
 </head>
 <body>
 <main id="Games">
-  <nav>
-    <a href="{{ weekly_url }}">Weeklies</a>
-    {% if length(session_user) > 0 %}
-    <span>{{ session_user }}</span>
-    {% else %}<a href="/login">Login</a>{% endif %}
-  </nav>
+  {% include "nav.html" %}
   <h1>{{ username }}’s Game Tracker</h1>
   {% if is_owner %}<p><a href="{{ new_url }}">Add game</a></p>{% endif %}
   {% if length(games) == 0 %}<p>No games recorded.</p>{% endif %}
