@@ -5,11 +5,9 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
 
 project(Weekly)
 
+# Set our default before dependencies can declare BUILD_TESTING as ON.
+option(BUILD_TESTING "Build nsweekly tests" OFF)
 include(FetchContent)
-FetchContent_Declare(
-  googletest
-  URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.tar.gz
-)
 FetchContent_Declare(
   cxxopts
   GIT_REPOSITORY https://github.com/jarro2783/cxxopts.git
@@ -42,13 +40,12 @@ FetchContent_Declare(
   GIT_TAG v1.12.0
 )
 set(SPDLOG_USE_STD_FORMAT ON)
-FetchContent_MakeAvailable(json inja cxxopts googletest ryml spdlog)
+FetchContent_MakeAvailable(json inja cxxopts ryml spdlog)
 unset(BUILD_BENCHMARK)
 
 FetchContent_Declare(
   libmw
   GIT_REPOSITORY https://github.com/MetroWind/libmw.git
-  GIT_TAG 2d68269cd97f47e46bcf6007595919bfe0cbea9e
 )
 set(LIBMW_BUILD_HTTP_SERVER ON CACHE BOOL "Build libmw HTTP server")
 FetchContent_MakeAvailable(libmw)
@@ -56,7 +53,6 @@ FetchContent_MakeAvailable(libmw)
 FetchContent_Declare(
   macrodown
   GIT_REPOSITORY https://git.xeno.darksair.org/macrodown.git
-  GIT_TAG 31e42d5f8ed10f3cf19028d9773bdd0cdcccdf7f
 )
 FetchContent_MakeAvailable(macrodown)
 
@@ -133,51 +129,59 @@ target_compile_options(nsweekly PRIVATE -Wall -Wextra -Wpedantic)
 target_include_directories(nsweekly PRIVATE ${INCLUDES})
 target_link_libraries(nsweekly PRIVATE ${LIBS})
 
-set(TEST_FILES
-  src/game_test.cpp
-  src/games_module_test.cpp
-  src/test_utils.hpp
-  src/http_client_test.cpp
-  src/http_client_mock.hpp
-  src/auth_test.cpp
-  src/auth_mock.hpp
-  src/url_test.cpp
-  src/session_service_test.cpp
-  src/routes_test.cpp
-  src/route_urls_test.cpp
-  src/app_test.cpp
-  src/auth_module_test.cpp
-  src/weekly_module_test.cpp
-  src/http_adaptation_test.cpp
-  src/user_data_test.cpp
-  src/weekly_data_test.cpp
-  src/storage_mock.hpp
-  src/storage_test_support.hpp
-  src/database_test.cpp
-  src/utils_test.cpp
-)
+if(BUILD_TESTING)
+  include(CTest)
+  FetchContent_Declare(
+    googletest
+    URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.tar.gz
+  )
+  FetchContent_MakeAvailable(googletest)
 
-# ctest --test-dir build
-add_executable(nsweekly_test ${SOURCE_FILES} ${TEST_FILES})
-set_property(TARGET nsweekly_test PROPERTY CXX_STANDARD 23)
+  set(TEST_FILES
+    src/game_test.cpp
+    src/games_module_test.cpp
+    src/test_utils.hpp
+    src/http_client_test.cpp
+    src/http_client_mock.hpp
+    src/auth_test.cpp
+    src/auth_mock.hpp
+    src/url_test.cpp
+    src/session_service_test.cpp
+    src/routes_test.cpp
+    src/route_urls_test.cpp
+    src/app_test.cpp
+    src/auth_module_test.cpp
+    src/weekly_module_test.cpp
+    src/http_adaptation_test.cpp
+    src/user_data_test.cpp
+    src/weekly_data_test.cpp
+    src/storage_mock.hpp
+    src/storage_test_support.hpp
+    src/database_test.cpp
+    src/utils_test.cpp
+  )
 
-set_property(TARGET nsweekly_test PROPERTY COMPILE_WARNING_AS_ERROR TRUE)
-target_compile_options(nsweekly_test PRIVATE -Wall -Wextra -Wpedantic)
-target_include_directories(nsweekly_test PRIVATE
-  ${INCLUDES}
-  ${googletest_SOURCE_DIR}/googletest/include
-  ${googletest_SOURCE_DIR}/googlemock/include
-)
+  # ctest --test-dir build
+  add_executable(nsweekly_test ${SOURCE_FILES} ${TEST_FILES})
+  set_property(TARGET nsweekly_test PROPERTY CXX_STANDARD 23)
 
-target_link_libraries(nsweekly_test PRIVATE
-  ${LIBS}
-  GTest::gtest_main
-  GTest::gmock_main
-)
+  set_property(TARGET nsweekly_test PROPERTY COMPILE_WARNING_AS_ERROR TRUE)
+  target_compile_options(nsweekly_test PRIVATE -Wall -Wextra -Wpedantic)
+  target_include_directories(nsweekly_test PRIVATE
+    ${INCLUDES}
+    ${googletest_SOURCE_DIR}/googletest/include
+    ${googletest_SOURCE_DIR}/googlemock/include
+  )
 
-enable_testing()
-include(GoogleTest)
-gtest_discover_tests(nsweekly_test)
+  target_link_libraries(nsweekly_test PRIVATE
+    ${LIBS}
+    GTest::gtest_main
+    GTest::gmock_main
+  )
 
-target_compile_definitions(nsweekly_test PRIVATE
-  NSWEEKLY_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+  include(GoogleTest)
+  gtest_discover_tests(nsweekly_test)
+
+  target_compile_definitions(nsweekly_test PRIVATE
+    NSWEEKLY_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+endif()
