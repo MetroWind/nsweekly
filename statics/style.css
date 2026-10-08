@@ -346,6 +346,15 @@ ul p, ol p
     padding: 10px 14px 10px 14px;
 }
 
+@font-face
+{
+    font-family: "NSWeekly Symbols";
+    src: url("symbols-nerdfont.woff2") format("woff2");
+    font-style: normal;
+    font-weight: normal;
+    font-display: block;
+}
+
 #Games
 {
     max-width: 100%;
@@ -372,6 +381,61 @@ ul p, ol p
     min-width: 16rem;
     max-width: 35rem;
     overflow-wrap: anywhere;
+}
+#Games .PlatformIcon
+{
+    display: inline-flex;
+    align-items: baseline;
+    margin-inline-end: .6rem;
+    white-space: nowrap;
+}
+#Games .PlatformIcon:last-child
+{
+    margin-inline-end: 0;
+}
+#Games .PlatformGlyph, #Games .ActionGlyph
+{
+    font-family: "NSWeekly Symbols", sans-serif;
+    font-size: 1.3em;
+    line-height: 1;
+}
+#Games .PlatformIcon sub
+{
+    font-size: .65em;
+    margin-inline-start: .1em;
+}
+#Games .GameName
+{
+    position: relative;
+    min-width: 5rem;
+}
+#Games .GameActions
+{
+    position: absolute;
+    top: .2rem;
+    right: .2rem;
+    z-index: 1;
+    display: flex;
+    background: var(--color-bg);
+    border-radius: .25rem;
+    box-shadow: 0 1px 3px #0002;
+    opacity: 0;
+    pointer-events: none;
+}
+#Games .GameActions a
+{
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.8rem;
+    height: 1.8rem;
+    border-radius: .25rem;
+}
+#Games .GameName:hover .GameActions,
+#Games .GameName:focus-within .GameActions
+{
+    opacity: 1;
+    pointer-events: auto;
 }
 #Games pre
 {

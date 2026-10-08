@@ -12,7 +12,13 @@ function checkBrowserGames()
 {
     const tbody = document.querySelector("#Games tbody");
     const buttons = document.querySelectorAll("#Games [data-sort]");
-    const original = Array.from(tbody.rows);
+    const original = Array.from(tbody.rows).sort(originalGameOrder);
+    game_sort_column = -1;
+    game_sort_direction = 1;
+    for(const row of original)
+    {
+        tbody.append(row);
+    }
     for(const button of buttons)
     {
         const column = Number(button.dataset.sort);
@@ -36,6 +42,20 @@ function checkBrowserGames()
         "zero hours sorts before maximum hours");
     assertBrowser(tbody.rows[3].cells[4].dataset.key === "2147483647",
         "maximum integer hours sorts numerically");
+    game_sort_column = -1;
+    restoreGameSort();
+    assertBrowser(game_sort_column === 4 && game_sort_direction === 1,
+        "ascending sort restores from cookie");
+    buttons[4].click();
+    game_sort_column = -1;
+    game_sort_direction = 1;
+    restoreGameSort();
+    assertBrowser(game_sort_column === 4 && game_sort_direction === -1,
+        "descending sort restores from cookie");
+    document.cookie = GAME_SORT_COOKIE + "=invalid; Path=/; SameSite=Lax";
+    game_sort_column = -1;
+    restoreGameSort();
+    assertBrowser(game_sort_column === -1, "malformed cookie is ignored");
     assertBrowser(document.querySelector("#Games td code").textContent ===
         "MacroDown", "notes exist before sorting");
     const start = document.getElementById("GameStart");
@@ -51,8 +71,22 @@ function checkBrowserGames()
     dialog.close();
     document.getElementById("BrowserResult").textContent =
         "Passed: all eight columns, both directions, missing-last, stable " +
-        "ties, integer hours, server notes, dialog, and date minimum. " +
-        "Use Tab and Enter on sort buttons; reload to restore default order.";
+        "ties, integer hours, cookie restoration, server notes, dialog, " +
+        "and date minimum. Use Tab and Enter on sort buttons.";
+}
+
+function originalGameOrder(a, b)
+{
+    return Number(a.dataset.originalIndex) - Number(b.dataset.originalIndex);
+}
+
+let previous_game_sort_cookie = "";
+for(const cookie of document.cookie.split(";"))
+{
+    if(cookie.trim().startsWith(GAME_SORT_COOKIE + "="))
+    {
+        previous_game_sort_cookie = cookie.trim();
+    }
 }
 
 try
@@ -63,4 +97,10 @@ catch(error)
 {
     document.getElementById("BrowserResult").textContent = "FAILED: " + error;
     throw error;
+}
+finally
+{
+    document.cookie = (previous_game_sort_cookie || GAME_SORT_COOKIE + "=") +
+        "; Path=/; SameSite=Lax; Max-Age=" +
+        (previous_game_sort_cookie ? "31536000" : "0");
 }

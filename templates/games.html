@@ -22,16 +22,38 @@
       {% for heading in ["Name", "Platforms", "Status", "Completion", "Hours", "Start date", "End date", "Notes"] %}
       <th scope="col" aria-sort="none"><button type="button" data-sort="{{ loop.index }}">{{ heading }}</button></th>
       {% endfor %}
-      {% if is_owner %}<th scope="col">Actions</th>{% endif %}
     </tr></thead>
     <tbody>
     {% for game in games %}
     <tr data-id="{{ game.id }}">
       {% for cell in game.cells %}
-      <td data-key="{{ cell.key }}" data-missing="{{ cell.missing }}">{{ cell.value }}</td>
+      <td data-key="{{ cell.key }}" data-missing="{{ cell.missing }}"
+          {% if loop.index == 0 %}class="GameName"{% endif %}>
+        {%- if loop.index == 0 -%}
+          {{ cell.value }}
+          {% if is_owner %}
+          <span class="GameActions">
+            <a href="{{ game.edit_url }}" title="Edit game"
+               aria-label="Edit {{ cell.value }}">
+              <span class="ActionGlyph" aria-hidden="true">&#xf03eb;</span>
+            </a>
+            <a href="{{ game.delete_url }}" title="Delete game"
+               aria-label="Delete {{ cell.value }}">
+              <span class="ActionGlyph" aria-hidden="true">&#xf01b4;</span>
+            </a>
+          </span>
+          {% endif %}
+        {%- else if loop.index == 1 -%}
+          {%- for platform in game.platforms -%}
+          <span class="PlatformIcon" role="img"
+                aria-label="{{ platform.label }}" title="{{ platform.label }}">
+            <span class="PlatformGlyph" aria-hidden="true">{{ platform.glyph }}</span>
+            {% if platform.is_switch_2 %}<sub aria-hidden="true">2</sub>{% endif %}
+          </span>
+          {%- endfor -%}
+        {%- else -%}{{ cell.value }}{%- endif -%}
+      </td>
       {% endfor %}
-      {% if is_owner %}<td><a href="{{ game.edit_url }}">Edit</a>
-        <a href="{{ game.delete_url }}">Delete</a></td>{% endif %}
     </tr>
     {% endfor %}
     </tbody>

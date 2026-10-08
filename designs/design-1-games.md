@@ -595,14 +595,16 @@ on the table page, including notes.
 
 Render `templates/games.html` using inja and use `statics/games.js` for
 behavior. Use semantic `<table>`, `<thead>`, and `<tbody>` elements. Columns
-are Name, Platforms, Status, Completion, Hours, Start date, End date, Notes,
-and owner-only Actions. Render absent values as visually empty cells; expose
+are Name, Platforms, Status, Completion, Hours, Start date, End date, and
+Notes. Owner-only edit/delete Nerd Font icon links overlay the top-right
+of the Name cell and appear on cell hover or keyboard focus. Give each
+link an accessible name and tooltip. Render absent values as empty cells; expose
 an accessible “Not recorded” description if needed. Render zero as `0`.
 Keep the complete table, including notes, public and horizontally scrollable
 on small screens. Wrap long notes instead of hiding their content.
 
-Every data header contains a keyboard-operable sort button. The Actions
-header does not sort. Store typed sort keys in escaped data attributes;
+Every data header contains a keyboard-operable sort button. Store typed
+sort keys in escaped data attributes;
 never sort by rendered HTML. Notes sort by raw source. Platforms sort by
 their joined display labels, matching the canonical platform order.
 
@@ -622,8 +624,10 @@ Sorting algorithm:
 6. Append the sorted rows to the existing `<tbody>` and update `aria-sort`
    on the active header. No request or storage write occurs.
 
-Refreshing the page restores the default order. Do not use cookies,
-localStorage, URL parameters, or database columns for sort persistence.
+Persist the selected column and direction in a host-only browser cookie
+for one year, shared across tracker pages. Restore it when loading a page,
+including after form redirects, and update aria-sort. Ignore malformed
+values. Sorting remains entirely in the browser; no database write occurs.
 
 Render one active action `<dialog>` on the requested new/edit/delete page.
 The public table page needs no action dialog. Add/edit forms have labelled
@@ -1025,8 +1029,9 @@ checks; C++ response tests alone cannot prove them:
   zero and positive integer hours, maximum integer hours, Unicode names,
   several platforms, and Markdown notes. Check `aria-sort`, keyboard access,
   empty table, and stable ties.
-- Confirm sorting sends no network requests and refresh restores default
-  ordering. Check mobile horizontal scrolling, focus, and readable notes.
+- Confirm sorting sends no network requests and refresh restores the saved
+  column and direction. Check both directions and invalid cookie values.
+  Check mobile horizontal scrolling, focus, and readable notes.
 - Confirm notes are already rendered in the HTML response and remain
   readable with JavaScript disabled. No script is needed to insert notes.
 
@@ -1094,7 +1099,7 @@ validation, CRUD coverage, and operator notes about what was imported.
 | Per-user public tracking | Owner-scoped schema; anonymous route tests |
 | Only owner can add/edit/delete | Session, identity, Origin, and SQL predicates |
 | Spreadsheet-like table | All eight fields in section 6 |
-| Browser-only non-persistent sorting | DOM sort algorithm; no-request/reload checks |
+| Browser sorting with cookie persistence | DOM sort algorithm; cookie/reload and no-request checks |
 | Dialog editing and deletion | Server-populated forms and POST actions |
 | Name/status required; others optional | Shared validator and NULL round-trips |
 | Plain names; per-user deduplication | Stripped names; per-user unique key |

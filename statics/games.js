@@ -1,6 +1,7 @@
 "use strict";
 
 const GAME_COLLATOR = new Intl.Collator();
+const GAME_SORT_COOKIE = "nsweekly-games-sort";
 let game_sort_column = -1;
 let game_sort_direction = 1;
 
@@ -10,6 +11,15 @@ function sortGames(event)
     game_sort_direction = column === game_sort_column ?
         -game_sort_direction : 1;
     game_sort_column = column;
+    applyGameSort();
+    document.cookie = GAME_SORT_COOKIE + "=" + column + ":" +
+        (game_sort_direction === 1 ? "asc" : "desc") +
+        "; Path=/; Max-Age=31536000; SameSite=Lax" +
+        (location.protocol === "https:" ? "; Secure" : "");
+}
+
+function applyGameSort()
+{
     const tbody = document.querySelector("#Games tbody");
     const rows = Array.from(tbody.rows);
     rows.sort(compareGames);
@@ -21,8 +31,32 @@ function sortGames(event)
     {
         header.setAttribute("aria-sort", "none");
     }
-    event.currentTarget.closest("th").setAttribute("aria-sort",
+    document.querySelector('#Games [data-sort="' + game_sort_column + '"]')
+        .closest("th").setAttribute("aria-sort",
         game_sort_direction === 1 ? "ascending" : "descending");
+}
+
+function restoreGameSort()
+{
+    for(const cookie of document.cookie.split(";"))
+    {
+        const value = cookie.trim();
+        if(!value.startsWith(GAME_SORT_COOKIE + "="))
+        {
+            continue;
+        }
+        const match = /^([0-7]):(asc|desc)$/.exec(
+            value.slice(GAME_SORT_COOKIE.length + 1));
+        if(!match || !document.querySelector(
+            '#Games [data-sort="' + match[1] + '"]'))
+        {
+            return;
+        }
+        game_sort_column = Number(match[1]);
+        game_sort_direction = match[2] === "asc" ? 1 : -1;
+        applyGameSort();
+        return;
+    }
 }
 
 function compareGames(a, b)
@@ -87,6 +121,7 @@ function initializeGames()
     {
         button.addEventListener("click", sortGames);
     }
+    restoreGameSort();
     const dialog = document.querySelector("#Games dialog");
     if(!dialog)
     {

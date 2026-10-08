@@ -117,6 +117,23 @@ E<GameFields> parseFields(const Request &req, bool deletion)
     return fields;
 }
 
+std::string_view platformGlyph(GamePlatform platform)
+{
+    switch(platform)
+    {
+    case GamePlatform::PC:
+        return "\U000f0aab";
+    case GamePlatform::SWITCH:
+    case GamePlatform::SWITCH_2:
+        return "\U000f07e1";
+    case GamePlatform::PS_5:
+        return "\U000f0414";
+    case GamePlatform::EMULATOR:
+        return "\U000f0297";
+    }
+    return {};
+}
+
 template <typename T, size_t N>
 nlohmann::json choices(const std::array<GameChoice<T>, N> &list,
                        const std::vector<std::string> &selected)
@@ -350,6 +367,7 @@ void GamesModule::render(Response &res, const std::string &user,
         const auto &input = record.input;
         auto raw = gameFields(input);
         std::string platforms;
+        auto platform_icons = nlohmann::json::array();
         for(auto platform : input.platforms)
         {
             if(!platforms.empty())
@@ -357,12 +375,17 @@ void GamesModule::render(Response &res, const std::string &user,
                 platforms += ", ";
             }
             platforms += PLATFORM_CHOICES[static_cast<size_t>(platform)].label;
+            platform_icons.push_back({
+                {"label", gameEscape(std::string(
+                    PLATFORM_CHOICES[static_cast<size_t>(platform)].label))},
+                {"glyph", platformGlyph(platform)},
+                {"is_switch_2", platform == GamePlatform::SWITCH_2}});
         }
         auto cells = nlohmann::json::array();
         cells.push_back({{"value", gameEscape(input.name)},
                          {"key", gameEscape(input.name)},
                          {"missing", false}});
-        cells.push_back({{"value", gameEscape(platforms)},
+        cells.push_back({{"value", ""},
                          {"key", gameEscape(platforms)},
                          {"missing", platforms.empty()}});
         cells.push_back(
@@ -407,6 +430,7 @@ void GamesModule::render(Response &res, const std::string &user,
         const auto base = gamesURL(user) + "/" + std::to_string(record.id);
         rows.push_back({{"id", std::to_string(record.id)},
                         {"cells", cells},
+                        {"platforms", platform_icons},
                         {"edit_url", gameEscape(base + "/edit")},
                         {"delete_url", gameEscape(base + "/delete")}});
     }

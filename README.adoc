@@ -105,7 +105,8 @@ Visit `/games/` after signing in, or `/games/USERNAME` to read a public
 tracker. Games links on weekly pages provide navigation. Owners can add,
 edit, rename, and delete games through native forms. Notes and every other
 tracking field are public. Notes use MacroDown; weeklies retain CommonMark.
-Sorting is local to the page and resets on reload. Forms work without
+Sorting runs in the browser; a cookie remembers the selected column and
+direction for one year across tracker pages. Forms work without
 JavaScript; JavaScript enhances dialogs and sorting. POSTs require an
 Origin matching `url-prefix`.
 
