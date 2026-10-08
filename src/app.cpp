@@ -101,7 +101,7 @@ void App::handleIndex(const Request& req, Response& res) const
     }
 }
 
-void App::registerRoutes(httplib::Server& server)
+void App::setup()
 {
     auto statics_dir = (std::filesystem::path(config.data_dir) /
                         "statics").string();
@@ -116,11 +116,6 @@ void App::registerRoutes(httplib::Server& server)
     });
     auth_module->registerRoutes(server);
     weekly_module->registerRoutes(server);
-}
-
-void App::setup()
-{
-    registerRoutes(server);
     spdlog::info("Listening at http://{}:{}/...", config.listen_address,
                  config.listen_port);
 }

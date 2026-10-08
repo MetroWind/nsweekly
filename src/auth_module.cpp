@@ -2,15 +2,14 @@
 
 #include "auth_module.hpp"
 #include "route_urls.hpp"
-#include <mw/http_server.hpp>
 
-void AuthModule::handleLogin(httplib::Response& res) const
+void AuthModule::handleLogin(mw::HTTPServer::Response& res) const
 {
     res.set_redirect(auth.initialURL(), 301);
 }
 
-void AuthModule::handleOpenIDRedirect(const httplib::Request& req,
-                               httplib::Response& res) const
+void AuthModule::handleOpenIDRedirect(
+    const mw::HTTPServer::Request& req, mw::HTTPServer::Response& res) const
 {
     if(req.has_param("error"))
     {
@@ -44,14 +43,15 @@ void AuthModule::handleOpenIDRedirect(const httplib::Request& req,
 
 void AuthModule::registerRoutes(httplib::Server& server)
 {
-    server.Get("/login", [this]([[maybe_unused]] const httplib::Request& req,
-                             httplib::Response& res)
+    server.Get("/login", [this](
+        [[maybe_unused]] const mw::HTTPServer::Request& req,
+        mw::HTTPServer::Response& res)
     {
         handleLogin(res);
     });
 
-    server.Get("/openid-redirect", [this](const httplib::Request& req,
-                                       httplib::Response& res)
+    server.Get("/openid-redirect", [this](const mw::HTTPServer::Request& req,
+                                       mw::HTTPServer::Response& res)
     {
         handleOpenIDRedirect(req, res);
     });

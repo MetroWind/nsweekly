@@ -48,7 +48,7 @@ std::unordered_map<std::string, std::string> parseCookies(
 } // namespace
 
 void SessionService::setTokenCookies(
-    const Tokens& tokens, httplib::Response& res) const
+    const Tokens& tokens, mw::HTTPServer::Response& res) const
 {
     int64_t expire_sec = 300;
     if(tokens.expiration.has_value())
@@ -78,7 +78,7 @@ void SessionService::setTokenCookies(
 }
 
 E<SessionValidation> SessionService::validateSession(
-    const httplib::Request& req) const
+    const mw::HTTPServer::Request& req) const
 {
     if(!req.has_header("Cookie"))
     {

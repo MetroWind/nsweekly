@@ -1,4 +1,3 @@
-#include <thread>
 #include <fstream>
 #include <gtest/gtest.h>
 #include "app.hpp"
@@ -20,6 +19,11 @@ protected:
     {
         Configuration config{};
         config.data_dir = NSWEEKLY_SOURCE_DIR;
+        config.listen_address = "127.0.0.1";
+        httplib::Server port_probe;
+        config.listen_port = port_probe.bind_to_any_port(config.listen_address);
+        port_probe.stop();
+        ASSERT_GT(config.listen_port, 0);
         auto auth_owner = std::make_unique<AuthMock>();
         auth = auth_owner.get();
         auto user_owner = std::make_unique<UserDataMock>();
@@ -28,35 +32,27 @@ protected:
         weeklies = weekly_owner.get();
         ASSIGN_OR_FAIL(app, App::create(config, std::move(auth_owner),
             std::move(user_owner), std::move(weekly_owner)));
-        app->registerRoutes(server);
-        int port = server.bind_to_any_port("127.0.0.1");
-        ASSERT_GT(port, 0);
-        listener = std::thread(&Routes::listen, this);
-        server.wait_until_ready();
-        client = std::make_unique<httplib::Client>("127.0.0.1", port);
+        ASSERT_TRUE(app->start().has_value());
+        server_started = true;
+        client = std::make_unique<httplib::Client>(
+            config.listen_address, config.listen_port);
         client->set_read_timeout(5);
     }
 
     void TearDown() override
     {
-        server.stop();
-        if(listener.joinable())
+        if(server_started)
         {
-            listener.join();
+            app->stop();
+            app->wait();
         }
-    }
-
-    void listen()
-    {
-        server.listen_after_bind();
     }
 
     std::unique_ptr<App> app;
     AuthMock* auth = nullptr;
     UserDataMock* users = nullptr;
     WeeklyDataMock* weeklies = nullptr;
-    httplib::Server server;
-    std::thread listener;
+    bool server_started = false;
     std::unique_ptr<httplib::Client> client;
 };
 

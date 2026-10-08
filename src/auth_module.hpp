@@ -1,5 +1,5 @@
 #pragma once
-#include <httplib.h>
+#include <mw/http_server.hpp>
 #include "session_service.hpp"
 
 // Registers and handles OpenID login and callback routes.
@@ -17,10 +17,10 @@ public:
     // Registers login and callback handlers before serving requests.
     void registerRoutes(httplib::Server& server);
     // Redirects to the provider's initial login URL.
-    void handleLogin(httplib::Response& res) const;
+    void handleLogin(mw::HTTPServer::Response& res) const;
     // Exchanges the callback code and sets token cookies.
-    void handleOpenIDRedirect(const httplib::Request& req,
-                              httplib::Response& res) const;
+    void handleOpenIDRedirect(const mw::HTTPServer::Request& req,
+                              mw::HTTPServer::Response& res) const;
 private:
     AuthInterface& auth;
     SessionService& sessions;

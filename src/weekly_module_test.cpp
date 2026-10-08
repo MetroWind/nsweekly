@@ -38,9 +38,9 @@ TEST(WeeklyModule, WeeklyPagesRetainContentAndPreviewUrls)
     ASSERT_TRUE(data->updateWeekly("mw", std::move(post)));
     SessionService sessions(*auth);
     WeeklyModule module(config, *data, sessions);
-    httplib::Request req;
+    mw::HTTPServer::Request req;
     req.target = "/weekly/mw/2000-01-03";
-    httplib::Response res;
+    mw::HTTPServer::Response res;
     module.handleUserWeekly(req, res, "mw", *strToDate("2000-01-03"));
     std::ifstream fixture(std::string(NSWEEKLY_SOURCE_DIR) +
                           "/tests/fixtures/weekly.html");
@@ -66,12 +66,12 @@ TEST(WeeklyModule, EditRejectsGuestsAndNonMondays)
     ASSERT_TRUE(data->initializeSchema());
     SessionService sessions(*auth);
     WeeklyModule module(config, *data, sessions);
-    httplib::Request req;
-    httplib::Response guest;
+    mw::HTTPServer::Request req;
+    mw::HTTPServer::Response guest;
     module.handleEdit(req, guest, "mw", *strToDate("2000-01-03"));
     EXPECT_EQ(guest.status, 401);
     req.set_header("Cookie", "access-token=aaa");
-    httplib::Response tuesday;
+    mw::HTTPServer::Response tuesday;
     module.handleEdit(req, tuesday, "mw", *strToDate("2000-01-04"));
     EXPECT_EQ(tuesday.status, 404);
 }
@@ -89,9 +89,9 @@ TEST(WeeklyModule, EmptyEditResultReturnsNotFound)
         .WillOnce(Return(std::vector<WeeklyPost>{}));
     SessionService sessions(auth);
     WeeklyModule module(config, data, sessions);
-    httplib::Request req;
+    mw::HTTPServer::Request req;
     req.set_header("Cookie", "access-token=aaa");
-    httplib::Response res;
+    mw::HTTPServer::Response res;
     module.handleEditFrontEnd(req, res, "mw", *strToDate("2000-01-03"));
     EXPECT_EQ(res.status, 404);
 }
@@ -107,12 +107,12 @@ TEST(WeeklyModule, StorageErrorsMapToExistingResponses)
         std::unexpected(runtimeError("Database failed"))));
     SessionService sessions(auth);
     WeeklyModule module(config, data, sessions);
-    httplib::Request req;
-    httplib::Response missing;
+    mw::HTTPServer::Request req;
+    mw::HTTPServer::Response missing;
     module.handleUserWeekly(req, missing, "mw", *strToDate("2000-01-03"));
     EXPECT_EQ(missing.status, 404);
     EXPECT_EQ(missing.body, "Missing");
-    httplib::Response broken;
+    mw::HTTPServer::Response broken;
     module.handleUserWeeklies(req, broken, "broken");
     EXPECT_EQ(broken.status, 500);
     EXPECT_EQ(broken.body, "Database failed");
@@ -131,9 +131,9 @@ TEST(WeeklyModule, RefreshedSessionDoesNotSetCookies)
         .WillOnce(Return(std::vector<WeeklyPost>{}));
     SessionService sessions(auth);
     WeeklyModule module(config, data, sessions);
-    httplib::Request req;
+    mw::HTTPServer::Request req;
     req.set_header("Cookie", "refresh-token=refresh");
-    httplib::Response res;
+    mw::HTTPServer::Response res;
     module.handleUserWeekly(req, res, "mw", *strToDate("2000-01-03"));
     EXPECT_EQ(res.status, 404);
     EXPECT_FALSE(res.has_header("Set-Cookie"));
@@ -149,12 +149,12 @@ TEST(WeeklyModule, EditRequiresMatchingOwnerAndPropagatesSaveFailure)
         std::unexpected(runtimeError("Save failed"))));
     SessionService sessions(auth);
     WeeklyModule module(config, data, sessions);
-    httplib::Request req;
+    mw::HTTPServer::Request req;
     req.set_header("Cookie", "access-token=aaa");
-    httplib::Response forbidden;
+    mw::HTTPServer::Response forbidden;
     module.handleEdit(req, forbidden, "other", *strToDate("2000-01-03"));
     EXPECT_EQ(forbidden.status, 401);
-    httplib::Response failed;
+    mw::HTTPServer::Response failed;
     module.handleEdit(req, failed, "mw", *strToDate("2000-01-03"));
     EXPECT_EQ(failed.status, 500);
     EXPECT_EQ(failed.body, "Save failed");

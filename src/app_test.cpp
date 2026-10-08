@@ -45,9 +45,9 @@ TEST(App, IndexCanRedirectWhenLoggedIn)
     ASSIGN_OR_FAIL(auto app, App::create(config, std::move(auth),
         std::move(users), std::move(weeklies)));
 
-    httplib::Request http_req;
+    mw::HTTPServer::Request http_req;
     http_req.set_header("Cookie", "access-token=aaa");
-    httplib::Response res;
+    mw::HTTPServer::Response res;
     app->handleIndex(http_req, res);
     EXPECT_EQ(res.status, 302);
     EXPECT_EQ(res.get_header_value("Location"), urlFor("weekly", "mw"));
@@ -68,8 +68,8 @@ TEST(App, IndexCanRedirectWhenNotLoggedIn)
     ASSIGN_OR_FAIL(auto app, App::create(config, std::move(auth),
         std::move(users), std::move(weeklies)));
 
-    httplib::Request http_req;
-    httplib::Response res;
+    mw::HTTPServer::Request http_req;
+    mw::HTTPServer::Response res;
     app->handleIndex(http_req, res);
     EXPECT_EQ(res.status, 301);
     EXPECT_EQ(res.get_header_value("Location"), "/login");
@@ -100,9 +100,9 @@ TEST(App, IndexCanRefreshToken)
     ASSIGN_OR_FAIL(auto app, App::create(config, std::move(auth),
         std::move(users), std::move(weeklies)));
 
-    httplib::Request req;
+    mw::HTTPServer::Request req;
     req.set_header("Cookie", "refresh-token=bbb");
-    httplib::Response res;
+    mw::HTTPServer::Response res;
     app->handleIndex(req, res);
     EXPECT_EQ(res.status, 302);
     EXPECT_THAT(res.get_header_value("Set-Cookie"),
@@ -134,9 +134,9 @@ TEST(App, FailedRefreshFallsBackToGuestLookup)
         .WillOnce(Return(std::optional<int64_t>{7}));
     ASSIGN_OR_FAIL(auto app, App::create(config, std::move(auth),
         std::move(users), std::make_unique<WeeklyDataMock>()));
-    httplib::Request req;
+    mw::HTTPServer::Request req;
     req.set_header("Cookie", "refresh-token=expired");
-    httplib::Response res;
+    mw::HTTPServer::Response res;
     app->handleIndex(req, res);
     EXPECT_EQ(res.status, 301);
     EXPECT_EQ(res.get_header_value("Location"), "/weekly/guest");

@@ -25,8 +25,6 @@ public:
         std::unique_ptr<WeeklyDataInterface> weeklies);
     // Applies the existing session and guest landing-page policy.
     void handleIndex(const Request& req, Response& res) const;
-    // Mounts statics and registers root and module routes.
-    void registerRoutes(httplib::Server& server);
 private:
     explicit App(const Configuration& conf)
         : mw::HTTPServer(mw::IPSocketInfo{

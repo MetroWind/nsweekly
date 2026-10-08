@@ -10,7 +10,7 @@ TEST(SessionService, MissingAndInvalidAccessTokensAreInvalid)
 {
     AuthMock auth;
     SessionService sessions(auth);
-    httplib::Request req;
+    mw::HTTPServer::Request req;
     ASSIGN_OR_FAIL(auto missing, sessions.validateSession(req));
     EXPECT_EQ(missing.status, SessionValidation::INVALID);
     EXPECT_CALL(auth, getUser(_)).WillOnce(Return(
@@ -28,7 +28,7 @@ TEST(SessionService, ValidAccessSkipsRefresh)
     EXPECT_CALL(auth, getUser(tokens)).WillOnce(Return(UserInfo{"id", "mw"}));
     EXPECT_CALL(auth, refreshTokens(_)).Times(0);
     SessionService sessions(auth);
-    httplib::Request req;
+    mw::HTTPServer::Request req;
     req.set_header("Cookie", "access-token=good; refresh-token=unused");
     ASSIGN_OR_FAIL(auto valid, sessions.validateSession(req));
     EXPECT_EQ(valid.status, SessionValidation::VALID);
@@ -48,7 +48,7 @@ TEST(SessionService, ExpiredAccessFallsBackToRefresh)
     EXPECT_CALL(auth, getUser(new_tokens))
         .WillOnce(Return(UserInfo{"id", "mw"}));
     SessionService sessions(auth);
-    httplib::Request req;
+    mw::HTTPServer::Request req;
     req.set_header("Cookie", "access-token=old; refresh-token=refresh");
     ASSIGN_OR_FAIL(auto refreshed, sessions.validateSession(req));
     EXPECT_EQ(refreshed.status, SessionValidation::REFRESHED);
@@ -66,14 +66,14 @@ TEST(SessionService, RefreshAndIdentityFailuresPropagate)
     EXPECT_CALL(auth, getUser(tokens)).WillOnce(Return(
         std::unexpected(runtimeError("Identity failed"))));
     SessionService sessions(auth);
-    httplib::Request bad;
+    mw::HTTPServer::Request bad;
     bad.set_header("Cookie", "refresh-token=bad");
     auto failed = sessions.validateSession(bad);
     ASSERT_FALSE(failed);
     const auto* error = failed.error().as<HTTPError>();
     ASSERT_NE(error, nullptr);
     EXPECT_EQ(*error, (HTTPError{401, "Expired"}));
-    httplib::Request good;
+    mw::HTTPServer::Request good;
     good.set_header("Cookie", "refresh-token=good");
     failed = sessions.validateSession(good);
     ASSERT_FALSE(failed);
@@ -87,7 +87,7 @@ TEST(SessionService, CookieFormattingRetainsEncodingAndDefaultAges)
     Tokens tokens;
     tokens.access_token = "a b";
     tokens.refresh_token = "x+y";
-    httplib::Response res;
+    mw::HTTPServer::Response res;
     sessions.setTokenCookies(tokens, res);
     EXPECT_EQ(res.get_header_value("Set-Cookie"),
               "access-token=a%20b; Max-Age=300");

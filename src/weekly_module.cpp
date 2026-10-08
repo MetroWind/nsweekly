@@ -6,7 +6,6 @@
 
 #include "weekly_module.hpp"
 #include "route_urls.hpp"
-#include <mw/http_server.hpp>
 
 namespace
 {
@@ -62,7 +61,7 @@ WeeklyModule::WeeklyModule(const Configuration& conf,
 }
 
 void WeeklyModule::handleUserWeeklies(
-    const httplib::Request& req, httplib::Response& res,
+    const mw::HTTPServer::Request& req, mw::HTTPServer::Response& res,
     const std::string& username)
 {
     E<SessionValidation> session = sessions.validateSession(req);
@@ -92,7 +91,7 @@ void WeeklyModule::handleUserWeeklies(
 }
 
 void WeeklyModule::handleUserWeekly(
-    const httplib::Request& req, httplib::Response& res,
+    const mw::HTTPServer::Request& req, mw::HTTPServer::Response& res,
     const std::string& username, const Time& date)
 {
     E<SessionValidation> session = sessions.validateSession(req);
@@ -123,7 +122,7 @@ void WeeklyModule::handleUserWeekly(
 }
 
 void WeeklyModule::handleEditFrontEnd(
-    const httplib::Request& req, httplib::Response& res,
+    const mw::HTTPServer::Request& req, mw::HTTPServer::Response& res,
     const std::string& username, const Time& week_start)
 {
     E<SessionValidation> session = sessions.validateSession(req);
@@ -166,7 +165,7 @@ void WeeklyModule::handleEditFrontEnd(
 }
 
 void WeeklyModule::handleEdit(
-    const httplib::Request& req, httplib::Response& res,
+    const mw::HTTPServer::Request& req, mw::HTTPServer::Response& res,
     const std::string& username, const Time& week_start) const
 {
     E<SessionValidation> session = sessions.validateSession(req);
@@ -212,8 +211,8 @@ void WeeklyModule::handleEdit(
 
 void WeeklyModule::registerRoutes(httplib::Server& server)
 {
-    server.Get("/weekly/:username", [this](const httplib::Request& req,
-                                          httplib::Response& res)
+    server.Get("/weekly/:username", [this](const mw::HTTPServer::Request& req,
+                                          mw::HTTPServer::Response& res)
     {
         handleUserWeeklies(req, res, req.path_params.at("username"));
     });
@@ -231,8 +230,8 @@ void WeeklyModule::registerRoutes(httplib::Server& server)
     });
 }
 
-void WeeklyModule::handleWeeklyRoute(const httplib::Request& req,
-                                httplib::Response& res)
+void WeeklyModule::handleWeeklyRoute(
+    const mw::HTTPServer::Request& req, mw::HTTPServer::Response& res)
 {
     E<Time> date = strToDate(req.path_params.at("date"));
     if(!date.has_value())
@@ -244,8 +243,8 @@ void WeeklyModule::handleWeeklyRoute(const httplib::Request& req,
     handleUserWeekly(req, res, req.path_params.at("username"), *date);
 }
 
-void WeeklyModule::handleEditPageRoute(const httplib::Request& req,
-                                httplib::Response& res)
+void WeeklyModule::handleEditPageRoute(
+    const mw::HTTPServer::Request& req, mw::HTTPServer::Response& res)
 {
     E<Time> date = strToDate(req.path_params.at("date"));
     if(!date.has_value())
@@ -257,8 +256,8 @@ void WeeklyModule::handleEditPageRoute(const httplib::Request& req,
     handleEditFrontEnd(req, res, req.path_params.at("username"), *date);
 }
 
-void WeeklyModule::handleEditRoute(const httplib::Request& req,
-                                httplib::Response& res)
+void WeeklyModule::handleEditRoute(
+    const mw::HTTPServer::Request& req, mw::HTTPServer::Response& res)
 {
     std::tm t;
     std::istringstream ss(req.path_params.at("date"));

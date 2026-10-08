@@ -1,5 +1,5 @@
 #pragma once
-#include <httplib.h>
+#include <mw/http_server.hpp>
 #include "auth.hpp"
 
 // Carries session validity, user identity, and any replacement tokens.
@@ -40,9 +40,11 @@ public:
     // Borrows the application's authentication backend.
     explicit SessionService(AuthInterface& backend) : auth(backend) {}
     // Validates access tokens and attempts the existing refresh fallback.
-    E<SessionValidation> validateSession(const httplib::Request& req) const;
+    E<SessionValidation> validateSession(
+        const mw::HTTPServer::Request& req) const;
     // Applies the existing token cookie headers to a response.
-    void setTokenCookies(const Tokens& tokens, httplib::Response& res) const;
+    void setTokenCookies(
+        const Tokens& tokens, mw::HTTPServer::Response& res) const;
 private:
     AuthInterface& auth;
 };

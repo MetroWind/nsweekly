@@ -16,7 +16,7 @@ TEST(AuthModule, LoginBringsUserToLoginURL)
     SessionService sessions(*auth);
     AuthModule module(*auth, sessions);
 
-    httplib::Response res;
+    mw::HTTPServer::Response res;
     module.handleLogin(res);
     EXPECT_EQ(res.status, 301);
     EXPECT_EQ(res.get_header_value("Location"), "http://aaa/");
@@ -35,9 +35,9 @@ TEST(AuthModule, CanHandleOpenIDRedirect)
     SessionService sessions(*auth);
     AuthModule module(*auth, sessions);
 
-    httplib::Request req;
+    mw::HTTPServer::Request req;
     req.params.emplace("code", "aaa");
-    httplib::Response res;
+    mw::HTTPServer::Response res;
     module.handleOpenIDRedirect(req, res);
     EXPECT_EQ(res.status, 301);
     EXPECT_EQ(res.get_header_value("Location"), urlFor("index", ""));
@@ -49,15 +49,15 @@ TEST(AuthModule, OpenIDRedirectCanHandleUpstreamError)
     SessionService sessions(*auth);
     AuthModule module(*auth, sessions);
     {
-        httplib::Request req;
+        mw::HTTPServer::Request req;
         req.params.emplace("error", "aaa");
-        httplib::Response res;
+        mw::HTTPServer::Response res;
         module.handleOpenIDRedirect(req, res);
         EXPECT_EQ(res.status, 500);
     }
     {
-        httplib::Request req;
-        httplib::Response res;
+        mw::HTTPServer::Request req;
+        mw::HTTPServer::Response res;
         module.handleOpenIDRedirect(req, res);
         EXPECT_EQ(res.status, 500);
     }
@@ -70,9 +70,9 @@ TEST(AuthModule, CallbackPropagatesAuthenticationAndIdentityErrors)
     AuthModule module(auth, sessions);
     EXPECT_CALL(auth, authenticate("expired")).WillOnce(Return(
         std::unexpected(httpError(401, "Code expired"))));
-    httplib::Request expired;
+    mw::HTTPServer::Request expired;
     expired.params.emplace("code", "expired");
-    httplib::Response rejected;
+    mw::HTTPServer::Response rejected;
     module.handleOpenIDRedirect(expired, rejected);
     EXPECT_EQ(rejected.status, 401);
     EXPECT_EQ(rejected.body, "Code expired");
@@ -83,9 +83,9 @@ TEST(AuthModule, CallbackPropagatesAuthenticationAndIdentityErrors)
     EXPECT_CALL(auth, authenticate("good")).WillOnce(Return(tokens));
     EXPECT_CALL(auth, getUser(tokens)).WillOnce(Return(
         std::unexpected(runtimeError("Identity unavailable"))));
-    httplib::Request good;
+    mw::HTTPServer::Request good;
     good.params.emplace("code", "good");
-    httplib::Response failed;
+    mw::HTTPServer::Response failed;
     module.handleOpenIDRedirect(good, failed);
     EXPECT_EQ(failed.status, 500);
     EXPECT_EQ(failed.body, "Identity unavailable");
