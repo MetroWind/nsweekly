@@ -1,3 +1,5 @@
+@import url("https://www.nerdfonts.com/assets/css/webfont.css");
+
 /* Standalone games UI; weekly layout rules are loaded separately. */
 :root
 {
@@ -222,15 +224,6 @@ button, input, select, textarea
     text-decoration: none;
 }
 
-@font-face
-{
-    font-family: "NSWeekly Symbols";
-    src: url("symbols-nerdfont.woff2") format("woff2");
-    font-style: normal;
-    font-weight: normal;
-    font-display: block;
-}
-
 #Games
 {
     max-width: 100%;
@@ -275,7 +268,6 @@ button, input, select, textarea
 }
 #Games .PlatformGlyph, #Games .ActionGlyph
 {
-    font-family: "NSWeekly Symbols", sans-serif;
     font-size: 1.3em;
     line-height: 1;
 }

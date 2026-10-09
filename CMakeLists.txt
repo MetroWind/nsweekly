@@ -61,6 +61,7 @@ find_package(SQLite3 3.35.0 REQUIRED)
 find_package(cmark REQUIRED)
 
 set(SOURCE_FILES
+  src/open_graph.cpp
   src/game_review.cpp
   src/game_review_data.cpp
   src/game.cpp
@@ -141,6 +142,7 @@ if(BUILD_TESTING)
   FetchContent_MakeAvailable(googletest)
 
   set(TEST_FILES
+    src/open_graph_test.cpp
     src/game_review_test.cpp
     src/game_test.cpp
     src/games_module_test.cpp

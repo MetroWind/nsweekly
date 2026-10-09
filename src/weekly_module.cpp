@@ -5,6 +5,7 @@
 #include <nlohmann/json.hpp>
 
 #include "weekly_module.hpp"
+#include "open_graph.hpp"
 #include "route_urls.hpp"
 
 namespace
@@ -85,6 +86,9 @@ void WeeklyModule::handleUserWeeklies(
                         { "session_user", session_user },
                         { "this_url", req.target },
     };
+    data["open_graph"] = openGraph(config.url_prefix,
+        username + "’s Weeklies", req.target,
+        "Weekly notes and updates by " + username + ".");
     std::string result = templates.render_file(
         "weeklies.html", std::move(data));
     res.set_content(result, "text/html");
@@ -117,6 +121,10 @@ void WeeklyModule::handleUserWeekly(
                         { "session_user", session_user },
                         { "this_url", req.target },
     };
+    data["open_graph"] = openGraph(config.url_prefix,
+        username + "’s Weekly for " +
+            data["weekly"]["week_str"].get<std::string>(), req.target,
+        "Weekly notes and updates by " + username + ".");
     std::string result = templates.render_file("weekly.html", std::move(data));
     res.set_content(result, "text/html");
 }
@@ -160,6 +168,11 @@ void WeeklyModule::handleEditFrontEnd(
     }
     nlohmann::json data{{"weekly", weeklyToJSON(std::move(weekly)[0], false)},
                         {"session_user", session_user}};
+    data["open_graph"] = openGraph(config.url_prefix,
+        username + "’s Weekly for " +
+            data["weekly"]["week_str"].get<std::string>(),
+        weeklyURL(username + "/" + data["weekly"]["date_str"].get<std::string>()),
+        "Weekly notes and updates by " + username + ".");
     std::string html = templates.render_file("edit.html", std::move(data));
     res.set_content(html, "text/html");
 }

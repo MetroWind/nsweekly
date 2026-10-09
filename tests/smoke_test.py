@@ -8,6 +8,7 @@ import datetime
 import http.client
 import http.server
 import json
+from html.parser import HTMLParser
 from pathlib import Path
 import socket
 import sqlite3
@@ -17,6 +18,36 @@ import tempfile
 import threading
 import time
 from urllib.parse import urlencode
+
+
+class OpenGraphParser(HTMLParser):
+    """Collect social preview properties from server-rendered markup."""
+
+    def __init__(self):
+        super().__init__()
+        self.properties = {}
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        if tag == "meta" and attrs.get("property", "").startswith("og:"):
+            key = attrs["property"]
+            assert key not in self.properties, key
+            self.properties[key] = attrs.get("content", "")
+
+
+def checkOpenGraph(body, port, path):
+    """Require complete public metadata and fetchable absolute asset URLs."""
+    parser = OpenGraphParser()
+    parser.feed(body)
+    properties = parser.properties
+    prefix = f"http://127.0.0.1:{port}"
+    assert properties["og:title"]
+    assert properties["og:type"] == "website"
+    assert properties["og:url"] == prefix + path, properties
+    assert properties["og:image"] == prefix + "/statics/icon-180.png"
+    assert properties["og:image:alt"]
+    assert properties["og:description"]
+    assert properties["og:site_name"] == "NSWeekly"
 
 
 class OpenIDProvider(http.server.BaseHTTPRequestHandler):
@@ -159,14 +190,18 @@ def main():
                         port, "/openid-redirect?code=test-code")
                     assert status == 301
                     assert len([h for h in headers if h[0] == "Set-Cookie"]) == 2
-                    assert request(port, "/weekly/mw")[0] == 200
+                    weekly_list = request(port, "/weekly/mw?utm_source=test")
+                    assert weekly_list[0] == 200
+                    checkOpenGraph(weekly_list[2], port, "/weekly/mw")
                     single = request(port, f"/weekly/mw/{date}")
                     assert single[0] == 200
                     assert "<strong>legacy</strong>" in single[2]
+                    checkOpenGraph(single[2], port, f"/weekly/mw/{date}")
                     edit = request(port, f"/edit/mw/{date}",
                                    cookie="access-token=access")
                     assert edit[0] == 200
                     assert "**legacy**" in edit[2]
+                    checkOpenGraph(edit[2], port, f"/weekly/mw/{date}")
                     assert "/statics/preview.js" in edit[2]
                     assert request(port, "/statics/preview.js")[0] == 200
                     saved = request(port, f"/edit/mw/{date}", "POST",
@@ -194,7 +229,12 @@ def main():
                     assert created[0] == 303, created
                     public = request(port, "/games/mw")
                     assert "<code>macro</code>" in public[2]
+                    checkOpenGraph(public[2], port, "/games/mw")
+                    assert request(port, "/statics/icon-180.png", "HEAD")[0] == 200
                     assert "PC, Switch, PS 5" in public[2]
+                    assert 'class="nf nf-md-desktop_classic PlatformGlyph"' in public[2]
+                    assert 'class="nf nf-md-nintendo_switch PlatformGlyph"' in public[2]
+                    assert 'class="nf nf-md-sony_playstation PlatformGlyph"' in public[2]
                     with sqlite3.connect(db_path) as db:
                         game_id = db.execute(
                             "SELECT id FROM GameTracking").fetchone()[0]
@@ -203,6 +243,7 @@ def main():
                     assert request(port, review_path)[0] == 401
                     review_form = request(port, review_path, cookie=cookie)
                     assert review_form[0] == 200
+                    checkOpenGraph(review_form[2], port, "/games/mw/reviews")
                     assert "<dialog" not in review_form[2]
                     assert '<main id="Games" class="ReviewPage"' in review_form[2]
                     assert '<table>' not in review_form[2]
@@ -220,6 +261,7 @@ def main():
                     assert review[0] == 303, review
                     public_reviews = request(port, "/games/mw/reviews")
                     assert public_reviews[0] == 200, public_reviews
+                    checkOpenGraph(public_reviews[2], port, "/games/mw/reviews")
                     assert "<code>review</code>" in public_reviews[2]
                     assert 'class="ReviewOverall" data-key=""' in public_reviews[2]
                     assert request(port, f"/games/other/{game_id}/review/edit",

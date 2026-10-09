@@ -596,7 +596,11 @@ on the table page, including notes.
 Render `templates/games.html` using inja and use `statics/games.js` for
 behavior. Use semantic `<table>`, `<thead>`, and `<tbody>` elements. Columns
 are Name, Platforms, Status, Completion, Hours, Start date, End date, and
-Notes. Owner-only edit/delete Nerd Font icon links overlay the top-right
+Notes. Platform and action icons use `<i class="nf ...">` elements and the
+[official Nerd Fonts stylesheet](https://www.nerdfonts.com/assets/css/webfont.css),
+imported by games.css. PC uses nf-md-desktop_classic (U+F07C0). The font is
+hosted by Nerd Fonts rather than bundled in statics.
+Owner-only edit/delete Nerd Font icon links overlay the top-right
 of the Name cell and appear on cell hover or keyboard focus. Give each
 link an accessible name and tooltip. Render absent values as empty cells; expose
 an accessible “Not recorded” description if needed. Render zero as `0`.

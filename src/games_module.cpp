@@ -5,6 +5,7 @@
 #include <spdlog/spdlog.h>
 #include "games_module.hpp"
 #include "game_markdown.hpp"
+#include "open_graph.hpp"
 #include "route_urls.hpp"
 #include "url.hpp"
 
@@ -125,19 +126,19 @@ E<GameFields> parseFields(const Request &req, bool deletion, bool review = false
     return fields;
 }
 
-std::string_view platformGlyph(GamePlatform platform)
+std::string_view platformIcon(GamePlatform platform)
 {
     switch(platform)
     {
     case GamePlatform::PC:
-        return "\U000f0aab";
+        return "nf-md-desktop_classic";
     case GamePlatform::SWITCH:
     case GamePlatform::SWITCH_2:
-        return "\U000f07e1";
+        return "nf-md-nintendo_switch";
     case GamePlatform::PS_5:
-        return "\U000f0414";
+        return "nf-md-sony_playstation";
     case GamePlatform::EMULATOR:
-        return "\U000f0297";
+        return "nf-md-gamepad_variant";
     }
     return {};
 }
@@ -392,7 +393,7 @@ void GamesModule::render(Response &res, const std::string &user,
             platform_icons.push_back({
                 {"label", gameEscape(std::string(
                     PLATFORM_CHOICES[static_cast<size_t>(platform)].label))},
-                {"glyph", platformGlyph(platform)},
+                {"icon", platformIcon(platform)},
                 {"is_switch_2", platform == GamePlatform::SWITCH_2}});
         }
         auto cells = nlohmann::json::array();
@@ -469,6 +470,9 @@ void GamesModule::render(Response &res, const std::string &user,
     auto action_url =
         table_url + (id ? "/" + std::to_string(id) : "") + "/" + action;
     nlohmann::json context{
+        {"open_graph", openGraph(config.url_prefix,
+            user + "’s Game Tracker", table_url,
+            "Game tracking, play status, and notes by " + user + ".")},
         {"username", gameEscape(user)},
         {"session_user", gameEscape(session_user)},
         {"is_owner", !session_user.empty() && session_user == user},
@@ -631,6 +635,9 @@ void GamesModule::handleReviews(const Request &req, Response &res,
             {"error", gameEscape(errors[key])}});
     }
     nlohmann::json context{
+        {"open_graph", openGraph(config.url_prefix,
+            user + "’s Game Reviews", review_url,
+            "Game reviews and dimension scores by " + user + ".")},
         {"username", gameEscape(user)},
         {"session_user", gameEscape(session_user)},
         {"is_owner", !session_user.empty() && session_user == user},

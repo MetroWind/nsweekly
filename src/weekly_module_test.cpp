@@ -26,6 +26,7 @@ TEST(WeeklyModule, WeeklyPagesRetainContentAndPreviewUrls)
 {
     Configuration config{};
     config.data_dir = NSWEEKLY_SOURCE_DIR;
+    config.url_prefix = "https://weekly.example";
     auto auth = std::make_unique<AuthMock>();
     ASSIGN_OR_FAIL(auto db, SQLite::connectMemory());
     ASSERT_TRUE(initializeUsers(*db));

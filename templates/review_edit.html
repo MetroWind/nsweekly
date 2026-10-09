@@ -1,7 +1,8 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" prefix="og: https://ogp.me/ns#">
 <head>
   {% include "head_common.html" %}
+  {% include "open_graph.html" %}
   <link rel="stylesheet" href="/statics/games.css">
   <title>{% if existing %}Edit review{% else %}Write review{% endif %} · {{ game_name }}</title>
   <script src="/statics/reviews.js" defer></script>

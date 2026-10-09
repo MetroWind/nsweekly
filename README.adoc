@@ -108,7 +108,9 @@ tracking field are public. Notes use MacroDown; weeklies retain CommonMark.
 Sorting runs in the browser; a cookie remembers the selected column and
 direction for one year across tracker pages. Forms work without
 JavaScript; JavaScript enhances dialogs and sorting. POSTs require an
-Origin matching `url-prefix`.
+Origin matching `url-prefix`. Platform and action icons use the official
+Nerd Fonts webfont stylesheet and `<i class="nf ...">` elements; no symbols
+font is bundled in statics.
 
 Game storage creates `GameTracking`, `GamePlatforms`, and `GameReviews` alongside the
 existing tables, using a separate connection. Scalar and platform saves
@@ -238,3 +240,13 @@ and both kinds of duplicates. A storage failure reports how many inserts
 committed; rerun safely to resume. Exit codes match tracker migration: 0 for
 success, 2 for input errors, 3 for configuration errors, and 4 for storage
 errors. Tracker and review imports cannot be combined in one invocation.
+
+== Link previews
+
+Weekly, tracker, and reviews pages include server-rendered Open Graph
+metadata: title, website type, canonical URL, description, site name, and
+the existing PNG icon with its dimensions and alt text. Absolute page and
+image URLs use `url-prefix`, so configure it to the public address. Query
+parameters and fragments are omitted from canonical metadata URLs. Editor
+and confirmation pages identify the corresponding public page; metadata
+never contains unsaved form text or browser-calculated overall scores.

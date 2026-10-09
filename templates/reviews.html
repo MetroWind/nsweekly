@@ -1,7 +1,8 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" prefix="og: https://ogp.me/ns#">
 <head>
   {% include "head_common.html" %}
+  {% include "open_graph.html" %}
   <link rel="stylesheet" href="/statics/games.css">
   <title>{{ username }}’s Game Reviews</title>
   <script src="/statics/reviews.js" defer></script>
@@ -30,8 +31,8 @@
         <a href="{{ review.game_url }}">{{ review.name }}</a>
         {% if is_owner %}
         <span class="GameActions">
-          <a href="{{ review.edit_url }}" title="Edit review" aria-label="Edit review for {{ review.name }}"><span class="ActionGlyph" aria-hidden="true">&#xf03eb;</span></a>
-          <a href="{{ review.delete_url }}" title="Delete review" aria-label="Delete review for {{ review.name }}"><span class="ActionGlyph" aria-hidden="true">&#xf01b4;</span></a>
+          <a href="{{ review.edit_url }}" title="Edit review" aria-label="Edit review for {{ review.name }}"><i class="nf nf-md-pencil ActionGlyph" aria-hidden="true"></i></a>
+          <a href="{{ review.delete_url }}" title="Delete review" aria-label="Delete review for {{ review.name }}"><i class="nf nf-md-delete ActionGlyph" aria-hidden="true"></i></a>
         </span>
         {% endif %}
       </td>

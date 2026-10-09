@@ -1,7 +1,8 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" prefix="og: https://ogp.me/ns#">
 <head>
   {% include "head_common.html" %}
+  {% include "open_graph.html" %}
   <link rel="stylesheet" href="/statics/games.css">
   <title>{{ username }}’s Game Tracker</title>
   <script src="/statics/games.js" defer></script>
@@ -32,14 +33,14 @@
           {% if is_owner %}
           <span class="GameActions">
             <a href="{{ game.review_url }}" title="Write or edit review"
-               aria-label="Review {{ cell.value }}"><span class="ActionGlyph" aria-hidden="true">&#xf040e;</span></a>
+               aria-label="Review {{ cell.value }}"><i class="nf nf-md-play_pause ActionGlyph" aria-hidden="true"></i></a>
             <a href="{{ game.edit_url }}" title="Edit game"
                aria-label="Edit {{ cell.value }}">
-              <span class="ActionGlyph" aria-hidden="true">&#xf03eb;</span>
+              <i class="nf nf-md-pencil ActionGlyph" aria-hidden="true"></i>
             </a>
             <a href="{{ game.delete_url }}" title="Delete game"
                aria-label="Delete {{ cell.value }}">
-              <span class="ActionGlyph" aria-hidden="true">&#xf01b4;</span>
+              <i class="nf nf-md-delete ActionGlyph" aria-hidden="true"></i>
             </a>
           </span>
           {% endif %}
@@ -47,7 +48,7 @@
           {%- for platform in game.platforms -%}
           <span class="PlatformIcon" role="img"
                 aria-label="{{ platform.label }}" title="{{ platform.label }}">
-            <span class="PlatformGlyph" aria-hidden="true">{{ platform.glyph }}</span>
+            <i class="nf {{ platform.icon }} PlatformGlyph" aria-hidden="true"></i>
             {% if platform.is_switch_2 %}<sub aria-hidden="true">2</sub>{% endif %}
           </span>
           {%- endfor -%}
