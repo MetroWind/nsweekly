@@ -53,6 +53,8 @@
             {% if platform.is_switch_2 %}<sub aria-hidden="true">2</sub>{% endif %}
           </span>
           {%- endfor -%}
+        {%- else if loop.index == 7 -%}
+          <div class="TextExcerpt" data-text-title="Notes">{{ cell.value }}</div>
         {%- else -%}{{ cell.value }}{%- endif -%}
       </td>
       {% endfor %}

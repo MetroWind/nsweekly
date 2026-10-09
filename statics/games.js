@@ -172,4 +172,90 @@ function hasFieldError(element)
     return element.textContent.trim().length > 0;
 }
 
+// Keeps whole graphemes within the UTF-8 budget, including an oversized first.
+function textExcerpt(text)
+{
+    const encoder = new TextEncoder();
+    const segmenter = new Intl.Segmenter(undefined,
+        {granularity: "grapheme"});
+    let preview = "";
+    let bytes = 0;
+    for(const {segment} of segmenter.segment(text))
+    {
+        const size = encoder.encode(segment).length;
+        if(bytes + size > 40 && preview)
+        {
+            break;
+        }
+        preview += segment;
+        bytes += size;
+    }
+    return preview;
+}
+
+// Opens the original rendered content without reparsing HTML or Markdown.
+function showFullText(event)
+{
+    const button = event.currentTarget;
+    const dialog = document.createElement("dialog");
+    const heading = document.createElement("h2");
+    heading.id = "FullTextTitle";
+    heading.textContent = button.dataset.title;
+    dialog.setAttribute("aria-labelledby", heading.id);
+    const close = document.createElement("button");
+    close.type = "button";
+    close.textContent = "Close";
+    close.autofocus = true;
+    close.addEventListener("click", closeFullText);
+    dialog.addEventListener("close", removeFullText);
+    dialog.append(heading, button.full_text, close);
+    document.getElementById("Games").append(dialog);
+    dialog.showModal();
+}
+
+function closeFullText(event)
+{
+    event.currentTarget.closest("dialog").close();
+}
+
+function removeFullText(event)
+{
+    event.currentTarget.remove();
+}
+
+// Leaves short entries and unsupported browsers with full rendered content.
+function initializeTextExcerpts()
+{
+    if(typeof Intl.Segmenter !== "function" ||
+       typeof HTMLDialogElement.prototype.showModal !== "function")
+    {
+        return;
+    }
+    for(const element of document.querySelectorAll("#Games .TextExcerpt"))
+    {
+        const text = element.innerText.replace(/\s+/gu, " ").trim();
+        const preview = textExcerpt(text);
+        if(preview === text)
+        {
+            continue;
+        }
+        const full_text = document.createElement("div");
+        full_text.className = "FullText";
+        while(element.firstChild)
+        {
+            full_text.append(element.firstChild);
+        }
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = "...";
+        button.dataset.title = element.dataset.textTitle;
+        button.setAttribute("aria-label", "Show full " +
+            element.dataset.textTitle.toLowerCase());
+        button.full_text = full_text;
+        button.addEventListener("click", showFullText);
+        element.append(document.createTextNode(preview + " "), button);
+    }
+}
+
 initializeGames();
+initializeTextExcerpts();

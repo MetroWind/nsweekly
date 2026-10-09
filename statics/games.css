@@ -590,6 +590,17 @@ button, input, select, textarea
     overflow-wrap: anywhere;
 }
 
+#Games .TextExcerpt, #Games .FullText
+{
+    overflow-wrap: anywhere;
+}
+
+#Games .FullText img
+{
+    max-width: 100%;
+    height: auto;
+}
+
 #Games .ReviewScale
 {
     color: var(--color-muted);

@@ -45,7 +45,9 @@
       <td data-key="{{ review.hours }}" data-missing="{{ length(review.hours) == 0 }}">{{ review.hours }}</td>
       <td data-key="{{ review.added }}" data-missing="false">{{ review.added }}</td>
       <td data-key="{{ review.updated }}" data-missing="false">{{ review.updated }}</td>
-      <td class="ReviewText" data-key="{{ review.text_key }}" data-missing="{{ length(review.text_key) == 0 }}">{{ review.text }}</td>
+      <td class="ReviewText" data-key="{{ review.text_key }}" data-missing="{{ length(review.text_key) == 0 }}">
+        <div class="TextExcerpt" data-text-title="Review">{{ review.text }}</div>
+      </td>
     </tr>
     {% endfor %}
     </tbody>
