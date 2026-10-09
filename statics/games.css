@@ -516,8 +516,36 @@ button, input, select, textarea
 #Games .GameViews
 {
     display: flex;
+    flex-wrap: wrap;
     gap: 1rem;
     margin: 1.5rem 0;
+}
+
+#Games .GameViews .AddGame
+{
+    margin-inline-start: auto;
+    color: var(--color-bg);
+    background: var(--color-accent);
+    box-shadow: 4px 4px 0 #a26dff;
+}
+
+#Games .GameViews .AddGame:hover
+{
+    background: #ff87d5;
+}
+
+@media(max-width: 600px)
+{
+    #Games .GameViews
+    {
+        gap: .5rem;
+    }
+
+    #Games .GameViews a
+    {
+        padding: .5rem .6rem;
+        font-size: .75rem;
+    }
 }
 
 #Games .GameViews a

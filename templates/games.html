@@ -12,8 +12,9 @@
   {% include "nav.html" %}
   <h1>{{ username }}’s Game Tracker</h1>
   <p class="GameViews"><a href="{{ table_url }}" aria-current="page">Tracker</a>
-    <a href="{{ reviews_url }}">Reviews</a></p>
-  {% if is_owner %}<p><a href="{{ new_url }}">Add game</a></p>{% endif %}
+    <a href="{{ reviews_url }}">Reviews</a>
+    {% if is_owner %}<a class="AddGame" href="{{ new_url }}">Add game</a>{% endif %}
+  </p>
   {% if length(games) == 0 %}<p>No games recorded.</p>{% endif %}
   <div class="TableScroll">
   <table>
