@@ -177,6 +177,10 @@ Run the smoke test for production games CRUD and CLI import, and use
 
 == Game reviews
 
+Game names in both tables link to `/games/USERNAME/ID`, a public detail
+page containing all tracker fields, full rendered notes and review text,
+scores, and review dates. Owners also get edit and delete links.
+
 Open Reviews within Games, or visit `/games/USERNAME/reviews`. To write a
 review, hover or focus a game's name cell in the tracker and use its review
 icon. Creation and editing open a separate page with the rubric beside

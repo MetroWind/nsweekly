@@ -204,3 +204,37 @@ TEST_F(GamesHandlers, RefreshCookiesSurviveValidationAndPublicProviderFailure)
     module->handle(read, public_res, "alice");
     EXPECT_EQ(public_res.status, 200);
 }
+
+TEST_F(GamesHandlers, PublicGameDetailsRemainOwnerScoped)
+{
+    GameInput input;
+    input.name = "<Dedicated>";
+    input.hours = 42;
+    input.notes = "%code{full notes}";
+    ASSIGN_OR_FAIL(auto game, games->createGame("alice", input));
+    GameReviewInput review;
+    review.text = "%code{full review}";
+    ASSERT_TRUE(games->saveReview("alice", game.id, review));
+    mw::HTTPServer::Request req;
+    req.method = "GET";
+    mw::HTTPServer::Response res;
+    module->handle(req, res, "alice", "view", std::to_string(game.id));
+    ASSERT_EQ(res.status, 200);
+    EXPECT_THAT(res.body, HasSubstr("&lt;Dedicated&gt;"));
+    EXPECT_THAT(res.body, HasSubstr("<code>full notes</code>"));
+    EXPECT_THAT(res.body, HasSubstr("<code>full review</code>"));
+    EXPECT_THAT(res.body, HasSubstr("42"));
+    EXPECT_THAT(res.body, Not(HasSubstr(">Edit game</a>")));
+    ASSERT_TRUE(users->ensureUser("bob"));
+    mw::HTTPServer::Response foreign;
+    module->handle(req, foreign, "bob", "view", std::to_string(game.id));
+    EXPECT_EQ(foreign.status, 404);
+    mw::HTTPServer::Response invalid;
+    module->handle(req, invalid, "alice", "view", "invalid");
+    EXPECT_EQ(invalid.status, 400);
+    ASSERT_TRUE(games->deleteReview("alice", game.id));
+    mw::HTTPServer::Response empty;
+    module->handle(req, empty, "alice", "view", std::to_string(game.id));
+    EXPECT_EQ(empty.status, 200);
+    EXPECT_THAT(empty.body, HasSubstr("No review yet."));
+}

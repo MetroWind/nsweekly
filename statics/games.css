@@ -715,3 +715,41 @@ button, input, select, textarea
         overflow: visible;
     }
 }
+
+#Games.GameDetail
+{
+    max-width: 70rem;
+}
+
+#Games .GameFacts
+{
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: .6rem 1.5rem;
+}
+
+#Games .GameFacts dt
+{
+    color: var(--color-muted);
+}
+
+#Games .GameFacts dd
+{
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
+#Games .DetailActions
+{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+#Games.GameDetail section
+{
+    margin-block: 2rem;
+    padding: 1rem;
+    border: 1px solid var(--color-accent);
+    background: var(--color-panel);
+}

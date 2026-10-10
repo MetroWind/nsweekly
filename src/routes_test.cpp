@@ -231,7 +231,9 @@ TEST_F(Routes, GamesRoutesPublicFormsAndEncodedUsername)
     auto guest = client->Get("/games/alice/new");
     ASSERT_TRUE(guest);
     EXPECT_EQ(guest->status, 401);
-    auto json = client->Get("/games/alice/1");
-    ASSERT_TRUE(json);
-    EXPECT_EQ(json->status, 404);
+    EXPECT_CALL(*users, getUserID("alice"))
+        .WillOnce(Return(std::optional<int64_t>{}));
+    auto detail = client->Get("/games/alice/1");
+    ASSERT_TRUE(detail);
+    EXPECT_EQ(detail->status, 404);
 }

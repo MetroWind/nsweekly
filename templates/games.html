@@ -30,7 +30,7 @@
       <td data-key="{{ cell.key }}" data-missing="{{ cell.missing }}"
           {% if loop.index == 0 %}class="GameName"{% endif %}>
         {%- if loop.index == 0 -%}
-          <a href="{{ game.review_view_url }}">{{ cell.value }}</a>
+          <a href="{{ game.view_url }}">{{ cell.value }}</a>
           {% if is_owner %}
           <span class="GameActions">
             <a href="{{ game.review_url }}" title="Write or edit review"

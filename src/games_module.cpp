@@ -217,7 +217,7 @@ void GamesModule::handleSession(const Request &req, Response &res,
         }
     }
     bool owner = !session_user.empty() && session_user == user;
-    if(!action.empty() && action != "reviews")
+    if(!action.empty() && action != "reviews" && action != "view")
     {
         if(session_user.empty())
         {
@@ -231,7 +231,7 @@ void GamesModule::handleSession(const Request &req, Response &res,
         }
     }
     int64_t id = 0;
-    if(action == "edit" || action == "delete" ||
+    if(action == "view" || action == "edit" || action == "delete" ||
        action == "review/edit" || action == "review/delete")
     {
         auto [end, ec] = std::from_chars(id_text.data(),
@@ -288,6 +288,22 @@ void GamesModule::handleSession(const Request &req, Response &res,
     if(action == "reviews" || action.starts_with("review/"))
     {
         handleReviews(req, res, user, session_user, action, id);
+        return;
+    }
+    if(action == "view")
+    {
+        auto record = games.getGame(user, id);
+        if(!record)
+        {
+            storageError(res, record.error());
+            return;
+        }
+        if(!*record)
+        {
+            htmlError(res, 404);
+            return;
+        }
+        render(res, user, session_user, action, id, GameFields{}, {});
         return;
     }
     GameFields fields = gameFields(GameInput{});
@@ -379,6 +395,10 @@ void GamesModule::render(Response &res, const std::string &user,
     nlohmann::json rows = nlohmann::json::array();
     for(const auto &record : *records)
     {
+        if(action == "view" && record.id != id)
+        {
+            continue;
+        }
         const auto &input = record.input;
         auto raw = gameFields(input);
         std::string platforms;
@@ -449,8 +469,7 @@ void GamesModule::render(Response &res, const std::string &user,
                         {"edit_url", gameEscape(base + "/edit")},
                         {"delete_url", gameEscape(base + "/delete")},
                         {"review_url", gameEscape(base + "/review/edit")},
-                        {"review_view_url", gameEscape(gamesURL(user) +
-                            "/reviews#game-" + std::to_string(record.id))}});
+                        {"view_url", gameEscape(base)}});
     }
     nlohmann::json form = nlohmann::json::object();
     nlohmann::json field_errors = nlohmann::json::object();
@@ -493,10 +512,57 @@ void GamesModule::render(Response &res, const std::string &user,
          choices(
              COMPLETION_CHOICES,
              {completion == fields.scalars.end() ? "" : completion->second})}};
+    if(action == "view")
+    {
+        if(rows.empty())
+        {
+            htmlError(res, 404);
+            return;
+        }
+        auto reviews = games.listReviews(user);
+        if(!reviews)
+        {
+            storageError(res, reviews.error());
+            return;
+        }
+        const auto review = std::ranges::find(*reviews, id,
+            &GameReviewRecord::game_id);
+        context["has_review"] = review != reviews->end();
+        context["review_text"] = "";
+        context["dimensions"] = nlohmann::json::array();
+        if(review != reviews->end())
+        {
+            const auto &record = *review;
+            const auto raw = reviewFields(record.input);
+            for(size_t i = 0; i < REVIEW_KEYS.size(); ++i)
+            {
+                context["dimensions"].push_back({
+                    {"label", REVIEW_LABELS[i]},
+                    {"score", raw.scalars.at(std::string(REVIEW_KEYS[i]))}});
+            }
+            auto text = renderGameMarkdown(record.input.text);
+            context["review_text"] = text ? *text :
+                "<pre>" + gameEscape(record.input.text) + "</pre>";
+            for(const auto &[key, timestamp] :
+                {std::pair{"added", record.added},
+                 std::pair{"updated", record.updated}})
+            {
+                context[key] = std::format("{:%F}", std::chrono::floor<
+                    std::chrono::days>(std::chrono::sys_seconds{
+                        std::chrono::seconds{timestamp}}));
+            }
+        }
+        context["open_graph"] = openGraph(config.url_prefix,
+            std::ranges::find(*records, id, &GameRecord::id)->input.name +
+                " — " + user,
+            table_url + "/" + std::to_string(id),
+            "Game details and review by " + user + ".");
+    }
     try
     {
         std::lock_guard lock(template_mutex);
-        res.set_content(templates.render_file("games.html", context),
+        res.set_content(templates.render_file(
+            action == "view" ? "game.html" : "games.html", context),
                         "text/html; charset=utf-8");
     }
     catch(const inja::InjaError &)
@@ -623,8 +689,7 @@ void GamesModule::handleReviews(const Request &req, Response &res,
                     std::chrono::seconds{review.updated}}))},
             {"edit_url", gameEscape(base + "/review/edit")},
             {"delete_url", gameEscape(base + "/review/delete")},
-            {"game_url", gameEscape(tracker_url + "#game-" +
-                std::to_string(review.game_id))}});
+            {"game_url", gameEscape(base)}});
     }
     auto dimensions = nlohmann::json::array();
     for(size_t i = 0; i < REVIEW_KEYS.size(); ++i)
@@ -760,12 +825,15 @@ void GamesModule::dispatch(const Request &req, Response &res,
             auto separator = suffix.find('/');
             if(separator == std::string::npos)
             {
-                htmlError(res, 404);
-                return;
+                id = suffix;
+                action = "view";
             }
-            id = suffix.substr(0, separator);
-            action = suffix.substr(separator + 1);
-            if(action != "edit" && action != "delete" &&
+            else
+            {
+                id = suffix.substr(0, separator);
+                action = suffix.substr(separator + 1);
+            }
+            if(action != "view" && action != "edit" && action != "delete" &&
                action != "review/edit" && action != "review/delete")
             {
                 htmlError(res, 404);
@@ -775,7 +843,7 @@ void GamesModule::dispatch(const Request &req, Response &res,
     }
     if(reader)
     {
-        if(action.empty() || action == "reviews")
+        if(action.empty() || action == "reviews" || action == "view")
         {
             htmlError(res, 404);
             return;

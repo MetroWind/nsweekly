@@ -263,6 +263,20 @@ def main():
                     assert public_reviews[0] == 200, public_reviews
                     checkOpenGraph(public_reviews[2], port, "/games/mw/reviews")
                     assert "<code>review</code>" in public_reviews[2]
+                    detail_path = f"/games/mw/{game_id}"
+                    detail = request(port, detail_path)
+                    assert detail[0] == 200, detail
+                    checkOpenGraph(detail[2], port, detail_path)
+                    assert "<code>review</code>" in detail[2]
+                    assert 'id="ReviewScore"' in detail[2]
+                    assert f'href="{detail_path}"' in public_reviews[2]
+                    assert f'href="{detail_path}"' in public[2]
+                    assert ">Edit game</a>" not in detail[2]
+                    owned_detail = request(port, detail_path, cookie=cookie)
+                    assert ">Edit game</a>" in owned_detail[2]
+                    assert request(port, f"/games/other/{game_id}")[0] == 404
+                    assert request(port, detail_path, "POST", "", cookie)[0] == 404
+
                     assert 'class="ReviewOverall" data-key=""' in public_reviews[2]
                     assert request(port, f"/games/other/{game_id}/review/edit",
                         cookie=cookie)[0] == 403
