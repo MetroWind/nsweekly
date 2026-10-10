@@ -117,7 +117,7 @@ output uses an accessible announcement region.
 
 The add/edit page includes a scoring rubric beside the form, extracted from
 README!B4:B22 in the source spreadsheet. The checked-in
-`templates/review_rubric.html` retains each dimension's explanation and
+`templates/games/review_rubric.html` retains each dimension's explanation and
 examples, with minor spelling/punctuation cleanup. It also includes the
 scale, overall weighting, and a source link. This is static reference text;
 opening the editor never makes a Google API request. Dimension inputs use

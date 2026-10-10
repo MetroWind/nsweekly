@@ -1,8 +1,8 @@
 #pragma once
 #include <gmock/gmock.h>
 #include "user_data.hpp"
-#include "game_data.hpp"
-#include "weekly_data.hpp"
+#include "games/game_data.hpp"
+#include "weekly/weekly_data.hpp"
 
 // Supplies weekly responses without touching storage in handler tests.
 class WeeklyDataMock : public WeeklyDataInterface

@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en" prefix="og: https://ogp.me/ns#">
+<head>
+  {% include "../head_common.html" %}
+  {% include "../open_graph.html" %}
+  <link rel="stylesheet" href="/statics/games/games.css">
+  <title>{{ games.0.cells.0.value }} — {{ username }}’s Games</title>
+  <script src="/statics/games/reviews.js" defer></script>
+</head>
+<body>
+<main id="Games" class="GameDetail">
+  {% include "../nav.html" %}
+  <h1>{{ games.0.cells.0.value }}</h1>
+  <p class="GameViews"><a href="{{ table_url }}">Tracker</a>
+    <a href="{{ reviews_url }}">Reviews</a></p>
+  {% if is_owner %}
+  <p class="DetailActions">
+    <a href="{{ games.0.edit_url }}">Edit game</a>
+    <a href="{{ games.0.review_url }}">Write or edit review</a>
+    <a href="{{ games.0.delete_url }}">Delete game</a>
+    {% if has_review %}<a href="{{ games.0.view_url }}/review/delete">Delete review</a>{% endif %}
+  </p>
+  {% endif %}
+  <section aria-labelledby="TrackingTitle">
+    <h2 id="TrackingTitle">Tracking</h2>
+    <dl class="GameFacts">
+      <dt>Owner</dt><dd>{{ username }}</dd>
+      <dt>Platforms</dt><dd>
+        {% for platform in games.0.platforms %}
+        <span><i class="nf {{ platform.icon }}" aria-hidden="true"></i>
+          {{ platform.label }}</span>
+        {% endfor %}
+        {% if length(games.0.platforms) == 0 %}Not recorded{% endif %}
+      </dd>
+      <dt>Status</dt><dd>{% if games.0.cells.2.missing %}Not recorded{% else %}{{ games.0.cells.2.value }}{% endif %}</dd>
+      <dt>Completion</dt><dd>{% if games.0.cells.3.missing %}Not recorded{% else %}{{ games.0.cells.3.value }}{% endif %}</dd>
+      <dt>Hours</dt><dd>{% if games.0.cells.4.missing %}Not recorded{% else %}{{ games.0.cells.4.value }}{% endif %}</dd>
+      <dt>Start date</dt><dd>{% if games.0.cells.5.missing %}Not recorded{% else %}{{ games.0.cells.5.value }}{% endif %}</dd>
+      <dt>End date</dt><dd>{% if games.0.cells.6.missing %}Not recorded{% else %}{{ games.0.cells.6.value }}{% endif %}</dd>
+    </dl>
+    <h3>Notes</h3>
+    <div class="FullText">{% if games.0.cells.7.missing %}<p>No notes.</p>{% else %}{{ games.0.cells.7.value }}{% endif %}</div>
+  </section>
+  <section aria-labelledby="ReviewTitle">
+    <h2 id="ReviewTitle">Review</h2>
+    {% if has_review %}
+    <p class="ReviewScale">1–10 · 5 means average · Gameplay counts twice</p>
+    <dl class="GameFacts">
+      {% for dimension in dimensions %}
+      <dt>{{ dimension.label }}</dt>
+      <dd>{% if length(dimension.score) == 0 %}Not recorded{% else %}{{ dimension.score }}{% endif %}
+        <input type="hidden" data-review-score value="{{ dimension.score }}">
+      </dd>
+      {% endfor %}
+      <dt>Overall</dt><dd id="ReviewScore">Incomplete</dd>
+      <dt>Added</dt><dd>{{ added }}</dd>
+      <dt>Updated</dt><dd>{{ updated }}</dd>
+    </dl>
+    <div class="FullText">{% if length(review_text) == 0 %}<p>No review text.</p>{% else %}{{ review_text }}{% endif %}</div>
+    {% else %}<p>No review yet.</p>{% endif %}
+  </section>
+</main>
+</body>
+</html>

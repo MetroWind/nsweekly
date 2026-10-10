@@ -10,7 +10,7 @@ TEST(RouteUrls, PreservesEveryTemplateName)
     EXPECT_EQ(urlFor("weekly", "mw/2000-01-03"),
               "/weekly/mw/2000-01-03");
     EXPECT_EQ(urlFor("edit", "mw/2000-01-03"), "/edit/mw/2000-01-03");
-    EXPECT_EQ(urlFor("statics", "preview.js"), "/statics/preview.js");
+    EXPECT_EQ(urlFor("statics", "weekly/preview.js"), "/statics/weekly/preview.js");
     EXPECT_EQ(urlFor("unknown", "mw"), "");
 }
 

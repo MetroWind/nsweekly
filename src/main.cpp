@@ -5,7 +5,7 @@
 
 #include "app.hpp"
 #include "config.hpp"
-#include "game_import.hpp"
+#include "games/game_import.hpp"
 
 int main(int argc, char** argv)
 {

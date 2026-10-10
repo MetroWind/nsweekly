@@ -5,7 +5,7 @@ const FS = require("node:fs");
 const PATH = require("node:path");
 const VM = require("node:vm");
 const SOURCE = FS.readFileSync(
-    PATH.join(__dirname, "../statics/reviews.js"), "utf8");
+    PATH.join(__dirname, "../statics/games/reviews.js"), "utf8");
 const CONTEXT = VM.createContext({
     document: {querySelectorAll: emptyReviewRows, getElementById: noReviewForm}
 });

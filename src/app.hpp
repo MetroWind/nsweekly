@@ -1,11 +1,11 @@
 #pragma once
 #include <memory>
 #include <mw/http_server.hpp>
-#include "auth_module.hpp"
+#include "auth/auth_module.hpp"
 #include "config.hpp"
-#include "games_module.hpp"
+#include "games/games_module.hpp"
 #include "user_data.hpp"
-#include "weekly_module.hpp"
+#include "weekly/weekly_module.hpp"
 
 // Owns dependencies and composes the service at a stable address.
 class App : public mw::HTTPServer

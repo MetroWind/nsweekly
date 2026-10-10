@@ -3,7 +3,7 @@
 #include <gmock/gmock.h>
 
 #include "app.hpp"
-#include "auth_mock.hpp"
+#include "auth/auth_mock.hpp"
 #include "storage_mock.hpp"
 #include "route_urls.hpp"
 #include "test_utils.hpp"

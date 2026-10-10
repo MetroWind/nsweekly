@@ -1,7 +1,7 @@
 #include <fstream>
 #include <gtest/gtest.h>
 #include "app.hpp"
-#include "auth_mock.hpp"
+#include "auth/auth_mock.hpp"
 #include "storage_mock.hpp"
 #include "test_utils.hpp"
 
@@ -161,7 +161,7 @@ TEST_F(Routes, EditPreviewAndSaveRetainRawContentAndAuthor)
     ASSERT_TRUE(edit);
     EXPECT_EQ(edit->status, 200);
     EXPECT_THAT(edit->body, HasSubstr("<textarea name=\"content\">**fixture**"));
-    EXPECT_THAT(edit->body, HasSubstr("/statics/preview.js"));
+    EXPECT_THAT(edit->body, HasSubstr("/statics/weekly/preview.js"));
     EXPECT_THAT(edit->body, HasSubstr("action=\"/edit/mw/2000-01-03\""));
     WeeklyPost saved{};
     EXPECT_CALL(*weeklies, updateWeekly("mw", _))
@@ -201,14 +201,14 @@ TEST_F(Routes, EditRejectsGuestsOtherOwnersAndNonMondays)
 
 TEST_F(Routes, StaticsServeUnchangedPreviewAsset)
 {
-    auto preview = client->Get("/statics/preview.js");
+    auto preview = client->Get("/statics/weekly/preview.js");
     ASSERT_TRUE(preview);
     EXPECT_EQ(preview->status, 200);
     std::ifstream source(std::string(NSWEEKLY_SOURCE_DIR) +
-                         "/statics/preview.js");
+                         "/statics/weekly/preview.js");
     EXPECT_EQ(preview->body,
               (std::string(std::istreambuf_iterator<char>{source}, {})));
-    auto css = client->Get("/statics/style.css");
+    auto css = client->Get("/statics/weekly/style.css");
     ASSERT_TRUE(css);
     EXPECT_EQ(css->status, 200);
     EXPECT_THAT(css->get_header_value("Content-Type"), HasSubstr("text/css"));

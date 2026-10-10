@@ -593,7 +593,7 @@ on the table page, including notes.
 
 ## 6. Table, dialogs, and sorting
 
-Render `templates/games.html` using inja and use `statics/games.js` for
+Render `templates/games/games.html` using inja and use `statics/games/games.js` for
 behavior. Use semantic `<table>`, `<thead>`, and `<tbody>` elements. Columns
 are Name, Platforms, Status, Completion, Hours, Start date, End date, and
 Notes. Platform and action icons use `<i class="nf ...">` elements and the
@@ -666,7 +666,7 @@ Delete's confirmation form uses the escaped game name and posts only after
 the owner clicks Delete. A GET or cancellation never changes tracking data.
 Form mutations remain usable without JavaScript; sorting, modal enhancement,
 use the games script. Notes render on the server. No Bootstrap or
-new frontend framework is needed. Load a standalone `statics/games.css` for games pages, with compact table,
+new frontend framework is needed. Load a standalone `statics/games/games.css` for games pages, with compact table,
 navigation, and dialog styling independent of the weekly stylesheet. Share
 head metadata and font links through `head_common.html`.
 
@@ -847,16 +847,16 @@ the migration has been verified; keep domain validation and storage tests.
 
 | File | Responsibility |
 | --- | --- |
-| `src/game.hpp/.cpp` | Record types, input parsing, validation |
-| `src/game_choices.hpp` | Stable platform/status/completion code-label lists |
-| `src/game_data.hpp/.cpp` | Storage interface, schema, SQLite implementation |
-| `src/games_module.hpp/.cpp` | Routes, ownership checks, forms, template context |
-| `src/game_markdown.hpp/.cpp` | MacroDown adapter and error boundary |
-| `src/game_import.hpp/.cpp` | Temporary CSV mapping and import report |
-| `src/csv_reader.hpp/.cpp` | CSV record/field state machine |
-| `templates/games.html` | Public table and owner dialogs |
-| `statics/games.js` | Dialog opening, date control minimum, local sorting |
-| `statics/games.css` | Independent table, navigation, and dialog styling |
+| `src/games/game.hpp/.cpp` | Record types, input parsing, validation |
+| `src/games/game_choices.hpp` | Stable platform/status/completion code-label lists |
+| `src/games/game_data.hpp/.cpp` | Storage interface, schema, SQLite implementation |
+| `src/games/games_module.hpp/.cpp` | Routes, ownership checks, forms, template context |
+| `src/games/game_markdown.hpp/.cpp` | MacroDown adapter and error boundary |
+| `src/games/game_import.hpp/.cpp` | Temporary CSV mapping and import report |
+| `src/games/csv_reader.hpp/.cpp` | CSV record/field state machine |
+| `templates/games/games.html` | Public table and owner dialogs |
+| `statics/games/games.js` | Dialog opening, date control minimum, local sorting |
+| `statics/games/games.css` | Independent table, navigation, and dialog styling |
 
 Add component tests adjacent to their components, matching the current
 repository layout. Extend route helpers, App composition, `main.cpp`, CMake

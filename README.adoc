@@ -72,6 +72,13 @@ Other notable options:
 
 == Development
 
+Module source files and their unit tests live in `src/auth`, `src/weekly`,
+and `src/games`. Application wiring and shared services remain in `src`.
+Includes use paths relative to `src`, such as `games/game_data.hpp`.
+Module templates and assets likewise live in `templates/weekly`,
+`templates/games`, `statics/weekly`, and `statics/games`. Shared templates
+and site icons remain at the top level. Deploy these directories recursively.
+
 Configure tests with `cmake -S . -B build -DBUILD_TESTING=ON`, build with
 `cmake --build build -j24`, and run
 `ctest --test-dir build --output-on-failure`.

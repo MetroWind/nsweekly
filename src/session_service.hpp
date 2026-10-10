@@ -1,6 +1,6 @@
 #pragma once
 #include <mw/http_server.hpp>
-#include "auth.hpp"
+#include "auth/auth.hpp"
 
 // Carries session validity, user identity, and any replacement tokens.
 struct SessionValidation

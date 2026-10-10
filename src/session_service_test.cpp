@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 #include "session_service.hpp"
-#include "auth_mock.hpp"
+#include "auth/auth_mock.hpp"
 #include "test_utils.hpp"
 
 using ::testing::Return;

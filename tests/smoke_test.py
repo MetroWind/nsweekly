@@ -202,8 +202,12 @@ def main():
                     assert edit[0] == 200
                     assert "**legacy**" in edit[2]
                     checkOpenGraph(edit[2], port, f"/weekly/mw/{date}")
-                    assert "/statics/preview.js" in edit[2]
-                    assert request(port, "/statics/preview.js")[0] == 200
+                    assert "/statics/weekly/preview.js" in edit[2]
+                    assert request(port, "/statics/weekly/preview.js")[0] == 200
+                    for asset in ["weekly/style.css", "games/games.css",
+                                  "games/games.js", "games/reviews.js"]:
+                        assert request(port, "/statics/" + asset)[0] == 200
+
                     saved = request(port, f"/edit/mw/{date}", "POST",
                                     urlencode({"content": "**saved**"}),
                                     "access-token=access")

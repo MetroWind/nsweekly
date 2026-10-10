@@ -1,5 +1,5 @@
 #include "open_graph.hpp"
-#include "game.hpp"
+#include "games/game.hpp"
 
 nlohmann::json openGraph(const std::string &url_prefix,
     const std::string &title, const std::string &path,

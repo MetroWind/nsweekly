@@ -62,29 +62,29 @@ find_package(cmark REQUIRED)
 
 set(SOURCE_FILES
   src/open_graph.cpp
-  src/game_review.cpp
-  src/game_review_data.cpp
-  src/game.cpp
-  src/game_data.cpp
-  src/game_markdown.cpp
-  src/games_module.cpp
-  src/csv_reader.cpp
-  src/game_import.cpp
-  src/review_import.cpp
+  src/games/game_review.cpp
+  src/games/game_review_data.cpp
+  src/games/game.cpp
+  src/games/game_data.cpp
+  src/games/game_markdown.cpp
+  src/games/games_module.cpp
+  src/games/csv_reader.cpp
+  src/games/game_import.cpp
+  src/games/review_import.cpp
   src/app.cpp
   src/app.hpp
-  src/auth.cpp
-  src/auth.hpp
+  src/auth/auth.cpp
+  src/auth/auth.hpp
   src/config.cpp
   src/config.hpp
-  src/auth_module.cpp
-  src/auth_module.hpp
+  src/auth/auth_module.cpp
+  src/auth/auth_module.hpp
   src/session_service.cpp
   src/session_service.hpp
-  src/weekly_module.cpp
-  src/weekly_module.hpp
-  src/weekly_data.cpp
-  src/weekly_data.hpp
+  src/weekly/weekly_module.cpp
+  src/weekly/weekly_module.hpp
+  src/weekly/weekly_data.cpp
+  src/weekly/weekly_data.hpp
   src/user_data.cpp
   src/user_data.hpp
   src/user_sql.cpp
@@ -101,8 +101,8 @@ set(SOURCE_FILES
   src/url.cpp
   src/url.hpp
   src/utils.hpp
-  src/weekly.cpp
-  src/weekly.hpp
+  src/weekly/weekly.cpp
+  src/weekly/weekly.hpp
 )
 set(LIBS
   MacroDown::MacroDown
@@ -118,6 +118,7 @@ set(LIBS
 )
 
 set(INCLUDES
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
   ${CURL_INCLUDE_DIR}
   ${json_SOURCE_DIR}/single_include
   ${inja_SOURCE_DIR}/single_include/inja
@@ -143,24 +144,24 @@ if(BUILD_TESTING)
 
   set(TEST_FILES
     src/open_graph_test.cpp
-    src/game_review_test.cpp
-    src/game_test.cpp
-    src/games_module_test.cpp
+    src/games/game_review_test.cpp
+    src/games/game_test.cpp
+    src/games/games_module_test.cpp
     src/test_utils.hpp
     src/http_client_test.cpp
     src/http_client_mock.hpp
-    src/auth_test.cpp
-    src/auth_mock.hpp
+    src/auth/auth_test.cpp
+    src/auth/auth_mock.hpp
     src/url_test.cpp
     src/session_service_test.cpp
     src/routes_test.cpp
     src/route_urls_test.cpp
     src/app_test.cpp
-    src/auth_module_test.cpp
-    src/weekly_module_test.cpp
+    src/auth/auth_module_test.cpp
+    src/weekly/weekly_module_test.cpp
     src/http_adaptation_test.cpp
     src/user_data_test.cpp
-    src/weekly_data_test.cpp
+    src/weekly/weekly_data_test.cpp
     src/storage_mock.hpp
     src/storage_test_support.hpp
     src/database_test.cpp

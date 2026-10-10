@@ -1,0 +1,176 @@
+#include <iterator>
+#include <string_view>
+#include <memory>
+#include <vector>
+#include <expected>
+#include <tuple>
+#include <optional>
+#include <chrono>
+
+#include <spdlog/spdlog.h>
+#include <sqlite3.h>
+
+#include "weekly/weekly_data.hpp"
+#include "user_sql.hpp"
+#include "database.hpp"
+#include "error.hpp"
+#include "utils.hpp"
+#include "weekly/weekly.hpp"
+
+namespace
+{
+
+// Calculate all the Monday 00:00 in a time period
+std::vector<Time> allWeekStarts(const Time& begin, const Time& end)
+{
+    auto begin_date = std::chrono::floor<std::chrono::days>(begin);
+    std::chrono::weekday w(begin_date);
+    int diff = w.iso_encoding() - 1;
+    Time mon = begin_date;
+    if(diff != 0)
+    {
+        mon += std::chrono::days(7 - diff);
+    }
+    std::vector<Time> result;
+    while(mon < end)
+    {
+        result.push_back(mon);
+        mon += std::chrono::days(7);
+    }
+    return result;
+}
+
+} // namespace
+
+
+E<std::vector<WeeklyPost>>
+WeeklyDataInterface::getWeekliesOneYear(const std::string& user) const
+{
+    auto now = Clock::now();
+    return this->getWeeklies(user, now - std::chrono::years(1), now);
+}
+
+E<void> WeeklyDataSqlite::initializeSchema()
+{
+    return db->execute(
+        "CREATE TABLE IF NOT EXISTS Weeklies "
+        "(user_id INTEGER REFERENCES Users (id) ON DELETE CASCADE,"
+        " week_start INTEGER, update_time INTEGER, format INTEGER,"
+        " lang TEXT, content TEXT, UNIQUE (user_id, week_start));");
+}
+
+E<std::vector<WeeklyPost>> WeeklyDataSqlite::getWeeklies(
+    const std::string& username, const Time& begin, const Time& end) const
+{
+    int64_t start = timeToSeconds(begin);
+    int64_t stop = timeToSeconds(end);
+    // Get all rows whose week_start is in the time period.
+    ASSIGN_OR_RETURN(auto sql, db->statementFromStr(
+        "SELECT w.content, w.format, w.lang, w.week_start, w.update_time "
+        "FROM Users u LEFT JOIN Weeklies w ON w.user_id = u.id "
+        "AND w.week_start >= ? AND w.week_start < ? "
+        "WHERE u.name = ? ORDER BY w.week_start ASC;"));
+    DO_OR_RETURN(sql.bind(start, stop, username));
+    ASSIGN_OR_RETURN(auto rows, (db->eval<std::optional<std::string>,
+        std::optional<int>, std::optional<std::string>,
+        std::optional<int64_t>, std::optional<int64_t>>(std::move(sql))));
+    if(rows.empty())
+    {
+        return std::unexpected(runtimeError("User not found"));
+    }
+    // Converting rows to weekly objects.
+    std::vector<WeeklyPost> weeklies;
+    weeklies.reserve(rows.size());
+    for(auto& row: rows)
+    {
+        if(!std::get<3>(row).has_value())
+        {
+            continue;
+        }
+        if(!std::get<0>(row) || !std::get<1>(row) ||
+           !std::get<2>(row) || !std::get<4>(row))
+        {
+            return std::unexpected(runtimeError("Invalid weekly columns"));
+        }
+        int format = *std::get<1>(row);
+        if(!WeeklyPost::isValidFormatInt(format))
+        {
+            return std::unexpected(runtimeError(std::format(
+                "Invalid format: {}", format)));
+        }
+        WeeklyPost p;
+        p.format = static_cast<WeeklyPost::Format>(format);
+        p.raw_content = std::move(*std::get<0>(row));
+        p.week_begin = secondsToTime(*std::get<3>(row));
+        p.update_time = secondsToTime(*std::get<4>(row));
+        p.language = std::move(*std::get<2>(row));
+        p.author = username;
+        weeklies.push_back(std::move(p));
+    }
+
+    // Now we have a set of weeklies, the week_begin of each of which
+    // is a Monday. However, these Mondays are only a subset of all
+    // the Mondays in the queried time period. Our goal is to return
+    // one weekly for each of the Monday in the time period. If there
+    // is not a weekly on a Monday, we return an empty weekly for
+    // that. This way the logic in the HTTP handler and the frontend
+    // is simplified.
+    //
+    // Our algorithm for this is the classic double pointer. We will
+    // have a “pointer” for all the mondays in the time peroid, and
+    // another for the (non-empty) weeklies, both from the start of
+    // the respective sequence. If the current weekly’s week_begin
+    // happens to be the current monday, we add this weekly to the
+    // result, and advance both pointers; if not we just advance the
+    // Monday pointer.
+    //
+    // I think this could be an interview question...
+    std::vector<Time> week_starts = allWeekStarts(begin, end);
+    std::vector<WeeklyPost> result(week_starts.size());
+    // The monday “pointer”
+    auto monday_it = std::begin(week_starts);
+    // The weeklies “pointer”
+    auto weekly_it = std::begin(weeklies);
+    auto result_it = std::begin(result); // This should sync with monday_it.
+
+    while(monday_it != std::end(week_starts))
+    {
+        if(weekly_it != std::end(weeklies) &&
+           weekly_it->week_begin == *monday_it)
+        {
+            *result_it = *weekly_it;
+            ++monday_it;
+            ++weekly_it;
+            ++result_it;
+        }
+        else
+        {
+            result_it->week_begin = *monday_it;
+            result_it->author = username;
+            ++monday_it;
+            ++result_it;
+        }
+    }
+
+    return result;
+}
+
+E<void> WeeklyDataSqlite::updateWeekly(
+    const std::string& username, WeeklyPost&& new_post) const
+{
+    DO_OR_RETURN(ensureUser(*db, username));
+    ASSIGN_OR_RETURN(auto sql, db->statementFromStr(
+        "INSERT INTO weeklies "
+        "(user_id, week_start, update_time, format, lang, content) "
+        "VALUES ((SELECT id FROM Users WHERE name = ?), ?, ?, ?, ?, ?) "
+        "ON CONFLICT DO UPDATE SET update_time = ?, "
+        "format = ?, lang = ?, content = ?;"));
+    int64_t now = timeToSeconds(Clock::now());
+    DO_OR_RETURN(sql.bind(
+        username, timeToSeconds(new_post.week_begin), now,
+        static_cast<int>(new_post.format), new_post.language,
+        new_post.raw_content, now, static_cast<int>(new_post.format),
+        new_post.language, new_post.raw_content));
+    return db->execute(std::move(sql));
+}
+
