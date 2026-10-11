@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Notes and review editor fixture</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/easymde@2.20.0/dist/easymde.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css">
+<link rel="stylesheet" href="../statics/games/games.css">
+<script src="https://cdn.jsdelivr.net/npm/easymde@2.20.0/dist/easymde.min.js" defer></script>
+<script src="../statics/games/markdown_editor.js" defer></script>
+<script src="../statics/games/games.js" defer></script>
+<script src="../statics/games/reviews.js" defer></script>
+<script src="markdown_editors_browser.js" defer></script>
+</head><body>
+<main id="Games" class="ReviewPage" data-view="reviews">
+<h1>Notes and review editor fixture</h1>
+<p id="BrowserResult" role="status">Checking…</p>
+<dialog open data-cancel-url="markdown_editors_browser.html">
+<h2>Game notes</h2>
+<form id="NotesForm" method="post">
+<label for="GameName">Name</label><input id="GameName" name="name" value="Game">
+<label for="GameNotes">Notes (MacroDown)</label>
+<textarea id="GameNotes" data-markdown-editor name="notes"
+ aria-describedby="ErrorNotes">**Original 日本語**
+%code{source}</textarea>
+<span id="ErrorNotes" class="FieldError">Fixture validation error.</span>
+<p>Preview shows standard Markdown. MacroDown macros render after saving.</p>
+<button type="submit">Save</button>
+</form></dialog>
+<div class="ReviewEditor">
+<form id="ReviewForm" method="post">
+<input data-review-score name="story" type="number" value="5" aria-label="Story">
+<label for="Gameplay">Gameplay</label>
+<input id="Gameplay" data-review-score name="gameplay" type="number" value="5">
+<input data-review-score name="graphics" type="number" value="5" aria-label="Graphics">
+<input data-review-score name="audio" type="number" value="5" aria-label="Audio">
+<input data-review-score name="special" type="number" value="5" aria-label="Special">
+<p>Overall: <output id="ReviewScore">Incomplete</output></p>
+<label for="ReviewText">Review (optional, MacroDown)</label>
+<textarea id="ReviewText" data-markdown-editor name="text"
+ aria-describedby="Error-text">Original review</textarea>
+<span id="Error-text" class="FieldError"></span>
+<p>Preview shows standard Markdown. MacroDown macros render after saving.</p>
+<button type="submit">Save</button>
+</form>
+<aside class="ReviewRubric"><h2>Review scoring rubric</h2>
+<p>Keep the existing rubric and scores alongside the enhanced text field.</p>
+</aside></div>
+</main></body></html>

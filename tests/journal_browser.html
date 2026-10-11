@@ -2,7 +2,11 @@
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Journal browser fixture</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/easymde@2.20.0/dist/easymde.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css">
 <link rel="stylesheet" href="../statics/games/games.css">
+  <script src="https://cdn.jsdelivr.net/npm/easymde@2.20.0/dist/easymde.min.js" defer></script>
+<script src="../statics/games/markdown_editor.js" defer></script>
 <script src="../statics/games/journal.js" defer></script>
 <script src="../statics/games/game_detail.js" defer></script>
 <script src="journal_browser.js" defer></script>
@@ -34,8 +38,9 @@ Disable JavaScript to inspect the native form and expanded sidebar.</p>
 </div></article></section></div>
 <h2>Entry editor</h2>
 <form id="JournalForm" method="post" action="/fixture-save">
-<label for="JournalText">Entry (Markdown)</label>
-<textarea id="JournalText" name="text" rows="6">Keep this source</textarea>
+<label id="JournalLabel" for="JournalText">Entry (Markdown)</label>
+<textarea id="JournalText" data-markdown-editor name="text" rows="6">Keep this source</textarea>
+<span id="JournalError" class="FieldError"></span>
 </form>
 <p>Uploaded files are public and remain in Attachments.</p>
 <form id="JournalUpload" action="/fixture-upload" hidden>

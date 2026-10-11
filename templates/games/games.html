@@ -3,6 +3,9 @@
 <head>
   {% include "../head_common.html" %}
   {% include "../open_graph.html" %}
+  {% if action == "new" or action == "edit" %}
+  {% include "markdown_editor_head.html" %}
+  {% endif %}
   <link rel="stylesheet" href="/statics/games/games.css">
   <title>{{ username }}’s Game Tracker</title>
   <script src="/statics/games/games.js" defer></script>
@@ -112,8 +115,9 @@
       <input id="GameEnd" name="end_date" type="date" min="0001-01-01" max="9999-12-31" value="{{ form.end_date }}" aria-describedby="ErrorEnd">
       <span class="FieldError" id="ErrorEnd">{{ errors.end_date }}{% if length(errors.end_date) > 0 %} (entered: {{ form.end_date }}){% endif %}</span>
       <label for="GameNotes">Notes (MacroDown)</label>
-      <textarea id="GameNotes" name="notes" rows="8" aria-describedby="ErrorNotes">{{ form.notes }}</textarea>
+      <textarea id="GameNotes" data-markdown-editor name="notes" rows="8" aria-describedby="ErrorNotes">{{ form.notes }}</textarea>
       <span class="FieldError" id="ErrorNotes">{{ errors.notes }}</span>
+      <p>Preview shows standard Markdown. MacroDown macros render after saving.</p>
       <button type="submit">Save</button>
     {% endif %}
       <a href="{{ table_url }}">Cancel</a>

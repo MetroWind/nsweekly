@@ -153,6 +153,12 @@ function initializeGames()
     }
     if(focus)
     {
+        const markdown_editor = typeof gameMarkdownEditor === "function" ?
+            gameMarkdownEditor(focus) : null;
+        if(markdown_editor)
+        {
+            focus = markdown_editor.codemirror.getInputField();
+        }
         if(error)
         {
             focus.setAttribute("aria-invalid", "true");

@@ -28,25 +28,42 @@ function initializeJournal()
     const status = document.getElementById("UploadStatus");
     const results = document.getElementById("UploadResults");
     const upload_button = upload.querySelector("button");
+    const editor = gameMarkdownEditor(textarea);
     let uploading = false;
     let saving = false;
 
     function insertAttachment(record)
     {
-        const start = textarea.selectionStart;
-        const end = textarea.selectionEnd;
+        const cm = editor ? editor.codemirror : null;
+        const source = cm ? cm.getValue() : textarea.value;
+        const start = cm ? cm.indexFromPos(cm.getCursor("from")) :
+            textarea.selectionStart;
+        const end = cm ? cm.indexFromPos(cm.getCursor("to")) :
+            textarea.selectionEnd;
         let snippet = attachmentMarkdown(record);
-        if(start > 0 && textarea.value[start - 1] !== "\n")
+        if(start > 0 && source[start - 1] !== "\n")
         {
             snippet = "\n" + snippet;
         }
-        if(textarea.value[end] !== "\n")
+        if(source[end] !== "\n")
         {
             snippet += "\n";
         }
-        textarea.setRangeText(snippet, start, end, "end");
-        textarea.focus();
-        textarea.dispatchEvent(new Event("input", {bubbles: true}));
+        if(cm)
+        {
+            if(editor.isPreviewActive())
+            {
+                EasyMDE.togglePreview(editor);
+            }
+            cm.replaceSelection(snippet, "end", "+input");
+            cm.focus();
+        }
+        else
+        {
+            textarea.setRangeText(snippet, start, end, "end");
+            textarea.focus();
+            textarea.dispatchEvent(new Event("input", {bubbles: true}));
+        }
     }
 
     async function uploadAttachment(event)
@@ -132,6 +149,10 @@ function initializeJournal()
         {
             event.preventDefault();
             return;
+        }
+        if(editor)
+        {
+            editor.codemirror.save();
         }
         saving = true;
         save.disabled = true;
