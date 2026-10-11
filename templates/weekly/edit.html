@@ -3,8 +3,8 @@
   <head>
     {% include "head.html" %}
     {% include "../open_graph.html" %}
-    <script src="https://unpkg.com/commonmark/dist/commonmark.min.js"></script>
-    <script defer src="{{ url_for("statics", "weekly/preview.js") }}"></script>
+    {% include "../markdown_editor_head.html" %}
+    <script type="module" src="{{ url_for("statics", "weekly/preview.js") }}"></script>
     <title>Edit weekly</title>
   </head>
   <body>
@@ -14,7 +14,9 @@
       <div id="EditAndPreview">
         <form id="EditView" action="{{ url_for("edit", session_user + "/" + weekly.date_str) }}" method="post">
           <div>
-            <textarea name="content">{{ weekly.content }}</textarea>
+            <label for="WeeklyContent">Weekly post (MacroDown)</label>
+            <textarea id="WeeklyContent" data-markdown-editor
+              data-external-preview name="content">{{ weekly.content }}</textarea>
           </div>
           <div>
             <input type="submit" value="Save" />
@@ -22,6 +24,7 @@
         </form>
         <div id="Preview">
           <div id="SingleWeekly">
+            <p id="PreviewStatus" role="status">Loading preview…</p>
             <section class="Weekly"></section>
           </div>
         </div>

@@ -1,8 +1,8 @@
 #include <macrodown.h>
 #include <exception>
-#include "games/game_markdown.hpp"
+#include "markdown.hpp"
 
-E<std::string> renderGameMarkdown(const std::string &source)
+E<std::string> renderMarkdown(const std::string &source)
 {
     try
     {

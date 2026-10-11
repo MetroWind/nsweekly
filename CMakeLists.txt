@@ -1,4 +1,6 @@
 # cmake -B build . && cmake --build build -j24
+#
+# Use -DMACRODOWN_BOOTSTRAP_EMSDK=ON to bootstrap Emscripten.
 cmake_minimum_required(VERSION 3.24)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
@@ -58,12 +60,34 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(macrodown)
 
+# Build browser assets from the same MacroDown checkout as the native library.
+find_program(EMCMAKE_EXECUTABLE emcmake REQUIRED)
+include(ExternalProject)
+ExternalProject_Add(macrodown_browser
+  SOURCE_DIR "${macrodown_SOURCE_DIR}"
+  BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/macrodown_wasm"
+  CONFIGURE_COMMAND "${EMCMAKE_EXECUTABLE}" "${CMAKE_COMMAND}"
+    -S <SOURCE_DIR> -B <BINARY_DIR>
+    -DCMAKE_BUILD_TYPE=MinSizeRel
+    -DMACRODOWN_BUILD_WASM=ON
+    -DMACRODOWN_BUILD_CLI=OFF
+    -DMACRODOWN_BUILD_TESTS=OFF
+    "-DFETCHCONTENT_SOURCE_DIR_UNI-ALGO=${uni-algo_SOURCE_DIR}"
+  BUILD_COMMAND "${CMAKE_COMMAND}" --build <BINARY_DIR>
+    --target macrodown_wasm -j24
+  INSTALL_COMMAND "${CMAKE_COMMAND}" -E make_directory
+    "${CMAKE_CURRENT_SOURCE_DIR}/statics/macrodown"
+  COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+    <BINARY_DIR>/web/macrodown.mjs <BINARY_DIR>/web/macrodown.wasm
+    "${CMAKE_CURRENT_SOURCE_DIR}/statics/macrodown"
+  BUILD_ALWAYS TRUE
+)
+
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(MAGIC REQUIRED IMPORTED_TARGET libmagic)
 pkg_check_modules(MAGICK REQUIRED IMPORTED_TARGET Magick++)
 find_package(CURL REQUIRED)
 find_package(SQLite3 3.35.0 REQUIRED)
-find_package(cmark REQUIRED)
 
 set(SOURCE_FILES
   src/attachment/attachment.cpp
@@ -79,7 +103,7 @@ set(SOURCE_FILES
   src/games/game_review_data.cpp
   src/games/game.cpp
   src/games/game_data.cpp
-  src/games/game_markdown.cpp
+  src/markdown.cpp
   src/games/games_module.cpp
   src/games/csv_reader.cpp
   src/games/game_import.cpp
@@ -128,9 +152,6 @@ set(LIBS
   ryml::ryml
   ${CURL_LIBRARIES}
   ${SQLite3_LIBRARIES}
-  # This can be found in the installed
-  # cmark-targets-relwithdebinfo.cmake.
-  cmark::cmark
 )
 
 set(INCLUDES
@@ -139,10 +160,10 @@ set(INCLUDES
   ${json_SOURCE_DIR}/single_include
   ${inja_SOURCE_DIR}/single_include/inja
   ${SQLite3_INCLUDE_DIRS}
-  ${cmark_INCLUDE_DIRS}
 )
 
 add_executable(nsweekly ${SOURCE_FILES} src/main.cpp)
+add_dependencies(nsweekly macrodown_browser)
 set_property(TARGET nsweekly PROPERTY CXX_STANDARD 23)
 
 set_property(TARGET nsweekly PROPERTY COMPILE_WARNING_AS_ERROR TRUE)
@@ -180,6 +201,7 @@ if(BUILD_TESTING)
     src/weekly/weekly_module_test.cpp
     src/http_adaptation_test.cpp
     src/user_data_test.cpp
+    src/weekly/weekly_test.cpp
     src/weekly/weekly_data_test.cpp
     src/storage_mock.hpp
     src/storage_test_support.hpp
@@ -189,6 +211,7 @@ if(BUILD_TESTING)
 
   # ctest --test-dir build
   add_executable(nsweekly_test ${SOURCE_FILES} ${TEST_FILES})
+  add_dependencies(nsweekly_test macrodown_browser)
   set_property(TARGET nsweekly_test PROPERTY CXX_STANDARD 23)
 
   set_property(TARGET nsweekly_test PROPERTY COMPILE_WARNING_AS_ERROR TRUE)
@@ -207,6 +230,14 @@ if(BUILD_TESTING)
 
   find_program(NODE_EXECUTABLE node)
   if(NODE_EXECUTABLE)
+    add_test(NAME WeeklyBrowser.Wasm
+      COMMAND ${NODE_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/weekly_wasm_test.mjs)
+    add_test(NAME WeeklyBrowser.Preview
+      COMMAND ${NODE_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/weekly_preview_test.js)
+    set_tests_properties(WeeklyBrowser.Preview PROPERTIES
+      WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
     add_test(NAME JournalBrowser.AttachmentMarkdown
       COMMAND ${NODE_EXECUTABLE}
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/journal_markdown_test.js)

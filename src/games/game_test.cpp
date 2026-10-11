@@ -4,7 +4,7 @@
 #include "games/game.hpp"
 #include "games/game_data.hpp"
 #include "games/game_import.hpp"
-#include "games/game_markdown.hpp"
+#include "markdown.hpp"
 #include "games/csv_reader.hpp"
 #include "storage_test_support.hpp"
 #include "user_data.hpp"
@@ -270,11 +270,11 @@ TEST_F(GameStorage, ImportValidatesEverythingAndRerunsWithoutOverwrite)
 
 TEST(GameMarkdown, MacroSpecificHtmlAndConcurrentDocumentState)
 {
-    ASSIGN_OR_FAIL(auto html, renderGameMarkdown("%code{hello}"));
+    ASSIGN_OR_FAIL(auto html, renderMarkdown("%code{hello}"));
     EXPECT_THAT(html, HasSubstr("<code>hello</code>"));
-    auto future = std::async(std::launch::async, renderGameMarkdown,
+    auto future = std::async(std::launch::async, renderMarkdown,
                              "%code{independent}");
-    EXPECT_TRUE(renderGameMarkdown("**other**"));
+    EXPECT_TRUE(renderMarkdown("**other**"));
     ASSERT_TRUE(future.get());
 }
 
@@ -366,9 +366,9 @@ TEST(GameMarkdown, MacroDefinitionsAreDocumentLocalAndOutputIsUnchanged)
 {
     ASSIGN_OR_FAIL(
         auto defined,
-        renderGameMarkdown("%def{custom}{}{<mark>custom</mark>}%custom{}"));
+        renderMarkdown("%def{custom}{}{<mark>custom</mark>}%custom{}"));
     EXPECT_THAT(defined, HasSubstr("<mark>custom</mark>"));
-    auto other = renderGameMarkdown("%custom{}");
+    auto other = renderMarkdown("%custom{}");
     EXPECT_TRUE(!other ||
                 other->find("<mark>custom</mark>") == std::string::npos);
 }

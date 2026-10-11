@@ -1,4 +1,5 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/easymde@2.20.0/dist/easymde.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css">
   <script src="https://cdn.jsdelivr.net/npm/easymde@2.20.0/dist/easymde.min.js" defer></script>
-  <script src="/statics/games/markdown_editor.js" defer></script>
+  <script src="{{ url_for("statics", "markdown_editor.js") }}" defer></script>
+  <link rel="stylesheet" href="{{ url_for("statics", "markdown_editor.css") }}">

@@ -1,23 +1,7 @@
 #include <expected>
 
-#include <cmark.h>
-#include <spdlog/spdlog.h>
-
-#include "error.hpp"
+#include "markdown.hpp"
 #include "weekly/weekly.hpp"
-
-E<std::string> renderMarkdown(const std::string& src)
-{
-    char* html = cmark_markdown_to_html(src.data(), src.size(),
-                                        CMARK_OPT_DEFAULT);
-    if(html == nullptr)
-    {
-        return std::unexpected(runtimeError("Failed to render Markdown."));
-    }
-    std::string result = html;
-    free(html);
-    return result;
-}
 
 bool WeeklyPost::isValidFormatInt(int i)
 {

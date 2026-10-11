@@ -15,7 +15,7 @@ function preventEditorSubmit(event)
 
 function checkEditor(textarea)
 {
-    const editor = gameMarkdownEditor(textarea);
+    const editor = markdownEditor(textarea);
     const original = textarea.value;
     if(!editor)
     {
@@ -28,9 +28,17 @@ function checkEditor(textarea)
     {
         assertEditor(editor.value() === original, "original source loads");
         initializeMarkdownEditor(textarea);
-        assertEditor(gameMarkdownEditor(textarea) === editor,
+        assertEditor(markdownEditor(textarea) === editor,
             "initialization keeps one editor per field");
         const cm = editor.codemirror;
+        assertEditor(!editor.toolbarElements.fullscreen,
+            "fullscreen button is disabled");
+        assertEditor(!cm.getOption("extraKeys").F11,
+            "fullscreen shortcut is disabled");
+        editor.toolbarElements["side-by-side"].click();
+        assertEditor(!editor.isFullscreenActive(),
+            "side-by-side preview stays out of fullscreen");
+        editor.toolbarElements["side-by-side"].click();
         assertEditor(cm.getInputField().getAttribute("aria-describedby") ===
             textarea.getAttribute("aria-describedby"), "error association");
         const label = document.getElementById(
@@ -59,7 +67,7 @@ function checkEditor(textarea)
 function checkMarkdownEditors()
 {
     const notes = document.getElementById("GameNotes");
-    const note_editor = gameMarkdownEditor(notes);
+    const note_editor = markdownEditor(notes);
     if(note_editor)
     {
         assertEditor(note_editor.codemirror.hasFocus(),
@@ -68,13 +76,6 @@ function checkMarkdownEditors()
             .getAttribute("aria-invalid") === "true", "visible error state");
     }
     checkEditor(notes);
-    if(note_editor)
-    {
-        note_editor.toolbarElements.fullscreen.click();
-        assertEditor(document.querySelector("dialog").getBoundingClientRect()
-            .width >= innerWidth - 1, "dialog expands for fullscreen");
-        note_editor.toolbarElements.fullscreen.click();
-    }
     document.querySelector("dialog").close();
     checkEditor(document.getElementById("ReviewText"));
     const gameplay = document.getElementById("Gameplay");

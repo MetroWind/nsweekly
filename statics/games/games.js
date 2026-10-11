@@ -153,8 +153,8 @@ function initializeGames()
     }
     if(focus)
     {
-        const markdown_editor = typeof gameMarkdownEditor === "function" ?
-            gameMarkdownEditor(focus) : null;
+        const markdown_editor = typeof markdownEditor === "function" ?
+            markdownEditor(focus) : null;
         if(markdown_editor)
         {
             focus = markdown_editor.codemirror.getInputField();

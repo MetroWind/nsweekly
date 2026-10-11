@@ -4,7 +4,7 @@
 #include <set>
 #include <spdlog/spdlog.h>
 #include "games/games_module.hpp"
-#include "games/game_markdown.hpp"
+#include "markdown.hpp"
 #include "open_graph.hpp"
 #include "route_urls.hpp"
 #include "http_adaptation.hpp"
@@ -478,7 +478,7 @@ void GamesModule::render(Response &res, const std::string &user,
         std::string html;
         if(input.notes)
         {
-            auto rendered = renderGameMarkdown(*input.notes);
+            auto rendered = renderMarkdown(*input.notes);
             if(rendered)
             {
                 html = std::move(*rendered);
@@ -571,7 +571,7 @@ void GamesModule::render(Response &res, const std::string &user,
                     {"label", REVIEW_LABELS[i]},
                     {"score", raw.scalars.at(std::string(REVIEW_KEYS[i]))}});
             }
-            auto text = renderGameMarkdown(record.input.text);
+            auto text = renderMarkdown(record.input.text);
             context["review_text"] = text ? *text :
                 "<pre>" + gameEscape(record.input.text) + "</pre>";
             for(const auto &[key, timestamp] :
@@ -595,7 +595,7 @@ void GamesModule::render(Response &res, const std::string &user,
         {
             const auto anchor = "journal-entry-" + std::to_string(entry.id);
             const auto manage = base + "/journal/" + std::to_string(entry.id);
-            auto body = renderGameMarkdown(entry.input.text);
+            auto body = renderMarkdown(entry.input.text);
             if(!body)
             {
                 spdlog::error("Journal Markdown rendering failed");
@@ -737,7 +737,7 @@ void GamesModule::handleReviews(const Request &req, Response &res,
             dimensions.push_back({
                 {"score", raw.scalars.at(std::string(REVIEW_KEYS[i]))}});
         }
-        auto text = renderGameMarkdown(review.input.text);
+        auto text = renderMarkdown(review.input.text);
         const auto base = tracker_url + "/" + std::to_string(review.game_id);
         rows.push_back({
             {"id", std::to_string(review.game_id)},

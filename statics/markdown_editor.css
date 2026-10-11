@@ -1,0 +1,96 @@
+:is(#Games, #EditWrapper) .EasyMDEContainer
+{
+    min-width: 0;
+    margin-top: .5rem;
+}
+:is(#Games, #EditWrapper) .EasyMDEContainer .CodeMirror,
+:is(#Games, #EditWrapper) .editor-toolbar,
+:is(#Games, #EditWrapper) .editor-preview,
+:is(#Games, #EditWrapper) .editor-preview-side
+{
+    color: var(--color-fg);
+    background: var(--color-panel);
+    border-color: var(--color-border);
+}
+:is(#Games, #EditWrapper) .editor-toolbar
+{
+    opacity: 1;
+}
+:is(#Games, #EditWrapper) .editor-toolbar button
+{
+    color: var(--color-fg);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 3px;
+    box-shadow: none;
+    transform: none;
+    padding: 0;
+    min-width: 30px;
+}
+:is(#Games, #EditWrapper) .editor-toolbar button:hover,
+:is(#Games, #EditWrapper) .editor-toolbar button.active
+{
+    background: var(--color-bg);
+    border-color: var(--color-accent);
+}
+:is(#Games, #EditWrapper) .editor-toolbar i.separator
+{
+    border-color: var(--color-muted);
+}
+:is(#Games, #EditWrapper) .CodeMirror pre
+{
+    color: inherit;
+    background: transparent;
+    overflow-wrap: normal;
+}
+:is(#Games, #EditWrapper) .CodeMirror-cursor
+{
+    border-left-color: var(--color-fg);
+}
+:is(#Games, #EditWrapper) .CodeMirror-selected
+{
+    background: #494957;
+}
+:is(#Games, #EditWrapper) .editor-statusbar
+{
+    color: var(--color-muted);
+}
+:is(#Games, #EditWrapper) .cm-header, :is(#Games, #EditWrapper) .cm-link, :is(#Games, #EditWrapper) .cm-url
+{
+    color: var(--color-accent);
+}
+:is(#Games, #EditWrapper) .cm-quote, :is(#Games, #EditWrapper) .cm-comment
+{
+    color: var(--color-muted);
+}
+:is(#Games, #EditWrapper) .editor-preview img, :is(#Games, #EditWrapper) .editor-preview-side img
+{
+    max-width: 100%;
+    height: auto;
+}
+:is(#Games, #EditWrapper) .editor-preview, :is(#Games, #EditWrapper) .editor-preview-side
+{
+    overflow-wrap: anywhere;
+}
+:is(#Games, #EditWrapper) .editor-preview pre, :is(#Games, #EditWrapper) .editor-preview-side pre
+{
+    overflow-x: auto;
+}
+
+:is(#Games, #EditWrapper) .cm-variable-2, :is(#Games, #EditWrapper) .cm-variable-3,
+:is(#Games, #EditWrapper) .cm-keyword, :is(#Games, #EditWrapper) .cm-tag
+{
+    color: var(--color-accent);
+}
+:is(#Games, #EditWrapper) .cm-string
+{
+    color: #b7dfa1;
+}
+:is(#Games, #EditWrapper) .cm-attribute
+{
+    color: #c5bcfa;
+}
+:is(#Games, #EditWrapper) .cm-error
+{
+    color: #ff9e9e;
+}

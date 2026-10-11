@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Weekly editor fixture</title>
+<link rel="stylesheet" href="../statics/weekly/style.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/easymde@2.20.0/dist/easymde.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css">
+<link rel="stylesheet" href="../statics/markdown_editor.css">
+<script src="https://cdn.jsdelivr.net/npm/easymde@2.20.0/dist/easymde.min.js" defer></script>
+<script src="../statics/markdown_editor.js" defer></script>
+<script type="module" src="../statics/weekly/preview.js"></script>
+<script src="weekly_editor_browser.js" defer></script>
+</head><body>
+<p id="BrowserResult" role="status">Checking…</p>
+<div id="EditWrapper"><h2>Weekly editor fixture</h2>
+<div id="EditAndPreview">
+<form id="EditView" method="post">
+<label for="WeeklyContent">Weekly post (MacroDown)</label>
+<textarea id="WeeklyContent" data-markdown-editor data-external-preview
+ name="content"># Initial</textarea>
+<input type="submit" value="Save">
+</form>
+<div id="Preview"><div id="SingleWeekly">
+<p id="PreviewStatus" role="status">Loading preview…</p>
+<section class="Weekly"></section>
+</div></div>
+</div></div>
+</body></html>

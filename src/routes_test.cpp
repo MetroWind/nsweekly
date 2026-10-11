@@ -167,8 +167,10 @@ TEST_F(Routes, EditPreviewAndSaveRetainRawContentAndAuthor)
     auto edit = client->Get("/edit/mw/2000-01-03", headers);
     ASSERT_TRUE(edit);
     EXPECT_EQ(edit->status, 200);
-    EXPECT_THAT(edit->body, HasSubstr("<textarea name=\"content\">**fixture**"));
+    EXPECT_THAT(edit->body, HasSubstr("name=\"content\">**fixture**</textarea>"));
     EXPECT_THAT(edit->body, HasSubstr("/statics/weekly/preview.js"));
+    EXPECT_THAT(edit->body, HasSubstr("/statics/markdown_editor.js"));
+    EXPECT_THAT(edit->body, HasSubstr("data-external-preview"));
     EXPECT_THAT(edit->body, HasSubstr("action=\"/edit/mw/2000-01-03\""));
     WeeklyPost saved{};
     EXPECT_CALL(*weeklies, updateWeekly("mw", _))
@@ -400,4 +402,18 @@ TEST_F(Routes, JournalDispatchAndStreamedRequestValidation)
     ASSERT_TRUE(refreshed);
     EXPECT_EQ(refreshed->status, 403);
     EXPECT_EQ(refreshed->get_header_value_count("Set-Cookie"), 2);
+}
+
+TEST_F(Routes, MacroDownBrowserAssetsHaveCorrectMimeTypes)
+{
+    auto module = client->Get("/statics/macrodown/macrodown.mjs");
+    ASSERT_TRUE(module);
+    EXPECT_EQ(module->status, 200);
+    EXPECT_THAT(module->get_header_value("Content-Type"),
+                HasSubstr("javascript"));
+    auto wasm = client->Get("/statics/macrodown/macrodown.wasm");
+    ASSERT_TRUE(wasm);
+    EXPECT_EQ(wasm->status, 200);
+    EXPECT_EQ(wasm->get_header_value("Content-Type"), "application/wasm");
+    EXPECT_EQ(wasm->body.substr(0, 4), std::string("\0asm", 4));
 }

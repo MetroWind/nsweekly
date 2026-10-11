@@ -3,4 +3,4 @@
 #include <string>
 
 // Renders one independent MacroDown document, preserving macro HTML.
-E<std::string> renderGameMarkdown(const std::string &source);
+E<std::string> renderMarkdown(const std::string &source);

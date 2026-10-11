@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 #include "games/game_data.hpp"
-#include "games/game_markdown.hpp"
+#include "markdown.hpp"
 #include "storage_test_support.hpp"
 #include "user_data.hpp"
 #include "test_utils.hpp"
@@ -88,7 +88,7 @@ TEST(GameJournal, AttachmentLinksUseActualMarkdownRenderer)
     for(const auto *url : {"/attachment/hash/a%5Bb%5D%28c%29.png",
         "/attachment/hash/%E6%97%A5%20%22.png"})
     {
-        ASSIGN_OR_FAIL(auto html, renderGameMarkdown(
+        ASSIGN_OR_FAIL(auto html, renderMarkdown(
             std::string("![a\\[b\\](c) 日本 \\\\](<") + url + ">)"));
         EXPECT_NE(html.find("<img"), std::string::npos);
         EXPECT_NE(html.find(url), std::string::npos);

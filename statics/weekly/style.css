@@ -374,3 +374,34 @@ ul p, ol p
     font-size: 1rem;
     padding: 10px 14px 10px 14px;
 }
+
+#EditWrapper
+{
+    --color-panel: var(--color-bg);
+    --color-border: var(--color-fg-sub);
+    --color-muted: var(--color-fg-sub);
+}
+
+#EditView, #Preview
+{
+    min-width: 0;
+    max-width: 100%;
+}
+
+#EditWrapper .EasyMDEContainer .CodeMirror
+{
+    min-height: 32rem;
+    font-family: ui-monospace, monospace;
+    line-height: 1.5;
+}
+
+#EditWrapper .CodeMirror-selected
+{
+    background: var(--color-hidden);
+}
+
+#EditWrapper .cm-string,
+#EditWrapper .cm-attribute
+{
+    color: var(--color-fg);
+}

@@ -28,7 +28,7 @@ function initializeJournal()
     const status = document.getElementById("UploadStatus");
     const results = document.getElementById("UploadResults");
     const upload_button = upload.querySelector("button");
-    const editor = gameMarkdownEditor(textarea);
+    const editor = markdownEditor(textarea);
     let uploading = false;
     let saving = false;
 

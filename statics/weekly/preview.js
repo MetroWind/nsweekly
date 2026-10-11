@@ -1,23 +1,74 @@
-function render(from, to, reader, writer)
+const editor = document.querySelector("#EditView textarea");
+const preview = document.querySelector("#Preview .Weekly");
+const status = document.querySelector("#PreviewStatus");
+let worker;
+let ready = false;
+let busy = false;
+let revision = 0;
+let timer;
+
+function render()
 {
-    var tree = reader.parse(from.value);
-    var result = writer.render(tree);
-    to.innerHTML = result;
+    if(!ready || busy)
+    {
+        return;
+    }
+    busy = true;
+    status.textContent = "Rendering…";
+    worker.postMessage({id: revision, source: editor.value});
 }
 
-let editor = document.querySelector("#EditView textarea");
-let preview = document.querySelector("#Preview .Weekly");
+function scheduleRender()
+{
+    revision += 1;
+    clearTimeout(timer);
+    timer = setTimeout(render, 150);
+}
 
-var reader = new commonmark.Parser();
-var writer = new commonmark.HtmlRenderer();
-
-render(editor, preview, reader, writer);
-
-var old_text = editor.value;
-window.setInterval(function() {
-    if(editor.value != old_text)
+function receiveMessage(event)
+{
+    const result = event.data;
+    if(result.type === "ready")
     {
-        old_text = editor.value;
-        render(editor, preview, reader, writer);
+        ready = true;
+        render();
+        return;
     }
-}, 1000);
+    busy = false;
+    if(result.id !== undefined && result.id !== revision)
+    {
+        render();
+        return;
+    }
+    if(result.type === "error")
+    {
+        status.textContent = `Preview failed: ${result.message}`;
+        return;
+    }
+    preview.innerHTML = result.html;
+    status.textContent = "";
+}
+
+function workerFailed(event)
+{
+    ready = false;
+    busy = false;
+    status.textContent = `Preview unavailable: ${event.message}`;
+    if(worker)
+    {
+        worker.terminate();
+    }
+}
+
+editor.addEventListener("input", scheduleRender);
+try
+{
+    worker = new Worker(new URL("./render_worker.js", import.meta.url),
+        {type: "module"});
+    worker.addEventListener("message", receiveMessage);
+    worker.addEventListener("error", workerFailed);
+}
+catch(error)
+{
+    workerFailed(error);
+}
