@@ -6,8 +6,8 @@ arch=('x86_64')
 url="https://github.com/MetroWind/nsweekly"
 license=('WTFPL')
 groups=()
-depends=('sqlite>=3.35.0' 'curl' 'cmark')
-makedepends=('git' 'cmake' 'gcc')
+depends=('sqlite>=3.35.0' 'curl' 'cmark' 'file' 'imagemagick' 'openssl' 'argon2')
+makedepends=('git' 'cmake' 'gcc' 'pkgconf')
 provides=("${pkgname%-git}")
 conflicts=("${pkgname%-git}")
 replaces=()
@@ -42,6 +42,8 @@ package()
     install -Dm644 -t "$pkgdir/usr/share/licenses/nsweekly" \
         "${srcdir}/${pkgname%-git}/COPYING.txt" \
         "${srcdir}/${pkgname%-git}/licenses/"*
+    install -Dm644 "${srcdir}/${pkgname%-git}/examples/apache_attachments.conf" \
+        "${pkgdir}/usr/share/doc/nsweekly/apache_attachments.conf"
     mkdir -pv "$pkgdir/var/lib/nsweekly"
     cp -r "${srcdir}/${pkgname%-git}/statics" "${srcdir}/${pkgname%-git}/templates" "${pkgdir}/var/lib/nsweekly"
     install -Dm644 -t "$pkgdir/etc" "${srcdir}/nsweekly.yaml"

@@ -46,8 +46,10 @@ unset(BUILD_BENCHMARK)
 FetchContent_Declare(
   libmw
   GIT_REPOSITORY https://github.com/MetroWind/libmw.git
+  GIT_TAG 2d9bcbd
 )
 set(LIBMW_BUILD_HTTP_SERVER ON CACHE BOOL "Build libmw HTTP server")
+set(LIBMW_BUILD_CRYPTO ON CACHE BOOL "Build libmw crypto" FORCE)
 FetchContent_MakeAvailable(libmw)
 
 FetchContent_Declare(
@@ -56,11 +58,20 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(macrodown)
 
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(MAGIC REQUIRED IMPORTED_TARGET libmagic)
+pkg_check_modules(MAGICK REQUIRED IMPORTED_TARGET Magick++)
 find_package(CURL REQUIRED)
 find_package(SQLite3 3.35.0 REQUIRED)
 find_package(cmark REQUIRED)
 
 set(SOURCE_FILES
+  src/attachment/attachment.cpp
+  src/attachment/attachment_data.cpp
+  src/attachment/attachment_files.cpp
+  src/attachment/attachment_service.cpp
+  src/attachment/image_variant.cpp
+  src/attachment/attachment_module.cpp
   src/open_graph.cpp
   src/games/game_review.cpp
   src/games/game_review_data.cpp
@@ -107,6 +118,9 @@ set(SOURCE_FILES
 set(LIBS
   MacroDown::MacroDown
   cxxopts
+  mw::crypto
+  PkgConfig::MAGIC
+  PkgConfig::MAGICK
   mw::http-server
   spdlog::spdlog
   ryml::ryml
@@ -143,6 +157,7 @@ if(BUILD_TESTING)
   FetchContent_MakeAvailable(googletest)
 
   set(TEST_FILES
+    src/attachment/attachment_test.cpp
     src/open_graph_test.cpp
     src/games/game_review_test.cpp
     src/games/game_test.cpp
@@ -191,6 +206,17 @@ if(BUILD_TESTING)
     add_test(NAME ReviewBrowser.ScoreFormula
       COMMAND ${NODE_EXECUTABLE}
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/reviews_score_test.js)
+  endif()
+
+  find_package(Python3 COMPONENTS Interpreter QUIET)
+  find_program(APACHE_EXECUTABLE NAMES httpd apache2)
+  if(Python3_Interpreter_FOUND AND APACHE_EXECUTABLE)
+    add_test(NAME AttachmentApache.DirectServing
+      COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/apache_attachments_test.py
+        ${APACHE_EXECUTABLE})
+    set_tests_properties(AttachmentApache.DirectServing PROPERTIES
+      SKIP_RETURN_CODE 77)
   endif()
 
   include(GoogleTest)

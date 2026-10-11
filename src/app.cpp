@@ -33,6 +33,10 @@ E<std::unique_ptr<App>> App::create(const Configuration& conf,
     app->users = std::move(users);
     app->weeklies = std::move(weeklies);
     app->games = std::move(games);
+    ASSIGN_OR_RETURN(auto attachment_db, SQLite::connectFile(path));
+    app->attachments = std::make_unique<AttachmentService>(
+        std::make_unique<AttachmentDataSqlite>(std::move(attachment_db)), conf);
+    DO_OR_RETURN(app->attachments->initialize());
     app->compose();
     exit_code = 0;
     return app;
@@ -42,9 +46,10 @@ E<std::unique_ptr<App>> App::create(
     const Configuration& conf, std::unique_ptr<AuthInterface> auth,
     std::unique_ptr<UserDataInterface> users,
     std::unique_ptr<WeeklyDataInterface> weeklies,
-    std::unique_ptr<GameDataInterface> games)
+    std::unique_ptr<GameDataInterface> games,
+    std::unique_ptr<AttachmentService> attachments)
 {
-    if(!auth || !users || !weeklies || !games)
+    if(!auth || !users || !weeklies || !games || !attachments)
     {
         return std::unexpected(runtimeError("Missing application dependency"));
     }
@@ -53,6 +58,7 @@ E<std::unique_ptr<App>> App::create(
     app->users = std::move(users);
     app->weeklies = std::move(weeklies);
     app->games = std::move(games);
+    app->attachments = std::move(attachments);
     app->compose();
     return app;
 }
@@ -60,6 +66,8 @@ E<std::unique_ptr<App>> App::create(
 void App::compose()
 {
     sessions = std::make_unique<SessionService>(*auth);
+    attachment_module = std::make_unique<AttachmentModule>(
+        config, *attachments, *sessions, *users);
     auth_module = std::make_unique<AuthModule>(*auth, *sessions);
     weekly_module = std::make_unique<WeeklyModule>(
         config, *weeklies, *sessions);
@@ -125,6 +133,7 @@ void App::setup()
     auth_module->registerRoutes(server);
     weekly_module->registerRoutes(server);
     games_module->registerRoutes(server);
+    attachment_module->registerRoutes(server);
     spdlog::info("Listening at http://{}:{}/...", config.listen_address,
                  config.listen_port);
 }

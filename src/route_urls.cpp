@@ -1,4 +1,5 @@
 #include "route_urls.hpp"
+#include "attachment/attachment.hpp"
 
 std::string weeklyURL(const std::string& arg)
 {
@@ -12,6 +13,8 @@ std::string editURL(const std::string& arg)
 
 std::string urlFor(const std::string& name, const std::string& arg)
 {
+    if(name == "attachments")
+    { return "/attachments/" + attachmentSegment(arg); }
     if(name == "games") { return gamesURL(arg); }
     if(name == "index")
     {

@@ -1,6 +1,7 @@
 #include <fstream>
 #include <gtest/gtest.h>
 #include "app.hpp"
+#include "attachment/attachment_test_support.hpp"
 #include "auth/auth_mock.hpp"
 #include "storage_mock.hpp"
 #include "test_utils.hpp"
@@ -33,8 +34,12 @@ protected:
         games = game_owner.get();
         auto weekly_owner = std::make_unique<WeeklyDataMock>();
         weeklies = weekly_owner.get();
+        ASSIGN_OR_FAIL(auto attachment_owner,
+            testAttachmentService(config,attachment_root));
+        attachments = attachment_owner.get();
         ASSIGN_OR_FAIL(app, App::create(config, std::move(auth_owner),
-            std::move(user_owner), std::move(weekly_owner), std::move(game_owner)));
+            std::move(user_owner), std::move(weekly_owner), std::move(game_owner),
+            std::move(attachment_owner)));
         ASSERT_TRUE(app->start().has_value());
         server_started = true;
         client = std::make_unique<httplib::Client>(
@@ -51,6 +56,8 @@ protected:
         }
     }
 
+    TemporaryDatabase attachment_root;
+    AttachmentService* attachments = nullptr;
     std::unique_ptr<App> app;
     AuthMock* auth = nullptr;
     UserDataMock* users = nullptr;
@@ -236,4 +243,40 @@ TEST_F(Routes, GamesRoutesPublicFormsAndEncodedUsername)
     auto detail = client->Get("/games/alice/1");
     ASSERT_TRUE(detail);
     EXPECT_EQ(detail->status, 404);
+}
+
+TEST_F(Routes, AttachmentRoutesUseInjectedStorageAndRefreshCookies)
+{
+    EXPECT_CALL(*auth,getUser(_)).WillRepeatedly(Return(UserInfo{"","mw"}));
+    EXPECT_CALL(*users,ensureUser("mw")).WillRepeatedly(Return(E<void>{}));
+    EXPECT_CALL(*users,getUserID("mw")).WillRepeatedly(
+        Return(E<std::optional<int64_t>>{1}));
+    ASSIGN_OR_FAIL(auto writer,attachments->beginUpload(1,"<file> café.txt"));
+    ASSERT_TRUE(writer.append("abc"));
+    ASSIGN_OR_FAIL(auto uploaded,writer.finish());
+    auto guest = client->Get("/attachments/mw");
+    ASSERT_TRUE(guest);
+    EXPECT_EQ(guest->status,401);
+    httplib::Headers headers{{"Cookie","access-token=valid"}};
+    auto manager = client->Get("/attachments/mw",headers);
+    ASSERT_TRUE(manager);
+    EXPECT_EQ(manager->status,200);
+    EXPECT_THAT(manager->body,HasSubstr("&lt;file&gt; café.txt"));
+    EXPECT_THAT(manager->body,HasSubstr("Copy URL"));
+    EXPECT_EQ(manager->get_header_value("Cache-Control"),"no-store");
+    auto foreign = client->Get("/attachments/another",headers);
+    ASSERT_TRUE(foreign);
+    EXPECT_EQ(foreign->status,403);
+    auto public_file = client->Get(uploaded.public_url);
+    ASSERT_TRUE(public_file);
+    EXPECT_EQ(public_file->body,"abc");
+    Tokens tokens;
+    tokens.access_token = "access";
+    tokens.refresh_token = "refresh";
+    EXPECT_CALL(*auth,refreshTokens("refresh")).WillOnce(Return(tokens));
+    httplib::Headers refresh{{"Cookie","refresh-token=refresh"}};
+    auto refreshed = client->Get("/attachments/mw",refresh);
+    ASSERT_TRUE(refreshed);
+    EXPECT_EQ(refreshed->status,200);
+    EXPECT_EQ(refreshed->get_header_value_count("Set-Cookie"),2);
 }

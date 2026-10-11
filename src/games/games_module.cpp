@@ -7,7 +7,7 @@
 #include "games/game_markdown.hpp"
 #include "open_graph.hpp"
 #include "route_urls.hpp"
-#include "url.hpp"
+#include "http_adaptation.hpp"
 
 namespace
 {
@@ -41,23 +41,6 @@ void storageError(Response &res, const Error &error)
     }
 }
 
-std::string origin(const std::string &text)
-{
-    auto url = URL::fromStr(text);
-    if(!url || (url->scheme() != "http" && url->scheme() != "https") ||
-       !url->user().empty() || !url->password().empty())
-    {
-        return "";
-    }
-    auto port = url->port();
-    if((url->scheme() == "http" && port == "80") ||
-       (url->scheme() == "https" && port == "443"))
-    {
-        port.clear();
-    }
-    return url->scheme() + "://" + url->host() +
-           (port.empty() ? "" : ":" + port);
-}
 
 E<GameFields> parseFields(const Request &req, bool deletion, bool review = false)
 {
@@ -247,8 +230,8 @@ void GamesModule::handleSession(const Request &req, Response &res,
     {
         const auto supplied = req.get_header_value("Origin");
         if(req.get_header_value_count("Origin") != 1 || supplied.empty() ||
-           supplied != origin(supplied) ||
-           origin(supplied) != origin(config.url_prefix))
+           supplied != httpOrigin(supplied) ||
+           httpOrigin(supplied) != httpOrigin(config.url_prefix))
         {
             htmlError(res, 403);
             return;
@@ -494,6 +477,7 @@ void GamesModule::render(Response &res, const std::string &user,
             "Game tracking, play status, and notes by " + user + ".")},
         {"username", gameEscape(user)},
         {"session_user", gameEscape(session_user)},
+        {"attachments_url", gameEscape(urlFor("attachments", session_user))},
         {"is_owner", !session_user.empty() && session_user == user},
         {"table_url", gameEscape(table_url)},
         {"weekly_url", gameEscape(weeklyURL(user))},
@@ -705,6 +689,7 @@ void GamesModule::handleReviews(const Request &req, Response &res,
             "Game reviews and dimension scores by " + user + ".")},
         {"username", gameEscape(user)},
         {"session_user", gameEscape(session_user)},
+        {"attachments_url", gameEscape(urlFor("attachments", session_user))},
         {"is_owner", !session_user.empty() && session_user == user},
         {"table_url", gameEscape(tracker_url)},
         {"weekly_url", gameEscape(weeklyURL(user))},
@@ -754,8 +739,8 @@ void GamesModule::receive(const Request &req, Response &res,
     }
     const auto supplied = req.get_header_value("Origin");
     if(req.get_header_value_count("Origin") != 1 || supplied.empty() ||
-       supplied != origin(supplied) ||
-       origin(supplied) != origin(config.url_prefix))
+       supplied != httpOrigin(supplied) ||
+       httpOrigin(supplied) != httpOrigin(config.url_prefix))
     {
         htmlError(res, 403);
         return;

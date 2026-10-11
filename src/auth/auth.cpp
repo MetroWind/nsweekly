@@ -142,12 +142,14 @@ std::string AuthOpenIDConnect::initialURL() const
 
 E<HTTPResponse> AuthOpenIDConnect::initiate() const
 {
+    std::lock_guard lock(http_mutex);
     E<const HTTPResponse*> res = http_client->get(initialURL());
     return res.transform([](const auto* r) { return *r; });
 }
 
 E<Tokens> AuthOpenIDConnect::authenticate(std::string_view code) const
 {
+    std::lock_guard lock(http_mutex);
     // TODO: support client with public access type (no client
     // secret).
     std::string payload = std::format(
@@ -171,6 +173,7 @@ E<Tokens> AuthOpenIDConnect::authenticate(std::string_view code) const
 
 E<UserInfo> AuthOpenIDConnect::getUser(const Tokens& tokens) const
 {
+    std::lock_guard lock(http_mutex);
     ASSIGN_OR_RETURN(const HTTPResponse* res, http_client->get(
         HTTPRequest(endpoint_user_info).addHeader(
             "Authorization", std::string("Bearer ") +
@@ -197,6 +200,7 @@ E<UserInfo> AuthOpenIDConnect::getUser(const Tokens& tokens) const
 
 E<Tokens> AuthOpenIDConnect::refreshTokens(std::string_view refresh_token) const
 {
+    std::lock_guard lock(http_mutex);
     std::string token_payload = std::format(
         "client_id={}"
         "&client_secret={}"

@@ -84,6 +84,7 @@ void WeeklyModule::handleUserWeeklies(
     nlohmann::json data{{ "weeklies", std::move(weeklies_json) },
                         { "username", username },
                         { "session_user", session_user },
+                        { "attachments_url", urlFor("attachments", session_user) },
                         { "this_url", req.target },
     };
     data["open_graph"] = openGraph(config.url_prefix,
@@ -119,6 +120,7 @@ void WeeklyModule::handleUserWeekly(
     nlohmann::json data{{ "weekly", std::move(weekly_json) },
                         { "username", username },
                         { "session_user", session_user },
+                        { "attachments_url", urlFor("attachments", session_user) },
                         { "this_url", req.target },
     };
     data["open_graph"] = openGraph(config.url_prefix,
@@ -167,7 +169,8 @@ void WeeklyModule::handleEditFrontEnd(
         return;
     }
     nlohmann::json data{{"weekly", weeklyToJSON(std::move(weekly)[0], false)},
-                        {"session_user", session_user}};
+                        {"session_user", session_user},
+                        {"attachments_url", urlFor("attachments", session_user)}};
     data["open_graph"] = openGraph(config.url_prefix,
         username + "’s Weekly for " +
             data["weekly"]["week_str"].get<std::string>(),

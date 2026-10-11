@@ -3,6 +3,7 @@
 #include <gmock/gmock.h>
 
 #include "app.hpp"
+#include "attachment/attachment_test_support.hpp"
 #include "auth/auth_mock.hpp"
 #include "storage_mock.hpp"
 #include "route_urls.hpp"
@@ -14,13 +15,15 @@ using ::testing::HasSubstr;
 TEST(App, StartsAndStopsServerThread)
 {
     Configuration config{};
+    TemporaryDatabase attachment_root;
+    ASSIGN_OR_FAIL(auto attachments, testAttachmentService(config,attachment_root));
     config.data_dir = NSWEEKLY_SOURCE_DIR;
     config.listen_address = "127.0.0.1";
     config.listen_port = 0;
     ASSIGN_OR_FAIL(auto app, App::create(config,
         std::make_unique<AuthMock>(), std::make_unique<UserDataMock>(),
         std::make_unique<WeeklyDataMock>(),
-        std::make_unique<GameDataMock>()));
+        std::make_unique<GameDataMock>(), std::move(attachments)));
 
     auto started = app->start();
     app->stop();
@@ -31,6 +34,8 @@ TEST(App, StartsAndStopsServerThread)
 TEST(App, IndexCanRedirectWhenLoggedIn)
 {
     Configuration config{};
+    TemporaryDatabase attachment_root;
+    ASSIGN_OR_FAIL(auto attachments, testAttachmentService(config,attachment_root));
     auto auth = std::make_unique<AuthMock>();
     Tokens expected_tokens;
     expected_tokens.access_token = "aaa";
@@ -44,7 +49,7 @@ TEST(App, IndexCanRedirectWhenLoggedIn)
     ASSIGN_OR_FAIL(auto weekly_db, SQLite::connectMemory());
     auto weeklies = std::make_unique<WeeklyDataSqlite>(std::move(weekly_db));
     ASSIGN_OR_FAIL(auto app, App::create(config, std::move(auth),
-        std::move(users), std::move(weeklies), std::make_unique<GameDataMock>()));
+        std::move(users), std::move(weeklies), std::make_unique<GameDataMock>(), std::move(attachments)));
 
     mw::HTTPServer::Request http_req;
     http_req.set_header("Cookie", "access-token=aaa");
@@ -57,6 +62,8 @@ TEST(App, IndexCanRedirectWhenLoggedIn)
 TEST(App, IndexCanRedirectWhenNotLoggedIn)
 {
     Configuration config{};
+    TemporaryDatabase attachment_root;
+    ASSIGN_OR_FAIL(auto attachments, testAttachmentService(config,attachment_root));
     config.guest_index = GuestIndex::USER_WEEKLY;
     config.guest_index_user = "mw";
 
@@ -67,7 +74,7 @@ TEST(App, IndexCanRedirectWhenNotLoggedIn)
     ASSIGN_OR_FAIL(auto weekly_db, SQLite::connectMemory());
     auto weeklies = std::make_unique<WeeklyDataSqlite>(std::move(weekly_db));
     ASSIGN_OR_FAIL(auto app, App::create(config, std::move(auth),
-        std::move(users), std::move(weeklies), std::make_unique<GameDataMock>()));
+        std::move(users), std::move(weeklies), std::make_unique<GameDataMock>(), std::move(attachments)));
 
     mw::HTTPServer::Request http_req;
     mw::HTTPServer::Response res;
@@ -80,6 +87,8 @@ TEST(App, IndexCanRedirectWhenNotLoggedIn)
 TEST(App, IndexCanRefreshToken)
 {
     Configuration config{};
+    TemporaryDatabase attachment_root;
+    ASSIGN_OR_FAIL(auto attachments, testAttachmentService(config,attachment_root));
     config.guest_index = GuestIndex::USER_WEEKLY;
     config.guest_index_user = "mw";
     Tokens expected_tokens_after_refresh;
@@ -99,7 +108,7 @@ TEST(App, IndexCanRefreshToken)
     ASSIGN_OR_FAIL(auto weekly_db, SQLite::connectMemory());
     auto weeklies = std::make_unique<WeeklyDataSqlite>(std::move(weekly_db));
     ASSIGN_OR_FAIL(auto app, App::create(config, std::move(auth),
-        std::move(users), std::move(weeklies), std::make_unique<GameDataMock>()));
+        std::move(users), std::move(weeklies), std::make_unique<GameDataMock>(), std::move(attachments)));
 
     mw::HTTPServer::Request req;
     req.set_header("Cookie", "refresh-token=bbb");
@@ -117,9 +126,11 @@ using ::testing::_;
 TEST(App, InjectionRequiresAllDependencies)
 {
     Configuration config{};
+    TemporaryDatabase attachment_root;
+    ASSIGN_OR_FAIL(auto attachments, testAttachmentService(config,attachment_root));
     auto app = App::create(config, nullptr,
         std::make_unique<UserDataMock>(), std::make_unique<WeeklyDataMock>(),
-        std::make_unique<GameDataMock>());
+        std::make_unique<GameDataMock>(), std::move(attachments));
     ASSERT_FALSE(app);
     EXPECT_EQ(errorMsg(app.error()), "Missing application dependency");
 }
@@ -127,6 +138,8 @@ TEST(App, InjectionRequiresAllDependencies)
 TEST(App, FailedRefreshFallsBackToGuestLookup)
 {
     Configuration config{};
+    TemporaryDatabase attachment_root;
+    ASSIGN_OR_FAIL(auto attachments, testAttachmentService(config,attachment_root));
     config.guest_index_user = "guest";
     auto auth = std::make_unique<AuthMock>();
     EXPECT_CALL(*auth, refreshTokens("expired")).WillOnce(Return(
@@ -136,7 +149,7 @@ TEST(App, FailedRefreshFallsBackToGuestLookup)
         .WillOnce(Return(std::optional<int64_t>{7}));
     ASSIGN_OR_FAIL(auto app, App::create(config, std::move(auth),
         std::move(users), std::make_unique<WeeklyDataMock>(),
-        std::make_unique<GameDataMock>()));
+        std::make_unique<GameDataMock>(), std::move(attachments)));
     mw::HTTPServer::Request req;
     req.set_header("Cookie", "refresh-token=expired");
     mw::HTTPServer::Response res;
@@ -149,6 +162,8 @@ TEST(App, FailedRefreshFallsBackToGuestLookup)
 TEST(App, InvalidPrefixFailsBeforeOpeningDependencies)
 {
     Configuration config{};
+    TemporaryDatabase attachment_root;
+    ASSIGN_OR_FAIL(auto attachments, testAttachmentService(config,attachment_root));
     config.url_prefix = "not a URL";
     int exit_code = 0;
     EXPECT_FALSE(App::create(config, exit_code));

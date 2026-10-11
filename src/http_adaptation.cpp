@@ -1,3 +1,4 @@
+#include "url.hpp"
 #include "http_adaptation.hpp"
 
 void copyToHttplibReq(const HTTPRequest& src, httplib::Request& dest)
@@ -19,3 +20,21 @@ void copyToHttplibReq(const HTTPRequest& src, httplib::Request& dest)
     }
 }
 
+
+std::string httpOrigin(const std::string &text)
+{
+    auto url = URL::fromStr(text);
+    if(!url || (url->scheme() != "http" && url->scheme() != "https") ||
+       !url->user().empty() || !url->password().empty())
+    {
+        return "";
+    }
+    auto port = url->port();
+    if((url->scheme() == "http" && port == "80") ||
+       (url->scheme() == "https" && port == "443"))
+    {
+        port.clear();
+    }
+    return url->scheme() + "://" + url->host() +
+           (port.empty() ? "" : ":" + port);
+}

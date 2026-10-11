@@ -261,3 +261,74 @@ image URLs use `url-prefix`, so configure it to the public address. Query
 parameters and fragments are omitted from canonical metadata URLs. Editor
 and confirmation pages identify the corresponding public page; metadata
 never contains unsaved form text or browser-calculated overall scores.
+
+
+== Shared public attachments
+
+The Attachments navigation link opens the logged-in account's manager.
+Upload and deletion work without JavaScript. Every file is public; ownership
+only limits listing and deletion. Duplicate uploads with the same exact
+basename return the owner's existing record and upload date. Different names
+or owners have separate records sharing one immutable file.
+
+Configuration keys (all optional):
+
+* `attachment-dir`: defaults to `<data-dir>/attachments`.
+* `attachment-upload-limit`: maximum file bytes; absent means no application
+  cap, and zero permits only empty files. Proxy/HTTP transport limits apply
+  independently; configure those to match the intended deployment.
+* `attachment-image-pixels`: maximum decoded source pixels, default 64000000
+  (allowed 1–1000000000).
+* `attachment-image-dimension`: maximum requested width/height, default 16384
+  (allowed 1–65536).
+* `attachment-image-concurrency`: simultaneous conversions, default 2
+  (allowed 1–64).
+
+System dependencies include libmagic and Magick++ through pkg-config, and
+libmw crypto at revision `2d9bcbd` or newer. ImageMagick is initialized once
+with 256 MiB memory, 512 MiB mapped cache, 1 GiB disk cache and two library
+threads. The system ImageMagick policy can impose stricter limits. Conversion
+supports single-frame JPEG, PNG and WebP only. Unsupported or oversized
+images remain valid original attachments. Upload never converts automatically.
+
+Consumers borrow `AttachmentService`. Call `beginUpload(user_id, filename)`,
+append binary chunks to the move-only writer, then call `finish()`. Use
+`listAttachments`, `getAttachment` and `deleteAttachment` for owner records.
+Call `ensureImageVariant(user_id, record_id, {1280, 720, 80, "webp"})` for a
+cached image fitting that bounding box, without enlargement. Its returned URL
+serves persisted bytes directly. Errors use `E<>`; conversion errors leave
+the original intact. No public transformation endpoint is exposed.
+
+Deploy the binary and recursive templates/statics together. Give the
+application write access to the attachment directory and Apache read/traverse
+access. Published files live at `<root>/<first-two-hex>/<32-hex-hash>`; staging
+is never public. Use `examples/apache_attachments.conf` before the catch-all
+proxy mapping. It sets passive raster MIME types from a narrow URL suffix
+allowlist and makes everything else an octet-stream download with nosniff.
+The application fallback probes MIME and sends encoded RFC 6266 filenames,
+including UTF-8 `filename*`. Apache derives the download name from the URL;
+verify exact saved names in Firefox and Chromium for your deployment,
+including Unicode, spaces, percent signs and quotes. The example intentionally
+has no unverified encoding-aware filename header rule.
+
+Check upload, guest GET/HEAD download and a consumer-requested image variant
+before rollout. Apache should still serve published files while the backend
+is stopped, support ranges/validators, and deny staging/index access. Public
+responses cache for one hour. Deletion may break embedded links, other owners
+can retain shared bytes, and downloaded/cached copies can survive deletion.
+Purge a CDN separately when earlier cache removal is needed.
+
+Back up SQLite and the attachment directory in one coordinated snapshot or
+with the application stopped. Startup clears abandoned staging, retries queued
+cleanup, removes published orphans and reports missing/corrupt known files
+without deleting owner records. Only one process should mutate a shared root;
+multiple process coordination is outside the attachment service's scope.
+
+
+Run `python3 tests/smoke_test.py build/nsweekly` for isolated production
+coverage, including attachment streaming, authorization, filenames, binary
+GET/HEAD, ranges, size rejection and deletion. Run
+`python3 tests/apache_attachments_test.py` on an Apache installation to test
+the shipped direct-serving policy with the application stopped; exit 77
+means Apache is unavailable. Browser save-name checks remain a deployment
+check in Firefox and Chromium.

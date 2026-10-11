@@ -1,5 +1,8 @@
 #include <memory>
 #include <chrono>
+#include <atomic>
+#include <future>
+#include <thread>
 
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
@@ -425,4 +428,36 @@ TEST(Auth, CanRefreshTokens)
     EXPECT_EQ(tokens->refresh_token, "bbb");
     using namespace std::literals;
     EXPECT_LT(std::chrono::abs(*(tokens->expiration) - (Clock::now() + 1h)), 1s);
+}
+
+
+TEST(Auth, SerializesSharedHttpSessionAcrossConcurrentRequests)
+{
+    auto http = std::make_unique<HTTPSessionMock>();
+    HTTPResponse response(200,R"({"sub":"one","preferred_username":"alice"})");
+    std::atomic<int> active{0};
+    std::atomic<bool> overlapped{false};
+    EXPECT_CALL(*http,get(::testing::_)).Times(12).WillRepeatedly(
+        [&](const HTTPRequest&) -> E<const HTTPResponse*>
+        {
+            if(active.fetch_add(1) != 0) { overlapped = true; }
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
+            --active;
+            return &response;
+        });
+    Configuration config{};
+    AuthOpenIDConnect auth(config,"http://localhost/",std::move(http));
+    std::vector<std::future<E<UserInfo>>> requests;
+    for(int i = 0; i < 12; ++i)
+    {
+        requests.push_back(std::async(std::launch::async,[&auth]
+        { return auth.getUser(Tokens{}); }));
+    }
+    for(auto& request: requests)
+    {
+        auto user = request.get();
+        ASSERT_TRUE(user);
+        EXPECT_EQ(user->name,"alice");
+    }
+    EXPECT_FALSE(overlapped);
 }

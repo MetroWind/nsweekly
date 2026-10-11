@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en" prefix="og: https://ogp.me/ns#">
+<head>
+{% include "../head_common.html" %}
+{% include "../open_graph.html" %}
+<title>Delete attachment</title>
+<link rel="stylesheet" href="/statics/attachment/attachments.css">
+</head><body><main>
+{% include "../nav.html" %}
+<h1>Delete attachment?</h1>
+{% for item in attachments %}
+<p>{{ item.name }}</p>
+<p>Deletion may break embedded links. Other owners can keep shared contents
+available, and public caches may retain downloaded bytes.</p>
+<form action="{{ item.delete_url }}" method="post">
+<button type="submit">Delete attachment</button>
+<a href="{{ manager_url }}">Cancel</a>
+</form>
+{% endfor %}
+</main></body></html>

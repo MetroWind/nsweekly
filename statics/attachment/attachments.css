@@ -1,0 +1,14 @@
+body { font-family: Inter, sans-serif; margin: 0; color: #20252b; }
+main { max-width: 64rem; margin: 2rem auto; padding: 0 1rem; }
+nav, .ModuleLinks, .NavAccount { display: flex; gap: 1rem; flex-wrap: wrap; }
+nav { justify-content: space-between; margin-bottom: 2rem; }
+[aria-current="page"] { font-weight: bold; }
+form { display: flex; gap: 1rem; flex-wrap: wrap; align-items: center; }
+button, input { font: inherit; max-width: 100%; }
+button { padding: .4rem .8rem; cursor: pointer; }
+.Attachments { list-style: none; padding: 0; }
+.Attachments li { border-top: 1px solid #ccd2d8; padding: 1rem 0; }
+.Attachments strong { white-space: pre-wrap; overflow-wrap: anywhere; }
+.PublicURL { display: block; overflow-wrap: anywhere; margin: .5rem 0; }
+a { color: #1760a8; }
+:focus-visible { outline: 3px solid #d77913; outline-offset: 3px; }

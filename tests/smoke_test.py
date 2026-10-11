@@ -129,6 +129,116 @@ def start(binary, config, port, log):
     raise RuntimeError("Startup did not become ready")
 
 
+def attachmentSmoke(port, cookie, db_path, data_dir):
+    """Exercise streaming attachment routes and public binary serving."""
+    import hashlib
+    from urllib.parse import quote
+
+    origin = f"http://127.0.0.1:{port}"
+
+    def send(path, method="GET", body=None, headers=None):
+        connection = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+        try:
+            connection.request(method, path, body, headers or {})
+            response = connection.getresponse()
+            return response.status, dict(response.getheaders()), response.read()
+        finally:
+            connection.close()
+
+    def upload(parts, extra_headers=None):
+        boundary = "nsweekly_smoke_boundary"
+        body = b""
+        for field, name, contents in parts:
+            body += (f"--{boundary}\r\nContent-Disposition: form-data; "
+                     f'name="{field}"; filename="{name}"\r\n'
+                     "Content-Type: text/html\r\n\r\n").encode() + contents + b"\r\n"
+        body += f"--{boundary}--\r\n".encode()
+        headers = {"Cookie": cookie, "Origin": origin,
+                   "Content-Type": f"multipart/form-data; boundary={boundary}"}
+        headers.update(extra_headers or {})
+        return send("/attachments/mw/upload", "POST", body, headers)
+
+    assert send("/attachments")[0] == 308
+    assert send("/attachments/")[1]["Location"] == "/login"
+    assert send("/attachments/mw")[0] == 401
+    auth = {"Cookie": cookie}
+    assert send("/attachments/", headers=auth)[1]["Location"] == "/attachments/mw"
+    assert send("/attachments/other", headers=auth)[0] == 403
+    assert send("/attachments/mw/upload", "POST", b"", auth)[0] == 403
+    assert send("/attachments/mw/upload", "POST", b"",
+                {**auth, "Origin": origin, "Content-Type": "text/plain"})[0] == 415
+    assert upload([])[0] == 400
+    assert upload([("file", "", b"")])[0] == 400
+    assert upload([("other", "file", b"abc")])[0] == 400
+    assert upload([("file", "a", b"abc"), ("file", "b", b"abc")])[0] == 400
+    assert upload([("file", "..", b"abc")])[0] == 422
+    assert upload([("file", "a", b"abc")], {"Origin": "http://evil.example"})[0] == 403
+    assert upload([("file", "oversized", b"x" * 2048)])[0] == 413
+    assert upload([("file", "a", b"abc")],
+                  {"Origin": origin + ", " + origin})[0] == 403
+    # Disconnect after file data, before the closing multipart boundary.
+    partial = socket.create_connection(("127.0.0.1", port), timeout=5)
+    partial.sendall((f"POST /attachments/mw/upload HTTP/1.1\r\n"
+                    f"Host: 127.0.0.1:{port}\r\nCookie: {cookie}\r\n"
+                    f"Origin: {origin}\r\nContent-Length: 1024\r\n"
+                    "Content-Type: multipart/form-data; boundary=partial\r\n\r\n"
+                    "--partial\r\nContent-Disposition: form-data; "
+                    'name="file"; filename="interrupted"\r\n\r\npartial').encode())
+    partial.close()
+    name = 'café 😀 100%.html'
+    contents = b"<script>alert('public bytes')</script>\x00\xff"
+    uploaded = upload([("file", name, contents)])
+    assert uploaded[0] == 303, uploaded
+    assert uploaded[1]["Location"].endswith("status=uploaded")
+    duplicate = upload([("file", name, contents)])
+    assert duplicate[0] == 303, duplicate
+    assert duplicate[1]["Location"].endswith("status=duplicate")
+    manager = send("/attachments/mw?status=%3Cscript%3E", headers=auth)
+    assert manager[0] == 200, manager
+    assert manager[1]["Cache-Control"] == "no-store"
+    assert name.encode() in manager[2]
+    assert b"<script>" not in manager[2]
+    assert b"All attachments are public" in manager[2]
+    checkOpenGraph(manager[2].decode(), port, "/attachments/mw")
+    digest = hashlib.sha256(contents).hexdigest()[:32]
+    stored = data_dir / "attachments" / digest[:2] / digest
+    assert stored.read_bytes() == contents
+    public = "/attachment/" + digest + "/" + quote(name, safe="")
+    downloaded = send(public)
+    assert downloaded[0] == 200, downloaded
+    assert downloaded[2] == contents
+    assert downloaded[1]["Content-Type"] == "application/octet-stream"
+    assert downloaded[1]["X-Content-Type-Options"] == "nosniff"
+    assert "filename*=UTF-8''" + quote(name, safe="") in downloaded[1]["Content-Disposition"]
+    head = send(public, "HEAD")
+    assert head[0] == 200 and head[2] == b""
+    assert int(head[1]["Content-Length"]) == len(contents)
+    assert send(public, headers={"If-None-Match": downloaded[1]["ETag"]})[0] == 304
+    assert send(public, headers={"Range": "bytes=1-3"})[2] == contents[1:4]
+    assert send("/attachment/" + digest + "/different.pdf")[2] == contents
+    quoted = send("/attachment/" + digest + "/" + quote('a "quote" %.txt', safe=""))
+    assert "filename*=UTF-8''a%20%22quote%22%20%25.txt" in quoted[1]["Content-Disposition"]
+    assert send("/attachment/" + digest + "/a%2Fb")[0] == 400
+    assert send("/attachment/" + digest + "/a%5Cb")[0] == 400
+    assert send("/attachment/" + digest + "/%00bad")[0] == 400
+    with sqlite3.connect(db_path) as db:
+        attachment_id = db.execute("SELECT id FROM Attachments").fetchone()[0]
+        assert db.execute("SELECT count(*) FROM Attachments").fetchone() == (1,)
+    deletion = f"/attachments/mw/{attachment_id}/delete"
+    assert send(deletion, headers=auth)[0] == 200
+    assert send("/attachments/mw/no/delete", headers=auth)[0] == 400
+    assert send("/attachments/mw/99999/delete", headers=auth)[0] == 404
+    removed = send(deletion, "POST", b"", {**auth, "Origin": origin,
+                   "Content-Type": "application/x-www-form-urlencoded"})
+    assert removed[0] == 303, removed
+    assert send(public)[0] == 404
+    assert not stored.exists()
+    empty = upload([("file", "empty", b"")])
+    assert empty[0] == 303, empty
+    assert send("/attachment/e3b0c44298fc1c149afbf4c8996fb924/empty")[2] == b""
+    assert list((data_dir / "attachments" / ".staging").iterdir()) == []
+
+
 def main():
     """Verify production wiring, persistence, and startup failures."""
     binary = str(Path(sys.argv[1]).resolve())
@@ -154,7 +264,7 @@ def main():
                     f"http://127.0.0.1:{provider.server_port}",
                 "url-prefix": f"http://127.0.0.1:{port}",
                 "guest-index": "user-weekly", "guest-index-user": "mw",
-                "default-lang": "en-US",
+                "default-lang": "en-US", "attachment-upload-limit": 1024,
             }
             config.write_text("".join(
                 f"{key}: {json.dumps(value)}\n"
@@ -224,6 +334,7 @@ def main():
                     assert request(port, "/games/unknown")[0] == 404
                     assert request(port, "/games/mw/new")[0] == 401
                     cookie = "access-token=access"
+                    attachmentSmoke(port, cookie, db_path, data_dir)
                     assert request(port, "/games/mw/new", cookie=cookie)[0] == 200
                     created = request(port, "/games/mw/new", "POST",
                         urlencode({"name": "Smoke Game", "status": "now_playing",
@@ -419,7 +530,7 @@ def main():
                 assert subprocess.run([binary, "--help"],
                     capture_output=True).returncode == 0
                 print("Production smoke passed: login, guest, pages, preview, "
-                      "save, refresh, reopen, games and reviews CRUD/import, and startup exit codes.")
+                      "save, refresh, reopen, games and reviews CRUD/import, attachments, and startup exit codes.")
     finally:
         provider.shutdown()
         provider_thread.join()

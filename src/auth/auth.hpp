@@ -7,6 +7,7 @@
 
 #include "error.hpp"
 #include "http_client.hpp"
+#include <mutex>
 #include "config.hpp"
 #include "utils.hpp"
 
@@ -76,6 +77,8 @@ private:
     std::string endpoint_user_info;
 
     const std::string redirection_url;
+    // Covers both CURL requests and consumption of the borrowed response.
+    mutable std::mutex http_mutex;
     std::unique_ptr<HTTPSessionInterface> http_client;
     const Configuration& config;
 };
