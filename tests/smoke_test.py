@@ -449,6 +449,12 @@ def main():
                     assert oversized[0] == 413, oversized[0]
                 finally:
                     stop(process)
+                # Reopen with a legacy config omitting every attachment key.
+                legacy_values = {key: value for key, value in values.items()
+                                 if not key.startswith("attachment-")}
+                config.write_text("".join(
+                    f"{key}: {json.dumps(value)}\n"
+                    for key, value in legacy_values.items()))
                 process = start(binary, config, port, log)
                 try:
                     reopened = request(port, f"/weekly/mw/{date}")

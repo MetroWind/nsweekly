@@ -157,6 +157,7 @@ if(BUILD_TESTING)
   FetchContent_MakeAvailable(googletest)
 
   set(TEST_FILES
+    src/config_test.cpp
     src/attachment/attachment_test.cpp
     src/open_graph_test.cpp
     src/games/game_review_test.cpp

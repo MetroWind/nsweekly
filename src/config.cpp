@@ -31,6 +31,10 @@ E<std::vector<char>> readFile(const std::filesystem::path& path)
 template<class T>
 bool getYamlValue(ryml::ConstNodeRef node, T& result)
 {
+    if(!node.has_val() || node.val_is_null())
+    {
+        return false;
+    }
     auto value = node.val();
     auto status = std::from_chars(value.begin(), value.end(), result);
     return status.ec == std::errc() && status.ptr == value.end();
@@ -47,47 +51,61 @@ E<Configuration> Configuration::fromYaml(const std::filesystem::path& path)
     }
 
     ryml::Tree tree = ryml::parse_in_place(ryml::to_substr(*buffer));
-    Configuration config;
-    if(tree["data-dir"].has_key())
+    if(tree.empty() || !tree.crootref().is_map())
     {
-        auto value = tree["data-dir"].val();
+        return std::unexpected(runtimeError("Configuration must be a YAML map"));
+    }
+    const auto root = tree.crootref();
+    // Check membership before indexing: a missing NodeRef is unreadable.
+    for(const auto child: root.children())
+    {
+        if(!child.has_val() || child.val_is_null())
+        {
+            return std::unexpected(runtimeError(
+                "Configuration values must be non-null scalars"));
+        }
+    }
+    Configuration config{};
+    if(root.has_child("data-dir"))
+    {
+        auto value = root["data-dir"].val();
         config.data_dir = std::string(value.begin(), value.end());
     }
-    if(tree["listen-address"].has_key())
+    if(root.has_child("listen-address"))
     {
-        auto value = tree["listen-address"].val();
+        auto value = root["listen-address"].val();
         config.listen_address = std::string(value.begin(), value.end());
     }
-    if(tree["listen-port"].has_key())
+    if(root.has_child("listen-port"))
     {
-        if(!getYamlValue(tree["listen-port"], config.listen_port))
+        if(!getYamlValue(root["listen-port"], config.listen_port))
         {
             return std::unexpected(runtimeError("Invalid port"));
         }
     }
-    if(tree["client-id"].has_key())
+    if(root.has_child("client-id"))
     {
-        auto value = tree["client-id"].val();
+        auto value = root["client-id"].val();
         config.client_id = std::string(value.begin(), value.end());
     }
-    if(tree["client-secret"].has_key())
+    if(root.has_child("client-secret"))
     {
-        auto value = tree["client-secret"].val();
+        auto value = root["client-secret"].val();
         config.client_secret = std::string(value.begin(), value.end());
     }
-    if(tree["openid-url-prefix"].has_key())
+    if(root.has_child("openid-url-prefix"))
     {
-        auto value = tree["openid-url-prefix"].val();
+        auto value = root["openid-url-prefix"].val();
         config.openid_url_prefix = std::string(value.begin(), value.end());
     }
-    if(tree["url-prefix"].has_key())
+    if(root.has_child("url-prefix"))
     {
-        auto value = tree["url-prefix"].val();
+        auto value = root["url-prefix"].val();
         config.url_prefix = std::string(value.begin(), value.end());
     }
-    if(tree["guest-index"].has_key())
+    if(root.has_child("guest-index"))
     {
-        auto value_bytes = tree["guest-index"].val();
+        auto value_bytes = root["guest-index"].val();
         std::string value(value_bytes.begin(), value_bytes.end());
         if(value == "user-weekly")
         {
@@ -98,38 +116,38 @@ E<Configuration> Configuration::fromYaml(const std::filesystem::path& path)
             return std::unexpected(runtimeError("Invalid guest-index"));
         }
     }
-    if(tree["guest-index-user"].has_key())
+    if(root.has_child("guest-index-user"))
     {
-        auto value = tree["guest-index-user"].val();
+        auto value = root["guest-index-user"].val();
         config.guest_index_user = std::string(value.begin(), value.end());
     }
-    if(tree["default-lang"].has_key())
+    if(root.has_child("default-lang"))
     {
-        auto value = tree["default-lang"].val();
+        auto value = root["default-lang"].val();
         config.default_lang = std::string(value.begin(), value.end());
     }
-    if(tree["attachment-dir"].has_key())
+    if(root.has_child("attachment-dir"))
     {
-        auto value = tree["attachment-dir"].val();
+        auto value = root["attachment-dir"].val();
         config.attachment_dir.assign(value.begin(), value.end());
         if(config.attachment_dir.empty())
         { return std::unexpected(runtimeError("Empty attachment-dir")); }
     }
-    if(tree["attachment-upload-limit"].has_key())
+    if(root.has_child("attachment-upload-limit"))
     {
         uint64_t value;
-        if(!getYamlValue(tree["attachment-upload-limit"],value))
+        if(!getYamlValue(root["attachment-upload-limit"],value))
         { return std::unexpected(runtimeError("Invalid attachment-upload-limit")); }
         config.attachment_upload_limit = value;
     }
-    if(tree["attachment-image-pixels"].has_key() &&
-       !getYamlValue(tree["attachment-image-pixels"],config.attachment_image_pixels))
+    if(root.has_child("attachment-image-pixels") &&
+       !getYamlValue(root["attachment-image-pixels"],config.attachment_image_pixels))
     { return std::unexpected(runtimeError("Invalid attachment-image-pixels")); }
-    if(tree["attachment-image-dimension"].has_key() &&
-       !getYamlValue(tree["attachment-image-dimension"],config.attachment_image_dimension))
+    if(root.has_child("attachment-image-dimension") &&
+       !getYamlValue(root["attachment-image-dimension"],config.attachment_image_dimension))
     { return std::unexpected(runtimeError("Invalid attachment-image-dimension")); }
-    if(tree["attachment-image-concurrency"].has_key() &&
-       !getYamlValue(tree["attachment-image-concurrency"],config.attachment_image_concurrency))
+    if(root.has_child("attachment-image-concurrency") &&
+       !getYamlValue(root["attachment-image-concurrency"],config.attachment_image_concurrency))
     { return std::unexpected(runtimeError("Invalid attachment-image-concurrency")); }
     if(config.attachment_image_pixels == 0 ||
        config.attachment_image_pixels > 1000000000 ||
