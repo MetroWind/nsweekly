@@ -19,12 +19,12 @@
 <h2>Game notes</h2>
 <form id="NotesForm" method="post">
 <label for="GameName">Name</label><input id="GameName" name="name" value="Game">
-<label for="GameNotes">Notes (MacroDown)</label>
+<label for="GameNotes">Notes (Markdown)</label>
 <textarea id="GameNotes" data-markdown-editor name="notes"
  aria-describedby="ErrorNotes">**Original 日本語**
 %code{source}</textarea>
 <span id="ErrorNotes" class="FieldError">Fixture validation error.</span>
-<p>Preview shows standard Markdown. MacroDown macros render after saving.</p>
+<p>Preview shows standard Markdown. Macros render after saving.</p>
 <button type="submit">Save</button>
 </form></dialog>
 <div class="ReviewEditor">
@@ -36,11 +36,11 @@
 <input data-review-score name="audio" type="number" value="5" aria-label="Audio">
 <input data-review-score name="special" type="number" value="5" aria-label="Special">
 <p>Overall: <output id="ReviewScore">Incomplete</output></p>
-<label for="ReviewText">Review (optional, MacroDown)</label>
+<label for="ReviewText">Review (optional, Markdown)</label>
 <textarea id="ReviewText" data-markdown-editor name="text"
  aria-describedby="Error-text">Original review</textarea>
 <span id="Error-text" class="FieldError"></span>
-<p>Preview shows standard Markdown. MacroDown macros render after saving.</p>
+<p>Preview shows standard Markdown. Macros render after saving.</p>
 <button type="submit">Save</button>
 </form>
 <aside class="ReviewRubric"><h2>Review scoring rubric</h2>

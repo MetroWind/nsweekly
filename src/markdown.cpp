@@ -10,12 +10,12 @@ E<std::string> renderMarkdown(const std::string &source)
         auto root = processor.parse(source);
         if(!root)
         {
-            return std::unexpected(runtimeError("MacroDown parse failed"));
+            return std::unexpected(runtimeError("Markdown parse failed"));
         }
         return processor.render(*root);
     }
     catch(const std::exception &)
     {
-        return std::unexpected(runtimeError("MacroDown rendering failed"));
+        return std::unexpected(runtimeError("Markdown rendering failed"));
     }
 }

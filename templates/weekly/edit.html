@@ -14,7 +14,7 @@
       <div id="EditAndPreview">
         <form id="EditView" action="{{ url_for("edit", session_user + "/" + weekly.date_str) }}" method="post">
           <div>
-            <label for="WeeklyContent">Weekly post (MacroDown)</label>
+            <label for="WeeklyContent">Weekly post (Markdown)</label>
             <textarea id="WeeklyContent" data-markdown-editor
               data-external-preview name="content">{{ weekly.content }}</textarea>
           </div>

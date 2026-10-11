@@ -25,10 +25,10 @@
       <span class="FieldError" id="Error-{{ dimension.key }}">{{ dimension.error }}</span>
       {% endfor %}
       <p class="ReviewSummary">Overall: <output id="ReviewScore" aria-live="polite">Incomplete</output></p>
-      <label for="ReviewText">Review (optional, MacroDown)</label>
+      <label for="ReviewText">Review (optional, Markdown)</label>
       <textarea id="ReviewText" data-markdown-editor name="text" rows="12" aria-describedby="Error-text">{{ text }}</textarea>
       <span class="FieldError" id="Error-text">{{ text_error }}</span>
-      <p>Preview shows standard Markdown. MacroDown macros render after saving.</p>
+      <p>Preview shows standard Markdown. Macros render after saving.</p>
       <button type="submit">Save</button>
       <a href="{{ reviews_url }}">Cancel</a>
     </form>
