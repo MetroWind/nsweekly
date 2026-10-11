@@ -42,22 +42,31 @@ void storageError(Response &res, const Error &error)
 }
 
 
-E<GameFields> parseFields(const Request &req, bool deletion, bool review = false)
+enum class FormKind
+{
+    TRACKING, REVIEW, JOURNAL, DELETION
+};
+
+E<GameFields> parseFields(const Request &req, FormKind kind)
 {
     if(req.target.find('?') != std::string::npos)
     {
         return std::unexpected(httpError(400, "Query action data forbidden"));
     }
-    std::set<std::string> allowed{"name",       "platforms", "status",
-                                        "completion", "hours",     "start_date",
-                                        "end_date",   "notes"};
-    if(review)
+    std::set<std::string> allowed{
+        "name", "platforms", "status", "completion", "hours",
+        "start_date", "end_date", "notes"};
+    if(kind == FormKind::REVIEW)
     {
         allowed = {"text"};
         for(const auto key : REVIEW_KEYS)
         {
             allowed.insert(std::string(key));
         }
+    }
+    if(kind == FormKind::JOURNAL)
+    {
+        allowed = {"text"};
     }
     GameFields fields;
     // Parse each pair with httplib separately: its whole-body parser
@@ -92,7 +101,7 @@ E<GameFields> parseFields(const Request &req, bool deletion, bool review = false
             return std::unexpected(httpError(400, "Malformed form"));
         }
         const auto &[key, value] = *params.begin();
-        if(deletion || !allowed.contains(key))
+        if(kind == FormKind::DELETION || !allowed.contains(key))
         {
             return std::unexpected(httpError(400, "Unexpected field"));
         }
@@ -107,6 +116,18 @@ E<GameFields> parseFields(const Request &req, bool deletion, bool review = false
         offset = end + 1;
     }
     return fields;
+}
+
+std::string journalDate(int64_t timestamp)
+{
+    return std::format("{:%F %T} UTC", std::chrono::sys_seconds{
+        std::chrono::seconds{timestamp}});
+}
+
+std::string journalISO(int64_t timestamp)
+{
+    return std::format("{:%FT%T}Z", std::chrono::sys_seconds{
+        std::chrono::seconds{timestamp}});
 }
 
 std::string_view platformIcon(GamePlatform platform)
@@ -176,17 +197,19 @@ void GamesModule::handleIndex(const Request &req, Response &res)
 
 void GamesModule::handle(const Request &req, Response &res,
                          const std::string &user, const std::string &action,
-                         const std::string &id_text)
+                         const std::string &id_text,
+                         const std::string &entry_text)
 {
     auto session = sessions.validateSession(req);
-    handleSession(req, res, user, action, id_text, session);
+    handleSession(req, res, user, action, id_text, session, entry_text);
 }
 
 void GamesModule::handleSession(const Request &req, Response &res,
                                 const std::string &user,
                                 const std::string &action,
                                 const std::string &id_text,
-                                const E<SessionValidation> &session)
+                                const E<SessionValidation> &session,
+                                const std::string &entry_text)
 {
     res.status = 200;
     res.set_header("Cache-Control", "no-store");
@@ -215,7 +238,8 @@ void GamesModule::handleSession(const Request &req, Response &res,
     }
     int64_t id = 0;
     if(action == "view" || action == "edit" || action == "delete" ||
-       action == "review/edit" || action == "review/delete")
+       action == "review/edit" || action == "review/delete" ||
+       action.starts_with("journal/"))
     {
         auto [end, ec] = std::from_chars(id_text.data(),
                                          id_text.data() + id_text.size(), id);
@@ -225,6 +249,23 @@ void GamesModule::handleSession(const Request &req, Response &res,
             htmlError(res, 400);
             return;
         }
+    }
+    int64_t entry_id = 0;
+    if(action == "journal/edit" || action == "journal/delete")
+    {
+        auto [end, ec] = std::from_chars(entry_text.data(),
+            entry_text.data() + entry_text.size(), entry_id);
+        if(ec != std::errc{} ||
+           end != entry_text.data() + entry_text.size() || entry_id <= 0)
+        {
+            htmlError(res, 400);
+            return;
+        }
+    }
+    if(action.starts_with("journal/") && req.target.find('?') != req.target.npos)
+    {
+        htmlError(res, 400);
+        return;
     }
     if(req.method == "POST")
     {
@@ -266,6 +307,11 @@ void GamesModule::handleSession(const Request &req, Response &res,
     if(!*uid)
     {
         htmlError(res, 404);
+        return;
+    }
+    if(action.starts_with("journal/"))
+    {
+        handleJournal(req, res, user, session_user, action, id, entry_id);
         return;
     }
     if(action == "reviews" || action.starts_with("review/"))
@@ -310,7 +356,8 @@ void GamesModule::handleSession(const Request &req, Response &res,
     std::map<std::string, std::string> errors;
     if(req.method == "POST")
     {
-        auto parsed = parseFields(req, action == "delete");
+        auto parsed = parseFields(req, action == "delete" ? FormKind::DELETION :
+            FormKind::TRACKING);
         if(!parsed)
         {
             storageError(res, parsed.error());
@@ -536,6 +583,42 @@ void GamesModule::render(Response &res, const std::string &user,
                         std::chrono::seconds{timestamp}}));
             }
         }
+        auto journal = games.listJournal(user, id);
+        if(!journal)
+        {
+            storageError(res, journal.error());
+            return;
+        }
+        auto entries = nlohmann::json::array();
+        const auto base = table_url + "/" + std::to_string(id);
+        for(const auto &entry : *journal)
+        {
+            const auto anchor = "journal-entry-" + std::to_string(entry.id);
+            const auto manage = base + "/journal/" + std::to_string(entry.id);
+            auto body = renderGameMarkdown(entry.input.text);
+            if(!body)
+            {
+                spdlog::error("Journal Markdown rendering failed");
+            }
+            entries.push_back({
+                {"anchor", anchor}, {"id", std::to_string(entry.id)},
+                {"permalink", gameEscape(base + "#" + anchor)},
+                {"edit_url", gameEscape(manage + "/edit")},
+                {"delete_url", gameEscape(manage + "/delete")},
+                {"added", journalDate(entry.added)},
+                {"updated", journalDate(entry.updated)},
+                {"added_iso", journalISO(entry.added)},
+                {"updated_iso", journalISO(entry.updated)},
+                {"was_updated", entry.added != entry.updated},
+                {"body", body ? *body :
+                    "<pre>" + gameEscape(entry.input.text) + "</pre>"}});
+        }
+        context["journal"] = entries;
+        context["journal_empty"] = entries.empty();
+        context["journal_new_url"] = gameEscape(base + "/journal/new");
+        context["journal_latest_url"] = journal->empty() ? "" :
+            gameEscape(base + "#journal-entry-" +
+                std::to_string(journal->back().id));
         context["open_graph"] = openGraph(config.url_prefix,
             std::ranges::find(*records, id, &GameRecord::id)->input.name +
                 " — " + user,
@@ -591,7 +674,7 @@ void GamesModule::handleReviews(const Request &req, Response &res,
     const auto review_url = tracker_url + "/reviews";
     if(req.method == "POST")
     {
-        auto parsed = parseFields(req, deletion, true);
+        auto parsed = parseFields(req, deletion ? FormKind::DELETION : FormKind::REVIEW);
         if(!parsed)
         {
             storageError(res, parsed.error());
@@ -719,7 +802,8 @@ void GamesModule::handleReviews(const Request &req, Response &res,
 void GamesModule::receive(const Request &req, Response &res,
                           const httplib::ContentReader &reader,
                           const std::string &user, const std::string &action,
-                          const std::string &id_text)
+                          const std::string &id_text,
+                         const std::string &entry_text)
 {
     auto session = sessions.validateSession(req);
     res.set_header("Cache-Control", "no-store");
@@ -778,7 +862,7 @@ void GamesModule::receive(const Request &req, Response &res,
     // The session was already refreshed before receiving the body.
     // handleSession applies cookies once on its response.
     res.headers.erase("Set-Cookie");
-    handleSession(bounded, res, user, action, id_text, session);
+    handleSession(bounded, res, user, action, id_text, session, entry_text);
 }
 
 void GamesModule::dispatch(const Request &req, Response &res,
@@ -798,6 +882,7 @@ void GamesModule::dispatch(const Request &req, Response &res,
     }
     std::string action;
     std::string id;
+    std::string entry;
     if(slash != std::string::npos)
     {
         auto suffix = path.substr(slash + 1);
@@ -818,8 +903,24 @@ void GamesModule::dispatch(const Request &req, Response &res,
                 id = suffix.substr(0, separator);
                 action = suffix.substr(separator + 1);
             }
+            if(action.starts_with("journal/") && action != "journal/new")
+            {
+                auto tail = action.substr(8);
+                auto split = tail.find('/');
+                if(split == tail.npos ||
+                   (tail.substr(split + 1) != "edit" &&
+                    tail.substr(split + 1) != "delete"))
+                {
+                    htmlError(res, 404);
+                    return;
+                }
+                entry = tail.substr(0, split);
+                action = "journal/" + tail.substr(split + 1);
+            }
             if(action != "view" && action != "edit" && action != "delete" &&
-               action != "review/edit" && action != "review/delete")
+               action != "review/edit" && action != "review/delete" &&
+               action != "journal/new" && action != "journal/edit" &&
+               action != "journal/delete")
             {
                 htmlError(res, 404);
                 return;
@@ -833,11 +934,11 @@ void GamesModule::dispatch(const Request &req, Response &res,
             htmlError(res, 404);
             return;
         }
-        receive(req, res, *reader, user, action, id);
+        receive(req, res, *reader, user, action, id, entry);
     }
     else
     {
-        handle(req, res, user, action, id);
+        handle(req, res, user, action, id, entry);
     }
 }
 
@@ -872,5 +973,125 @@ void GamesModule::registerRoutes(httplib::Server &server)
                     {
                         dispatch(req, res, &reader);
                     });
+    }
+}
+
+void GamesModule::handleJournal(const Request &req, Response &res,
+    const std::string &user, const std::string &session_user,
+    const std::string &action, int64_t id, int64_t entry_id)
+{
+    auto game = games.getGame(user, id);
+    if(!game)
+    {
+        storageError(res, game.error());
+        return;
+    }
+    if(!*game)
+    {
+        htmlError(res, 404);
+        return;
+    }
+    std::optional<GameJournalRecord> current;
+    if(action != "journal/new")
+    {
+        auto entry = games.getJournalEntry(user, id, entry_id);
+        if(!entry)
+        {
+            storageError(res, entry.error());
+            return;
+        }
+        if(!*entry)
+        {
+            htmlError(res, 404);
+            return;
+        }
+        current = std::move(*entry);
+    }
+    const auto base = gamesURL(user) + "/" + std::to_string(id);
+    const auto cancel = base + (current ? "#journal-entry-" +
+        std::to_string(entry_id) : "");
+    const bool deletion = action == "journal/delete";
+    std::string text = current ? current->input.text : "";
+    std::string text_error;
+    if(req.method == "POST")
+    {
+        auto fields = parseFields(req, deletion ? FormKind::DELETION :
+            FormKind::JOURNAL);
+        if(!fields)
+        {
+            storageError(res, fields.error());
+            return;
+        }
+        if(deletion)
+        {
+            auto removed = games.deleteJournalEntry(user, id, entry_id);
+            if(!removed)
+            {
+                storageError(res, removed.error());
+                return;
+            }
+            if(!*removed)
+            {
+                htmlError(res, 404);
+                return;
+            }
+            res.set_redirect(base + "#JournalTitle", 303);
+            return;
+        }
+        text = fields->scalars["text"];
+        auto valid = validateJournal(*fields);
+        if(!valid)
+        {
+            const auto *error = valid.error().as<GameValidationError>();
+            if(!error)
+            {
+                storageError(res, valid.error());
+                return;
+            }
+            text_error = error->fields.at("text");
+            res.status = 400;
+        }
+        else
+        {
+            auto saved = current ?
+                games.updateJournalEntry(user, id, entry_id, *valid) :
+                games.createJournalEntry(user, id, *valid);
+            if(!saved)
+            {
+                storageError(res, saved.error());
+                return;
+            }
+            res.set_redirect(base + "#journal-entry-" +
+                std::to_string(saved->id), 303);
+            return;
+        }
+    }
+    const auto manager = urlFor("attachments", user);
+    nlohmann::json context{
+        {"username", gameEscape(user)},
+        {"session_user", gameEscape(session_user)},
+        {"attachments_url", gameEscape(manager)},
+        {"upload_url", gameEscape(manager + "/upload")},
+        {"game_name", gameEscape((*game)->input.name)},
+        {"text", gameEscape(text)}, {"text_error", gameEscape(text_error)},
+        {"excerpt", gameEscape(text.substr(0, 512))},
+        {"date", current ? journalDate(current->added) : ""},
+        {"cancel_url", gameEscape(cancel)},
+        {"action_url", gameEscape(base + "/journal/" +
+            (current ? std::to_string(entry_id) + "/" +
+                (deletion ? "delete" : "edit") : "new"))},
+        {"open_graph", openGraph(config.url_prefix, "Game journal", base,
+            "Public game journal by " + user + ".")}};
+    try
+    {
+        std::lock_guard lock(template_mutex);
+        res.set_content(templates.render_file(deletion ?
+            "games/journal_delete.html" : "games/journal_edit.html", context),
+            "text/html; charset=utf-8");
+    }
+    catch(const inja::InjaError &)
+    {
+        spdlog::error("Journal template rendering failed");
+        htmlError(res, 500);
     }
 }

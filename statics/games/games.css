@@ -753,3 +753,74 @@ button, input, select, textarea
     border: 1px solid var(--color-accent);
     background: var(--color-panel);
 }
+
+.JournalLayout
+{
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(18rem, 24rem);
+    gap: 2rem;
+    align-items: start;
+}
+.JournalLayout > *
+{
+    min-width: 0;
+}
+#GameInformation
+{
+    grid-column: 2;
+    grid-row: 1;
+}
+.Journal
+{
+    grid-column: 1;
+    grid-row: 1;
+}
+#GameInformation summary
+{
+    cursor: pointer;
+    font-weight: bold;
+}
+.JournalLayout img
+{
+    max-width: 100%;
+    height: auto;
+}
+.JournalLayout pre, .JournalLayout table
+{
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+}
+.JournalLayout .FullText
+{
+    overflow-wrap: anywhere;
+}
+.JournalEntry
+{
+    padding-block: 1rem;
+    border-bottom: 1px solid var(--color-border);
+    scroll-margin-top: 1rem;
+}
+.JournalEditor textarea
+{
+    display: block;
+    box-sizing: border-box;
+    width: 100%;
+    font: inherit;
+}
+#UploadResults > p
+{
+    overflow-wrap: anywhere;
+}
+@media(max-width: 56rem)
+{
+    .JournalLayout
+    {
+        display: flex;
+        flex-direction: column;
+    }
+    .JournalLayout > *
+    {
+        width: 100%;
+    }
+}

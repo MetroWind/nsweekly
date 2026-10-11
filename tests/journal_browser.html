@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Journal browser fixture</title>
+<link rel="stylesheet" href="../statics/games/games.css">
+<script src="../statics/games/journal.js" defer></script>
+<script src="../statics/games/game_detail.js" defer></script>
+<script src="journal_browser.js" defer></script>
+</head><body>
+<main id="Games" class="GameDetail JournalEditor">
+<h1>Journal browser fixture</h1>
+<p id="BrowserResult" role="status">Checking…</p>
+<p>Serve the repository and open /tests/journal_browser.html at desktop
+and mobile widths. Uploads here use a local stub and publish no files.
+Disable JavaScript to inspect the native form and expanded sidebar.</p>
+<div class="JournalLayout">
+<details id="GameInformation" open>
+<summary>Game information and review</summary>
+<section><h2>Tracking</h2><dl class="GameFacts">
+<dt>Status</dt><dd>Now Playing</dd><dt>Hours</dt><dd>100</dd></dl>
+<h3>Notes</h3><p>Full notes remain available.</p></section>
+<section><h2>Review</h2><div id="LongReview" class="FullText">
+<p>A full review remains readable here.</p></div></section>
+</details>
+<section class="Journal"><h2 id="JournalTitle">Journal</h2>
+<p><a href="#journal-entry-1">Jump to latest</a></p>
+<article class="JournalEntry" id="journal-entry-1">
+<h3><time datetime="2026-10-11T12:00:00Z">2026-10-11 12:00:00 UTC</time>
+<a href="#journal-entry-1">Permalink</a></h3>
+<div class="FullText" id="WideContent">
+<p>One entry with a large image, wide table, code, and long link.</p>
+<img width="2000" height="600" alt="Large image fixture"
+ src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='2000' height='600'%3E%3Crect width='2000' height='600' fill='%23494957'/%3E%3C/svg%3E">
+</div></article></section></div>
+<h2>Entry editor</h2>
+<form id="JournalForm" method="post" action="/fixture-save">
+<label for="JournalText">Entry (Markdown)</label>
+<textarea id="JournalText" name="text" rows="6">Keep this source</textarea>
+</form>
+<p>Uploaded files are public and remain in Attachments.</p>
+<form id="JournalUpload" action="/fixture-upload" hidden>
+<label for="JournalFile">Attachment</label><input id="JournalFile" type="file">
+<button type="submit">Upload</button></form>
+<p id="UploadStatus" aria-live="polite"></p><div id="UploadResults"></div>
+<p>Saving makes this entry public.</p>
+<button id="JournalSave" form="JournalForm" type="submit">Save entry</button>
+</main></body></html>

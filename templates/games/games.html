@@ -68,7 +68,8 @@
     <h2 id="ActionTitle">{% if action == "delete" %}Delete game{% else if action == "edit" %}Edit game{% else %}Add game{% endif %}</h2>
     <form method="post" action="{{ action_url }}">
     {% if action == "delete" %}
-      <p>Delete {{ form.name }} and its review?</p>
+      <p>Delete {{ form.name }}, its review, and all journal entries?</p>
+      <p>Uploaded attachments remain available in the attachment manager.</p>
       <button type="submit">Delete</button>
     {% else %}
       <label for="GameName">Name</label>

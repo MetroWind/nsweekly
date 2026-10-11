@@ -89,7 +89,7 @@ CREATE TABLE IF NOT EXISTS GamePlatforms
         typeof(platform) = 'integer' AND platform IN (0, 1, 2, 3, 4)),
     PRIMARY KEY(game_id, platform)
 ))"));
-    return db->execute(R"(
+    DO_OR_RETURN(db->execute(R"(
 CREATE TABLE IF NOT EXISTS GameReviews
 (
     game_id INTEGER PRIMARY KEY REFERENCES GameTracking(id) ON DELETE CASCADE,
@@ -106,7 +106,20 @@ CREATE TABLE IF NOT EXISTS GameReviews
     text TEXT NOT NULL DEFAULT '',
     added INTEGER NOT NULL DEFAULT (CAST(strftime('%s', 'now') AS INTEGER)),
     updated INTEGER NOT NULL DEFAULT (CAST(strftime('%s', 'now') AS INTEGER))
-))");
+))"));
+    DO_OR_RETURN(db->execute(R"(
+CREATE TABLE IF NOT EXISTS GameJournalEntries
+(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    game_id INTEGER NOT NULL REFERENCES GameTracking(id) ON DELETE CASCADE,
+    text TEXT NOT NULL CHECK(length(text) > 0),
+    added INTEGER NOT NULL DEFAULT (CAST(strftime('%s', 'now') AS INTEGER)),
+    updated INTEGER NOT NULL DEFAULT (CAST(strftime('%s', 'now') AS INTEGER))
+))"));
+    return db->execute(R"(
+CREATE INDEX IF NOT EXISTS GameJournalEntriesOrder
+ON GameJournalEntries(game_id, added, id)
+)");
 }
 
 E<std::vector<GameRecord>> GameDataSqlite::listGames(const std::string &user)

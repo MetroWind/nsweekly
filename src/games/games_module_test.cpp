@@ -238,3 +238,129 @@ TEST_F(GamesHandlers, PublicGameDetailsRemainOwnerScoped)
     EXPECT_EQ(empty.status, 200);
     EXPECT_THAT(empty.body, HasSubstr("No review yet."));
 }
+
+TEST_F(GamesHandlers, JournalNativeLifecycleAndPublicReading)
+{
+    GameInput input;
+    input.name = "Journal Game";
+    input.notes = "Existing notes";
+    ASSIGN_OR_FAIL(auto game, games->createGame("alice", input));
+    const auto id = std::to_string(game.id);
+    auto req = post("text=First+entry");
+    mw::HTTPServer::Response saved;
+    module->handle(req, saved, "alice", "journal/new", id);
+    ASSERT_EQ(saved.status, 303);
+    ASSIGN_OR_FAIL(auto entries, games->listJournal("alice", game.id));
+    ASSERT_EQ(entries.size(), 1);
+    auto entry_id = std::to_string(entries[0].id);
+    EXPECT_EQ(saved.get_header_value("Location"),
+        "/games/alice/" + id + "#journal-entry-" + entry_id);
+    mw::HTTPServer::Request guest;
+    guest.method = "GET";
+    mw::HTTPServer::Response reading;
+    module->handle(guest, reading, "alice", "view", id);
+    ASSERT_EQ(reading.status, 200);
+    EXPECT_THAT(reading.body, HasSubstr("First entry"));
+    EXPECT_THAT(reading.body, HasSubstr("Existing notes"));
+    EXPECT_THAT(reading.body, HasSubstr(" UTC</time>"));
+    EXPECT_THAT(reading.body, Not(HasSubstr(">New entry</a>")));
+    mw::HTTPServer::Response denied;
+    module->handle(guest, denied, "alice", "journal/edit", id, entry_id);
+    EXPECT_EQ(denied.status, 401);
+    guest.set_header("Cookie", "access-token=valid");
+    mw::HTTPServer::Response editor;
+    module->handle(guest, editor, "alice", "journal/edit", id, entry_id);
+    EXPECT_EQ(editor.status, 200);
+    EXPECT_THAT(editor.body, HasSubstr(">First entry</textarea>"));
+    req.body = "text=%3C%2Ftextarea%3E%0Asecond";
+    mw::HTTPServer::Response edited;
+    module->handle(req, edited, "alice", "journal/edit", id, entry_id);
+    EXPECT_EQ(edited.status, 303);
+    mw::HTTPServer::Response source;
+    module->handle(guest, source, "alice", "journal/edit", id, entry_id);
+    EXPECT_THAT(source.body, HasSubstr("&lt;/textarea&gt;\nsecond"));
+    mw::HTTPServer::Response confirmation;
+    module->handle(guest, confirmation, "alice", "journal/delete", id, entry_id);
+    EXPECT_EQ(confirmation.status, 200);
+    EXPECT_THAT(confirmation.body, HasSubstr("&lt;/textarea&gt;"));
+    EXPECT_EQ(games->listJournal("alice", game.id)->size(), 1);
+    req.body = "";
+    mw::HTTPServer::Response deleted;
+    module->handle(req, deleted, "alice", "journal/delete", id, entry_id);
+    EXPECT_EQ(deleted.status, 303);
+    EXPECT_EQ(deleted.get_header_value("Location"),
+        "/games/alice/" + id + "#JournalTitle");
+    EXPECT_TRUE(games->listJournal("alice", game.id)->empty());
+}
+
+TEST_F(GamesHandlers, JournalRejectsInvalidRequestsWithoutMutation)
+{
+    GameInput input;
+    input.name = "Journal";
+    ASSIGN_OR_FAIL(auto game, games->createGame("alice", input));
+    const auto id = std::to_string(game.id);
+    for(const auto *body : {"text=", "text=+%09%0D%0A", "text=%FF",
+        "text=%00", "text=a&text=b", "text=a&name=b", "text=%GG"})
+    {
+        auto req = post(body);
+        mw::HTTPServer::Response res;
+        module->handle(req, res, "alice", "journal/new", id);
+        EXPECT_EQ(res.status, 400) << body;
+        EXPECT_TRUE(games->listJournal("alice", game.id)->empty());
+    }
+    auto req = post("text=valid");
+    req.target += "?text=query";
+    mw::HTTPServer::Response query;
+    module->handle(req, query, "alice", "journal/new", id);
+    EXPECT_EQ(query.status, 400);
+    req.target = "/games/alice/1/journal/new";
+    for(const auto *bad_id : {"0", "-1", "1x", "9223372036854775808"})
+    {
+        mw::HTTPServer::Response bad;
+        module->handle(req, bad, "alice", "journal/new", bad_id);
+        EXPECT_EQ(bad.status, 400);
+    }
+    mw::HTTPServer::Response missing;
+    module->handle(req, missing, "alice", "journal/edit", id, "999");
+    EXPECT_EQ(missing.status, 404);
+    UserInfo bob;
+    bob.name = "bob";
+    ON_CALL(auth, getUser(_)).WillByDefault(Return(bob));
+    mw::HTTPServer::Response foreign;
+    module->handle(req, foreign, "alice", "journal/new", id);
+    EXPECT_EQ(foreign.status, 403);
+}
+
+TEST_F(GamesHandlers, JournalRenderingIsIsolatedAndKeepsSidebar)
+{
+    GameInput input;
+    input.name = "Isolated journal";
+    input.notes = "Notes survive";
+    ASSIGN_OR_FAIL(auto game, games->createGame("alice", input));
+    ASSIGN_OR_FAIL(auto first, games->createJournalEntry("alice", game.id,
+        {"%def{custom}{}{<mark>custom</mark>}%custom{}"}));
+    ASSIGN_OR_FAIL(auto broken, games->createJournalEntry("alice", game.id,
+        {"%custom{}"}));
+    ASSIGN_OR_FAIL(auto last, games->createJournalEntry("alice", game.id,
+        {"**Final entry**"}));
+    GameReviewInput review;
+    review.scores = {1, 2, 3, 4, 5};
+    review.text = "Full review remains";
+    ASSERT_TRUE(games->saveReview("alice", game.id, review));
+    mw::HTTPServer::Request req;
+    req.method = "GET";
+    mw::HTTPServer::Response res;
+    module->handle(req, res, "alice", "view", std::to_string(game.id));
+    ASSERT_EQ(res.status, 200);
+    EXPECT_THAT(res.body, HasSubstr("<mark>custom</mark>"));
+    EXPECT_THAT(res.body, HasSubstr("<p>%custom{}</p>"));
+    EXPECT_THAT(res.body, HasSubstr("<strong>Final entry</strong>"));
+    EXPECT_THAT(res.body, HasSubstr("Notes survive"));
+    EXPECT_THAT(res.body, HasSubstr("Full review remains"));
+    EXPECT_THAT(res.body, HasSubstr("data-review-score value=\"2\""));
+    EXPECT_THAT(res.body, HasSubstr("id=\"ReviewScore\""));
+    EXPECT_LT(res.body.find("id=\"journal-entry-" + std::to_string(first.id)),
+        res.body.find("id=\"journal-entry-" + std::to_string(broken.id)));
+    EXPECT_LT(res.body.find("id=\"journal-entry-" + std::to_string(broken.id)),
+        res.body.find("id=\"journal-entry-" + std::to_string(last.id)));
+}

@@ -25,7 +25,8 @@ class GamesModule
     void handle(const mw::HTTPServer::Request &req,
                 mw::HTTPServer::Response &res, const std::string &user,
                 const std::string &action = "",
-                const std::string &id_text = "");
+                const std::string &id_text = "",
+                const std::string &entry_text = "");
     // Redirects an authenticated account to its tracker, guests to login.
     void handleIndex(const mw::HTTPServer::Request &req,
                      mw::HTTPServer::Response &res);
@@ -34,14 +35,20 @@ class GamesModule
     void handleSession(const mw::HTTPServer::Request &req,
                        mw::HTTPServer::Response &res, const std::string &user,
                        const std::string &action, const std::string &id_text,
-                       const E<SessionValidation> &session);
+                       const E<SessionValidation> &session,
+                       const std::string &entry_text);
     void dispatch(const mw::HTTPServer::Request &req,
                   mw::HTTPServer::Response &res,
                   const httplib::ContentReader *reader = nullptr);
     void receive(const mw::HTTPServer::Request &req,
                  mw::HTTPServer::Response &res,
                  const httplib::ContentReader &reader, const std::string &user,
-                 const std::string &action, const std::string &id_text);
+                 const std::string &action, const std::string &id_text,
+                 const std::string &entry_text);
+    void handleJournal(const mw::HTTPServer::Request &req,
+                       mw::HTTPServer::Response &res, const std::string &user,
+                       const std::string &session_user,
+                       const std::string &action, int64_t id, int64_t entry_id);
     void handleReviews(const mw::HTTPServer::Request &req,
                        mw::HTTPServer::Response &res, const std::string &user,
                        const std::string &session_user,

@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en" prefix="og: https://ogp.me/ns#">
+<head>
+  {% include "../head_common.html" %}
+  {% include "../open_graph.html" %}
+  <link rel="stylesheet" href="/statics/games/games.css">
+  <title>Journal · {{ game_name }}</title>
+  <script src="/statics/games/journal.js" defer></script>
+</head>
+<body><main id="Games" class="JournalEditor">
+  {% include "../nav.html" %}
+  <h1>{{ game_name }} · Journal</h1>
+  <h2>Delete entry from {{ date }}?</h2>
+  <pre>{{ excerpt }}</pre>
+  <p>Uploaded attachments remain available in the attachment manager.</p>
+  <form method="post" action="{{ action_url }}">
+    <button type="submit">Delete entry</button>
+    <a href="{{ cancel_url }}">Cancel</a>
+  </form>
+</main></body></html>

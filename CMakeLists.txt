@@ -73,6 +73,8 @@ set(SOURCE_FILES
   src/attachment/image_variant.cpp
   src/attachment/attachment_module.cpp
   src/open_graph.cpp
+  src/games/game_journal.cpp
+  src/games/game_journal_data.cpp
   src/games/game_review.cpp
   src/games/game_review_data.cpp
   src/games/game.cpp
@@ -160,6 +162,7 @@ if(BUILD_TESTING)
     src/config_test.cpp
     src/attachment/attachment_test.cpp
     src/open_graph_test.cpp
+    src/games/game_journal_test.cpp
     src/games/game_review_test.cpp
     src/games/game_test.cpp
     src/games/games_module_test.cpp
@@ -204,6 +207,9 @@ if(BUILD_TESTING)
 
   find_program(NODE_EXECUTABLE node)
   if(NODE_EXECUTABLE)
+    add_test(NAME JournalBrowser.AttachmentMarkdown
+      COMMAND ${NODE_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/journal_markdown_test.js)
     add_test(NAME ReviewBrowser.ScoreFormula
       COMMAND ${NODE_EXECUTABLE}
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/reviews_score_test.js)

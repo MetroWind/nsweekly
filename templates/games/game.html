@@ -6,6 +6,7 @@
   <link rel="stylesheet" href="/statics/games/games.css">
   <title>{{ games.0.cells.0.value }} — {{ username }}’s Games</title>
   <script src="/statics/games/reviews.js" defer></script>
+  <script src="/statics/games/game_detail.js" defer></script>
 </head>
 <body>
 <main id="Games" class="GameDetail">
@@ -13,6 +14,9 @@
   <h1>{{ games.0.cells.0.value }}</h1>
   <p class="GameViews"><a href="{{ table_url }}">Tracker</a>
     <a href="{{ reviews_url }}">Reviews</a></p>
+  <div class="JournalLayout">
+  <details id="GameInformation" open>
+    <summary>Game information and review</summary>
   {% if is_owner %}
   <p class="DetailActions">
     <a href="{{ games.0.edit_url }}">Edit game</a>
@@ -59,6 +63,25 @@
     <div class="FullText">{% if length(review_text) == 0 %}<p>No review text.</p>{% else %}{{ review_text }}{% endif %}</div>
     {% else %}<p>No review yet.</p>{% endif %}
   </section>
+  </details>
+  <section class="Journal" aria-labelledby="JournalTitle">
+    <h2 id="JournalTitle">Journal</h2>
+    {% if is_owner %}<p><a href="{{ journal_new_url }}">New entry</a></p>{% endif %}
+    {% if journal_empty %}<p>No journal entries yet</p>{% else %}
+    <p><a href="{{ journal_latest_url }}">Jump to latest</a></p>
+    {% endif %}
+    {% for entry in journal %}
+    <article id="{{ entry.anchor }}" class="JournalEntry">
+      <h3><time datetime="{{ entry.added_iso }}">{{ entry.added }}</time>
+        · <a href="{{ entry.permalink }}">Permalink</a></h3>
+      {% if entry.was_updated %}<p>Updated <time datetime="{{ entry.updated_iso }}">{{ entry.updated }}</time></p>{% endif %}
+      <div class="FullText">{{ entry.body }}</div>
+      {% if is_owner %}<p><a href="{{ entry.edit_url }}">Edit</a>
+        <a href="{{ entry.delete_url }}">Delete</a></p>{% endif %}
+    </article>
+    {% endfor %}
+  </section>
+  </div>
 </main>
 </body>
 </html>

@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en" prefix="og: https://ogp.me/ns#">
+<head>
+  {% include "../head_common.html" %}
+  {% include "../open_graph.html" %}
+  <link rel="stylesheet" href="/statics/games/games.css">
+  <title>Journal · {{ game_name }}</title>
+  <script src="/statics/games/journal.js" defer></script>
+</head>
+<body><main id="Games" class="JournalEditor">
+  {% include "../nav.html" %}
+  <h1>{{ game_name }} · Journal</h1>
+  <form id="JournalForm" method="post" action="{{ action_url }}">
+    <label for="JournalText">Entry (Markdown)</label>
+    <textarea id="JournalText" name="text" rows="18" aria-describedby="JournalError">{{ text }}</textarea>
+    <span id="JournalError" class="FieldError">{{ text_error }}</span>
+  </form>
+  <section aria-label="Attachments">
+    <p>Uploaded files are public and remain in Attachments even if this entry is never saved.
+      <a href="{{ attachments_url }}" target="_blank" rel="noopener">Open attachment manager</a></p>
+    <form id="JournalUpload" action="{{ upload_url }}" hidden>
+      <label for="JournalFile">Attachment</label>
+      <input id="JournalFile" type="file">
+      <button type="submit">Upload</button>
+    </form>
+    <p id="UploadStatus" role="status" aria-live="polite"></p>
+    <div id="UploadResults"></div>
+  </section>
+  <p>Saving makes this entry public. Unsaved text is lost on reload.</p>
+  <button id="JournalSave" type="submit" form="JournalForm">Save entry</button>
+  <a href="{{ cancel_url }}">Cancel</a>
+</main></body></html>

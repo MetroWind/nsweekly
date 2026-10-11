@@ -46,6 +46,16 @@ public:
     MOCK_METHOD(E<GameRecord>, updateGame,
         (const std::string&, int64_t, const GameInput&), (override));
     // Returns configured review inputs.
+    MOCK_METHOD(E<std::vector<GameJournalRecord>>, listJournal,
+        (const std::string &user, int64_t game_id), (override));
+    MOCK_METHOD(E<std::optional<GameJournalRecord>>, getJournalEntry,
+        (const std::string &user, int64_t game_id, int64_t entry_id), (override));
+    MOCK_METHOD(E<GameJournalRecord>, createJournalEntry,
+        (const std::string &user, int64_t game_id, const GameJournalInput &input), (override));
+    MOCK_METHOD(E<GameJournalRecord>, updateJournalEntry,
+        (const std::string &user, int64_t game_id, int64_t entry_id, const GameJournalInput &input), (override));
+    MOCK_METHOD(E<bool>, deleteJournalEntry,
+        (const std::string &user, int64_t game_id, int64_t entry_id), (override));
     MOCK_METHOD(E<std::vector<GameReviewRecord>>, listReviews,
         (const std::string&), (override));
     // Captures an owner-scoped review replacement.

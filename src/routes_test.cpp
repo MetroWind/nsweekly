@@ -280,3 +280,124 @@ TEST_F(Routes, AttachmentRoutesUseInjectedStorageAndRefreshCookies)
     EXPECT_EQ(refreshed->status,200);
     EXPECT_EQ(refreshed->get_header_value_count("Set-Cookie"),2);
 }
+
+TEST_F(Routes, AttachmentJsonUploadRetainsNativeBehavior)
+{
+    EXPECT_CALL(*auth, getUser(_)).WillRepeatedly(Return(UserInfo{"", "mw"}));
+    EXPECT_CALL(*users, ensureUser("mw")).WillRepeatedly(Return(E<void>{}));
+    EXPECT_CALL(*users, getUserID("mw")).WillRepeatedly(
+        Return(E<std::optional<int64_t>>{1}));
+    httplib::Headers headers{{"Cookie", "access-token=valid"},
+        {"Origin", "http://tracker.example"}, {"Accept", "application/json"}};
+    httplib::UploadFormDataItems files{{"file", "abc", "café [x](y).txt",
+        "application/octet-stream"}};
+    auto created = client->Post("/attachments/mw/upload", headers, files);
+    ASSERT_TRUE(created);
+    ASSERT_EQ(created->status, 200) << created->body;
+    auto body = nlohmann::json::parse(created->body);
+    EXPECT_EQ(body["filename"], "café [x](y).txt");
+    EXPECT_EQ(body["byte_size"], 3);
+    EXPECT_EQ(body["already_owned"], false);
+    ASSIGN_OR_FAIL(auto records, attachments->listAttachments(1));
+    ASSERT_EQ(records.size(), 1);
+    EXPECT_EQ(body["id"], records[0].id);
+    EXPECT_EQ(body["mime_type"], records[0].file.mime_type);
+    EXPECT_EQ(body["public_url"],
+        *attachmentURL(records[0].file.hash, records[0].original_name));
+    auto duplicate = client->Post("/attachments/mw/upload", headers, files);
+    ASSERT_TRUE(duplicate);
+    EXPECT_EQ(duplicate->status, 200);
+    EXPECT_EQ(nlohmann::json::parse(duplicate->body)["already_owned"], true);
+    headers.erase("Accept");
+    auto native = client->Post("/attachments/mw/upload", headers, files);
+    ASSERT_TRUE(native);
+    EXPECT_EQ(native->status, 303);
+    EXPECT_EQ(native->get_header_value("Location"),
+        "/attachments/mw?status=duplicate");
+    headers.emplace("Accept", "application/json");
+    headers.erase("Origin");
+    auto origin = client->Post("/attachments/mw/upload", headers, files);
+    ASSERT_TRUE(origin);
+    EXPECT_EQ(origin->status, 403);
+    EXPECT_EQ(nlohmann::json::parse(origin->body)["error"]["code"],
+        "origin_required");
+    headers.erase("Cookie");
+    auto guest = client->Post("/attachments/mw/upload", headers, files);
+    ASSERT_TRUE(guest);
+    EXPECT_EQ(guest->status, 401);
+    EXPECT_EQ(nlohmann::json::parse(guest->body)["error"]["code"],
+        "login_required");
+}
+
+TEST_F(Routes, JournalDispatchAndStreamedRequestValidation)
+{
+    const std::string user = "alice/new";
+    const std::string base = "/games/alice%2Fnew/7";
+    GameInput input;
+    input.name = "Game";
+    GameRecord game{7, input};
+    GameJournalRecord entry{42, 7, {"source"}, 100, 100};
+    EXPECT_CALL(*auth, getUser(_)).WillRepeatedly(Return(UserInfo{"", user}));
+    EXPECT_CALL(*users, ensureUser(user)).WillRepeatedly(Return(E<void>{}));
+    EXPECT_CALL(*users, getUserID(user)).WillRepeatedly(
+        Return(E<std::optional<int64_t>>{1}));
+    EXPECT_CALL(*games, getGame(user, 7)).WillRepeatedly(
+        Return(std::optional<GameRecord>{game}));
+    EXPECT_CALL(*games, getJournalEntry(user, 7, 42)).WillRepeatedly(
+        Return(std::optional<GameJournalRecord>{entry}));
+    EXPECT_CALL(*games, createJournalEntry(user, 7, _)).WillOnce(Return(entry));
+    EXPECT_CALL(*games, updateJournalEntry(user, 7, 42, _)).WillOnce(Return(entry));
+    EXPECT_CALL(*games, deleteJournalEntry(user, 7, 42)).WillOnce(Return(true));
+    httplib::Headers headers{{"Cookie", "access-token=valid"},
+        {"Origin", "http://tracker.example"}};
+    for(const auto *suffix : {"/journal/new", "/journal/42/edit",
+        "/journal/42/delete"})
+    {
+        auto editor = client->Get(base + suffix, headers);
+        ASSERT_TRUE(editor);
+        EXPECT_EQ(editor->status, 200) << editor->body;
+        auto saved = client->Post(base + suffix, headers,
+            std::string(suffix).ends_with("delete") ? "" : "text=source",
+            "application/x-www-form-urlencoded");
+        ASSERT_TRUE(saved);
+        EXPECT_EQ(saved->status, 303);
+        EXPECT_EQ(saved->get_header_value("Location"), base +
+            (std::string(suffix).ends_with("delete") ?
+                "#JournalTitle" : "#journal-entry-42"));
+    }
+    for(const auto *suffix : {"/journal/42/edit/extra", "/journal/42",
+        "/journal/new/extra", "/journal/42/view"})
+    {
+        auto bad = client->Get(base + suffix, headers);
+        ASSERT_TRUE(bad);
+        EXPECT_EQ(bad->status, 404);
+    }
+    for(const auto *suffix : {"/journal/0/edit", "/journal/-1/delete",
+        "/journal/42x/edit", "/journal/9223372036854775808/edit"})
+    {
+        auto bad = client->Get(base + suffix, headers);
+        ASSERT_TRUE(bad);
+        EXPECT_EQ(bad->status, 400);
+    }
+    auto type = client->Post(base + "/journal/new", headers, "text=source",
+        "text/plain");
+    ASSERT_TRUE(type);
+    EXPECT_EQ(type->status, 415);
+    auto huge = client->Post(base + "/journal/new", headers,
+        "text=" + std::string(1024 * 1024, 'a'),
+        "application/x-www-form-urlencoded");
+    ASSERT_TRUE(huge);
+    EXPECT_EQ(huge->status, 413);
+    Tokens tokens;
+    tokens.access_token = "access";
+    tokens.refresh_token = "refresh";
+    EXPECT_CALL(*auth, refreshTokens("refresh")).WillOnce(Return(tokens));
+    headers.erase("Cookie");
+    headers.emplace("Cookie", "refresh-token=refresh");
+    headers.erase("Origin");
+    auto refreshed = client->Post(base + "/journal/new", headers, "text=source",
+        "application/x-www-form-urlencoded");
+    ASSERT_TRUE(refreshed);
+    EXPECT_EQ(refreshed->status, 403);
+    EXPECT_EQ(refreshed->get_header_value_count("Set-Cookie"), 2);
+}

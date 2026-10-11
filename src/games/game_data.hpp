@@ -3,6 +3,7 @@
 #include "database.hpp"
 #include "games/game.hpp"
 #include "games/game_review.hpp"
+#include "games/game_journal.hpp"
 
 // Owner-scoped game storage; no operation creates an account implicitly.
 class GameDataInterface
@@ -32,6 +33,21 @@ class GameDataInterface
         const GameReviewInput &input, int64_t added, int64_t updated) = 0;
     // Deletes only the review; a missing or foreign review returns false.
     virtual E<bool> deleteReview(const std::string &user, int64_t game_id) = 0;
+    // Lists entries in creation order for the named owner and game.
+    virtual E<std::vector<GameJournalRecord>> listJournal(
+        const std::string &user, int64_t game_id) = 0;
+    // Retrieves an entry only under its owner and parent game.
+    virtual E<std::optional<GameJournalRecord>> getJournalEntry(
+        const std::string &user, int64_t game_id, int64_t entry_id) = 0;
+    // Publishes validated source under an existing owned game.
+    virtual E<GameJournalRecord> createJournalEntry(
+        const std::string &user, int64_t game_id, const GameJournalInput &input) = 0;
+    // Replaces source without changing creation time or order.
+    virtual E<GameJournalRecord> updateJournalEntry(
+        const std::string &user, int64_t game_id, int64_t entry_id, const GameJournalInput &input) = 0;
+    // Removes only the entry matching owner and parent game.
+    virtual E<bool> deleteJournalEntry(
+        const std::string &user, int64_t game_id, int64_t entry_id) = 0;
     // Deletes the owner-scoped row and its platform assignments.
     virtual E<bool> deleteGame(const std::string &user, int64_t id) = 0;
 };
@@ -72,6 +88,22 @@ class GameDataSqlite : public GameDataInterface
         const GameReviewInput &input, int64_t added, int64_t updated) override;
     // Removes a review without removing tracking data.
     E<bool> deleteReview(const std::string &user, int64_t game_id) override;
+
+    // Lists entries in creation order for the named owner and game.
+    E<std::vector<GameJournalRecord>> listJournal(
+        const std::string &user, int64_t game_id) override;
+    // Retrieves an entry only under its owner and parent game.
+    E<std::optional<GameJournalRecord>> getJournalEntry(
+        const std::string &user, int64_t game_id, int64_t entry_id) override;
+    // Publishes validated source under an existing owned game.
+    E<GameJournalRecord> createJournalEntry(
+        const std::string &user, int64_t game_id, const GameJournalInput &input) override;
+    // Replaces source without changing creation time or order.
+    E<GameJournalRecord> updateJournalEntry(
+        const std::string &user, int64_t game_id, int64_t entry_id, const GameJournalInput &input) override;
+    // Removes only the entry matching owner and parent game.
+    E<bool> deleteJournalEntry(
+        const std::string &user, int64_t game_id, int64_t entry_id) override;
 
   private:
     E<GameRecord> save(const std::string &user, int64_t id,

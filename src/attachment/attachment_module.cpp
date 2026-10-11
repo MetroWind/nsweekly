@@ -38,6 +38,29 @@ void failure(httplib::Response& res, const Error& error)
             "For uploads, choose the file again.</p>",
         "text/html; charset=utf-8");
 }
+void uploadFailure(httplib::Response &response, const Error &error,
+                   bool json_mode, const std::string &override_code = "")
+{
+    failure(response, error);
+    if(!json_mode)
+    {
+        return;
+    }
+    std::string code = "upload_failed";
+    if(response.status == 401) code = "login_required";
+    else if(response.status == 403) code = "owner_required";
+    else if(response.status == 400 || response.status == 422)
+        code = "invalid_upload";
+    else if(response.status == 415) code = "unsupported_media_type";
+    else if(response.status == 413) code = "upload_too_large";
+    if(!override_code.empty()) code = override_code;
+    nlohmann::json body{{"error", {{"code", code},
+        {"message", response.status == 413 ?
+            "The file exceeds the upload limit." :
+            "Upload failed. Check the request and try again."}}}};
+    response.set_content(body.dump(), "application/json");
+}
+
 std::string managerURL(const std::string& user)
 {
     return "/attachments/" + attachmentSegment(user);
@@ -89,6 +112,7 @@ void AttachmentModule::handle(const httplib::Request& req,
                               httplib::Response& res,
                               const httplib::ContentReader* reader)
 {
+    const bool json_mode = req.get_header_value("Accept") == "application/json";
     res.set_header("Cache-Control", "no-store");
     auto session = sessions.validateSession(req);
     if(session && session->status == SessionValidation::REFRESHED)
@@ -105,7 +129,7 @@ void AttachmentModule::handle(const httplib::Request& req,
         }
         else
         {
-            failure(res, httpError(401, "Login required"));
+            uploadFailure(res, httpError(401, "Login required"), json_mode);
         }
         return;
     }
@@ -119,12 +143,12 @@ void AttachmentModule::handle(const httplib::Request& req,
     auto user = httplib::decode_path_component(suffix.substr(0, slash));
     if(user.empty() || !validGameText(user))
     {
-        failure(res, httpError(400, "Invalid user"));
+        uploadFailure(res, httpError(400, "Invalid user"), json_mode);
         return;
     }
     if(user != session->user.name)
     {
-        failure(res, httpError(403, "Owner required"));
+        uploadFailure(res, httpError(403, "Owner required"), json_mode);
         return;
     }
     auto action = slash == suffix.npos ? "" : suffix.substr(slash + 1);
@@ -138,20 +162,20 @@ void AttachmentModule::handle(const httplib::Request& req,
             std::from_chars(text.data(), text.data() + text.size(), id);
         if(end == action.npos || action.substr(end) != "/delete")
         {
-            failure(res, httpError(404, "Unknown route"));
+            uploadFailure(res, httpError(404, "Unknown route"), json_mode);
             return;
         }
         if(parsed.ec != std::errc() ||
            parsed.ptr != text.data() + text.size() || id < 1)
         {
-            failure(res, httpError(400, "Invalid record ID"));
+            uploadFailure(res, httpError(400, "Invalid record ID"), json_mode);
             return;
         }
         deletion = true;
     }
     if((reader && action.empty()) || (!reader && action == "upload"))
     {
-        failure(res, httpError(404, "Unknown route"));
+        uploadFailure(res, httpError(404, "Unknown route"), json_mode);
         return;
     }
     if(reader)
@@ -161,25 +185,26 @@ void AttachmentModule::handle(const httplib::Request& req,
            supplied != httpOrigin(supplied) ||
            httpOrigin(supplied) != httpOrigin(config.url_prefix))
         {
-            failure(res, httpError(403, "Origin required"));
+            uploadFailure(res, httpError(403, "Origin required"), json_mode,
+                "origin_required");
             return;
         }
     }
     auto ensured = users.ensureUser(user);
     if(!ensured)
     {
-        failure(res, ensured.error());
+        uploadFailure(res, ensured.error(), json_mode);
         return;
     }
     auto owner = users.getUserID(user);
     if(!owner)
     {
-        failure(res, owner.error());
+        uploadFailure(res, owner.error(), json_mode);
         return;
     }
     if(!*owner)
     {
-        failure(res, httpError(404, "Unknown owner"));
+        uploadFailure(res, httpError(404, "Unknown owner"), json_mode);
         return;
     }
     auto manager = managerURL(user);
@@ -188,7 +213,7 @@ void AttachmentModule::handle(const httplib::Request& req,
         if(httplib::detail::extract_media_type(
                req.get_header_value("Content-Type")) != "multipart/form-data")
         {
-            failure(res, httpError(415, "Multipart required"));
+            uploadFailure(res, httpError(415, "Multipart required"), json_mode);
             return;
         }
         std::optional<AttachmentWriter> writer;
@@ -229,18 +254,31 @@ void AttachmentModule::handle(const httplib::Request& req,
             });
         if(error)
         {
-            failure(res, *error);
+            uploadFailure(res, *error, json_mode);
             return;
         }
         if(!read || parts != 1 || !writer)
         {
-            failure(res, httpError(400, "Malformed multipart"));
+            uploadFailure(res, httpError(400, "Malformed multipart"), json_mode);
             return;
         }
         auto result = writer->finish();
         if(!result)
         {
-            failure(res, result.error());
+            uploadFailure(res, result.error(), json_mode);
+            return;
+        }
+        if(json_mode)
+        {
+            const auto &record = result->record;
+            nlohmann::json body{
+                {"id", record.id}, {"filename", record.original_name},
+                {"mime_type", record.file.mime_type},
+                {"byte_size", record.file.byte_size},
+                {"public_url", result->public_url},
+                {"already_owned", result->already_owned}};
+            res.status = 200;
+            res.set_content(body.dump(), "application/json");
             return;
         }
         res.set_redirect(manager + (result->already_owned ? "?status=duplicate"
@@ -253,7 +291,7 @@ void AttachmentModule::handle(const httplib::Request& req,
         auto record = service.getAttachment(**owner, id);
         if(!record)
         {
-            failure(res, record.error());
+            uploadFailure(res, record.error(), json_mode);
             return;
         }
         if(reader)
@@ -261,7 +299,7 @@ void AttachmentModule::handle(const httplib::Request& req,
             if(httplib::detail::extract_media_type(req.get_header_value(
                    "Content-Type")) != "application/x-www-form-urlencoded")
             {
-                failure(res, httpError(415, "URL encoded form required"));
+                uploadFailure(res, httpError(415, "URL encoded form required"), json_mode);
                 return;
             }
             bool nonempty = false;
@@ -273,13 +311,13 @@ void AttachmentModule::handle(const httplib::Request& req,
                 });
             if(!read || nonempty || req.target.find('?') != req.target.npos)
             {
-                failure(res, httpError(400, "Empty form required"));
+                uploadFailure(res, httpError(400, "Empty form required"), json_mode);
                 return;
             }
             auto result = service.deleteAttachment(**owner, id);
             if(!result)
             {
-                failure(res, result.error());
+                uploadFailure(res, result.error(), json_mode);
                 return;
             }
             res.set_redirect(manager + "?status=deleted", 303);
@@ -293,7 +331,7 @@ void AttachmentModule::handle(const httplib::Request& req,
     auto records = service.listAttachments(**owner);
     if(!records)
     {
-        failure(res, records.error());
+        uploadFailure(res, records.error(), json_mode);
         return;
     }
     auto status = req.get_param_value("status");
