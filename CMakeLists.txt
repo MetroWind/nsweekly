@@ -66,14 +66,25 @@ include(ExternalProject)
 ExternalProject_Add(macrodown_browser
   SOURCE_DIR "${macrodown_SOURCE_DIR}"
   BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/macrodown_wasm"
-  CONFIGURE_COMMAND "${EMCMAKE_EXECUTABLE}" "${CMAKE_COMMAND}"
+  # makepkg's native compiler flags do not apply to the Wasm target.
+  CONFIGURE_COMMAND "${CMAKE_COMMAND}" -E env
+    --unset=CFLAGS --unset=CXXFLAGS --unset=CPPFLAGS --unset=LDFLAGS
+    "${EMCMAKE_EXECUTABLE}" "${CMAKE_COMMAND}"
     -S <SOURCE_DIR> -B <BINARY_DIR>
     -DCMAKE_BUILD_TYPE=MinSizeRel
+    # Also clear native flags cached by an earlier configure.
+    -DCMAKE_C_FLAGS:STRING=
+    -DCMAKE_CXX_FLAGS:STRING=
+    -DCMAKE_EXE_LINKER_FLAGS:STRING=
+    -DCMAKE_SHARED_LINKER_FLAGS:STRING=
+    -DCMAKE_MODULE_LINKER_FLAGS:STRING=
     -DMACRODOWN_BUILD_WASM=ON
     -DMACRODOWN_BUILD_CLI=OFF
     -DMACRODOWN_BUILD_TESTS=OFF
     "-DFETCHCONTENT_SOURCE_DIR_UNI-ALGO=${uni-algo_SOURCE_DIR}"
-  BUILD_COMMAND "${CMAKE_COMMAND}" --build <BINARY_DIR>
+  BUILD_COMMAND "${CMAKE_COMMAND}" -E env
+    --unset=CFLAGS --unset=CXXFLAGS --unset=CPPFLAGS --unset=LDFLAGS
+    "${CMAKE_COMMAND}" --build <BINARY_DIR>
     --target macrodown_wasm -j24
   INSTALL_COMMAND "${CMAKE_COMMAND}" -E make_directory
     "${CMAKE_CURRENT_SOURCE_DIR}/statics/macrodown"
