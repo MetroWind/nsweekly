@@ -425,6 +425,17 @@ void GamesModule::render(Response &res, const std::string &user,
         storageError(res, records.error());
         return;
     }
+    auto reviews = games.listReviews(user);
+    if(!reviews)
+    {
+        storageError(res, reviews.error());
+        return;
+    }
+    std::set<int64_t> reviewed_ids;
+    for(const auto &review : *reviews)
+    {
+        reviewed_ids.insert(review.game_id);
+    }
     nlohmann::json rows = nlohmann::json::array();
     for(const auto &record : *records)
     {
@@ -492,6 +503,9 @@ void GamesModule::render(Response &res, const std::string &user,
                        gameEscape(*input.notes) + "</pre>";
             }
         }
+        const bool has_review = reviewed_ids.contains(record.id);
+        cells.push_back({{"value", ""}, {"key", has_review ? "1" : "0"},
+                         {"missing", false}});
         cells.push_back({{"value", html},
                          {"key", gameEscape(input.notes.value_or(""))},
                          {"missing", !input.notes}});
@@ -502,6 +516,9 @@ void GamesModule::render(Response &res, const std::string &user,
                         {"edit_url", gameEscape(base + "/edit")},
                         {"delete_url", gameEscape(base + "/delete")},
                         {"review_url", gameEscape(base + "/review/edit")},
+                        {"has_review", has_review},
+                        {"review_view_url", gameEscape(gamesURL(user) +
+                            "/reviews#game-" + std::to_string(record.id))},
                         {"view_url", gameEscape(base)}});
     }
     nlohmann::json form = nlohmann::json::object();
@@ -551,12 +568,6 @@ void GamesModule::render(Response &res, const std::string &user,
         if(rows.empty())
         {
             htmlError(res, 404);
-            return;
-        }
-        auto reviews = games.listReviews(user);
-        if(!reviews)
-        {
-            storageError(res, reviews.error());
             return;
         }
         const auto review = std::ranges::find(*reviews, id,

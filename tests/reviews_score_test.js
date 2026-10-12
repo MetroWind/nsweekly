@@ -49,3 +49,24 @@ const HIGHER = calculate([5.01, 5.01, 5.01, 5.01, 5.01]);
 ASSERT.equal(LOWER.toFixed(1), HIGHER.toFixed(1));
 ASSERT.ok(HIGHER > LOWER);
 console.log("Review score checks passed.");
+
+function clipboardText(text, name, values, url)
+{
+    CONTEXT.clipboard_input = {text, name, values, url};
+    return VM.runInContext(
+        'reviewClipboardText(clipboard_input.text, clipboard_input.name, ' +
+        'clipboard_input.values, clipboard_input.url)', CONTEXT);
+}
+
+// Sharing preserves the Markdown source and uses the displayed weighted score.
+ASSERT.equal(clipboardText('**Full review**\n\n- A Markdown list',
+    'Game & Title', [10, 10, 8, 10, 10], 'https://example.test/games/alice'),
+    '**Full review**\n\n- A Markdown list\n\nGame & Title\n\n' +
+    '- Story: 10/10\n- Gameplay: 10/10\n- Graphics: 8/10\n' +
+    '- Audio: 10/10\n- Special: 10/10\n- Overall: 9.7/10\n\n' +
+    'See https://example.test/games/alice for details.');
+const DRAFT = clipboardText('', 'Draft', [5, '', 5, 5, 5],
+    'https://example.test/games/alice');
+ASSERT.ok(DRAFT.includes('- Gameplay: —/10'));
+ASSERT.ok(DRAFT.includes('- Overall: —/10'));
+console.log('Review clipboard formatting checks passed.');

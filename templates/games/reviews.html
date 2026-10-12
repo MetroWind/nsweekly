@@ -31,6 +31,18 @@
         <a href="{{ review.game_url }}">{{ review.name }}</a>
         {% if is_owner %}
         <span class="GameActions">
+          <button type="button" class="ReviewCopy" hidden
+                  aria-label="Copy review" title="Copy review">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"
+                 fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M9 5H5v16h14V5h-4"/>
+              <rect x="9" y="3" width="6" height="4"/>
+            </svg>
+          </button>
+          <a href="{{ review.game_url }}/screenshots" title="Screenshots"
+             aria-label="Screenshots for {{ review.name }}">
+            <i class="nf nf-md-image_multiple ActionGlyph" aria-hidden="true"></i>
+          </a>
           <a href="{{ review.edit_url }}" title="Edit review" aria-label="Edit review for {{ review.name }}"><i class="nf nf-md-pencil ActionGlyph" aria-hidden="true"></i></a>
           <a href="{{ review.delete_url }}" title="Delete review" aria-label="Delete review for {{ review.name }}"><i class="nf nf-md-delete ActionGlyph" aria-hidden="true"></i></a>
         </span>
@@ -53,6 +65,7 @@
     </tbody>
   </table>
   </div>
+  <p id="ReviewCopyStatus" role="status" aria-live="polite"></p>
   {% if deletion %}
   <dialog open data-cancel-url="{{ reviews_url }}" aria-labelledby="ActionTitle">
     <h2 id="ActionTitle">Delete review</h2>

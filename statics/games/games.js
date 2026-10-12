@@ -77,7 +77,7 @@ function compareGames(a, b)
     if(!left_missing)
     {
         if(GAME_REVIEWS ? game_sort_column >= 1 && game_sort_column <= 7 :
-            [2, 3, 4].includes(game_sort_column))
+            [2, 3, 4, 7].includes(game_sort_column))
         {
             order = Number(left.dataset.key) - Number(right.dataset.key);
         }
@@ -229,7 +229,7 @@ function removeFullText(event)
     event.currentTarget.remove();
 }
 
-// Leaves short entries and unsupported browsers with full rendered content.
+// Shows single-line table excerpts; keeps formatted content in the dialog.
 function initializeTextExcerpts()
 {
     if(typeof Intl.Segmenter !== "function" ||
@@ -241,15 +241,21 @@ function initializeTextExcerpts()
     {
         const text = element.innerText.replace(/\s+/gu, " ").trim();
         const preview = textExcerpt(text);
-        if(preview === text)
-        {
-            continue;
-        }
+        const expandable = preview !== text || element.children.length > 0;
         const full_text = document.createElement("div");
         full_text.className = "FullText";
         while(element.firstChild)
         {
             full_text.append(element.firstChild);
+        }
+        const summary = document.createElement("span");
+        summary.className = "TextExcerptPreview";
+        summary.textContent = preview;
+        element.classList.add("TextExcerptReady");
+        element.append(summary);
+        if(!expandable)
+        {
+            continue;
         }
         const button = document.createElement("button");
         button.type = "button";
@@ -259,7 +265,7 @@ function initializeTextExcerpts()
             element.dataset.textTitle.toLowerCase());
         button.full_text = full_text;
         button.addEventListener("click", showFullText);
-        element.append(document.createTextNode(preview + " "), button);
+        element.append(button);
     }
 }
 

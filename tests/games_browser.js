@@ -26,14 +26,20 @@ function checkBrowserGames()
         let sorted = Array.from(tbody.rows);
         assertBrowser(button.closest("th").getAttribute("aria-sort") ===
             "ascending", "ascending aria-sort");
-        assertBrowser(sorted.at(-1).cells[column].dataset.missing === "true",
-            "ascending missing-last, column " + column);
+        assertBrowser(column === 7 ?
+            sorted[0].cells[column].dataset.key === "0" &&
+                sorted.at(-1).cells[column].dataset.key === "1" :
+            sorted.at(-1).cells[column].dataset.missing === "true",
+            "ascending missing-last or review status, column " + column);
         button.click();
         sorted = Array.from(tbody.rows);
         assertBrowser(button.closest("th").getAttribute("aria-sort") ===
             "descending", "descending aria-sort");
-        assertBrowser(sorted.at(-1).cells[column].dataset.missing === "true",
-            "descending missing-last, column " + column);
+        assertBrowser(column === 7 ?
+            sorted[0].cells[column].dataset.key === "1" &&
+                sorted.at(-1).cells[column].dataset.key === "0" :
+            sorted.at(-1).cells[column].dataset.missing === "true",
+            "descending missing-last or review status, column " + column);
         assertBrowser(sorted.indexOf(original[1]) < sorted.indexOf(original[2]),
             "equal keys retain original order, column " + column);
     }
@@ -76,7 +82,7 @@ function checkBrowserGames()
     assertBrowser(dialog.open, "dialog is visible");
     dialog.close();
     document.getElementById("BrowserResult").textContent =
-        "Passed: all eight columns, both directions, missing-last, stable " +
+        "Passed: all nine columns, both directions, missing-last, stable " +
         "ties, integer hours, cookie restoration, server notes, dialog, " +
         "and date minimum. Use Tab and Enter on sort buttons.";
 }

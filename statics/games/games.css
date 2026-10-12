@@ -217,7 +217,7 @@ button, input, select, textarea
     margin-inline-end: .75rem;
 }
 
-#Games .GameActions a:hover
+#Games .GameActions :is(a, button):hover
 {
     color: var(--color-bg);
     background: var(--color-accent);
@@ -249,7 +249,7 @@ button, input, select, textarea
     text-align: left;
     vertical-align: top;
 }
-#Games:not([data-view="reviews"]) td:nth-child(8)
+#Games:not([data-view="reviews"]) td:nth-child(9)
 {
     min-width: 16rem;
     max-width: 35rem;
@@ -295,13 +295,51 @@ button, input, select, textarea
     top: 50%;
     transform: translateY(-50%);
 }
-#Games .GameActions a
+#Games .GameActions :is(a, button)
 {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     width: 1.8rem;
     height: 1.8rem;
+}
+#Games .GameActions button
+{
+    position: relative;
+    padding: 0;
+    margin: 0;
+    border: 0;
+    background: transparent;
+    color: var(--color-accent);
+}
+#Games .ReviewCopy[hidden]
+{
+    display: none;
+}
+#Games .ReviewCopy[data-feedback]::after
+{
+    content: attr(data-feedback);
+    position: absolute;
+    bottom: 100%;
+    right: 0;
+    padding: .25rem .5rem;
+    background: black;
+    color: white;
+    font-size: .75rem;
+    font-weight: 400;
+    white-space: nowrap;
+    pointer-events: none;
+}
+#ReviewCopyStatus
+{
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
 }
 #Games .GameName:hover .GameActions,
 #Games .GameName:focus-within .GameActions
@@ -583,6 +621,11 @@ button, input, select, textarea
     overflow-wrap: anywhere;
 }
 
+#Games .GamePlatforms, #Games .ReviewStatus
+{
+    text-align: center;
+    white-space: nowrap;
+}
 #Games .ReviewText
 {
     min-width: 16rem;
@@ -595,6 +638,39 @@ button, input, select, textarea
     overflow-wrap: anywhere;
 }
 
+#Games .TextExcerptReady
+{
+    display: flex;
+    align-items: baseline;
+    gap: .25em;
+    height: 1.5em;
+    max-width: 35rem;
+    line-height: 1.5;
+}
+#Games .TextExcerptPreview
+{
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+#Games .TextExcerptReady > button
+{
+    flex: none;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    outline: 1px solid var(--color-border);
+    font: inherit;
+    line-height: inherit;
+    color: var(--color-accent);
+    background: transparent;
+}
+#Games .TextExcerptReady > button:hover
+{
+    color: var(--color-bg);
+    background: var(--color-accent);
+}
 #Games .FullText img
 {
     max-width: 100%;

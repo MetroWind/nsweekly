@@ -76,6 +76,38 @@ TEST_F(GamesHandlers, PublicAllFieldsAndEscapedOwnerForm)
     EXPECT_THAT(edit.body, HasSubstr("value=\"&lt;Game&gt;\""));
 }
 
+TEST_F(GamesHandlers, TrackerLinksOnlyExistingOwnerScopedReviews)
+{
+    GameInput input;
+    input.name = "Reviewed";
+    ASSIGN_OR_FAIL(auto reviewed, games->createGame("alice", input));
+    input.name = "Not reviewed";
+    ASSIGN_OR_FAIL(auto unreviewed, games->createGame("alice", input));
+    GameReviewInput review;
+    ASSERT_TRUE(games->saveReview("alice", reviewed.id, review));
+    ASSERT_TRUE(users->ensureUser("bob"));
+    input.name = "Foreign";
+    ASSIGN_OR_FAIL(auto foreign, games->createGame("bob", input));
+    ASSERT_TRUE(games->saveReview("bob", foreign.id, review));
+    mw::HTTPServer::Request req;
+    req.method = "GET";
+    mw::HTTPServer::Response res;
+    module->handle(req, res, "alice");
+    ASSERT_EQ(res.status, 200);
+    EXPECT_THAT(res.body, HasSubstr("data-sort=\"7\">Review"));
+    EXPECT_THAT(res.body, HasSubstr("href=\"/games/alice/reviews#game-" +
+        std::to_string(reviewed.id) + "\""));
+    EXPECT_THAT(res.body, Not(HasSubstr("href=\"/games/alice/reviews#game-" +
+        std::to_string(unreviewed.id) + "\"")));
+    EXPECT_THAT(res.body, Not(HasSubstr("Foreign")));
+    EXPECT_THAT(res.body, Not(HasSubstr("No review")));
+    ASSERT_TRUE(games->deleteReview("alice", reviewed.id));
+    mw::HTTPServer::Response removed;
+    module->handle(req, removed, "alice");
+    ASSERT_EQ(removed.status, 200);
+    EXPECT_THAT(removed.body, Not(HasSubstr("Read review for")));
+}
+
 TEST_F(GamesHandlers, NativeCreateValidationAndFullReplacement)
 {
     auto req = post("name=Game&status=now_playing&completion=finished&hours=0"

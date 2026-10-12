@@ -22,7 +22,7 @@
   <div class="TableScroll">
   <table>
     <thead><tr>
-      {% for heading in ["Name", "Platforms", "Status", "Completion", "Hours", "Start date", "End date", "Notes"] %}
+      {% for heading in ["Name", "Platforms", "Status", "Completion", "Hours", "Start date", "End date", "Review", "Notes"] %}
       <th scope="col" aria-sort="none"><button type="button" data-sort="{{ loop.index }}">{{ heading }}</button></th>
       {% endfor %}
     </tr></thead>
@@ -31,11 +31,15 @@
     <tr id="game-{{ game.id }}" data-id="{{ game.id }}">
       {% for cell in game.cells %}
       <td data-key="{{ cell.key }}" data-missing="{{ cell.missing }}"
-          {% if loop.index == 0 %}class="GameName"{% endif %}>
+          {% if loop.index == 0 %}class="GameName"{% else if loop.index == 1 %}class="GamePlatforms"{% else if loop.index == 7 %}class="ReviewStatus"{% endif %}>
         {%- if loop.index == 0 -%}
           <a href="{{ game.view_url }}">{{ cell.value }}</a>
           {% if is_owner %}
           <span class="GameActions">
+            <a href="{{ game.view_url }}/screenshots" title="Screenshots"
+               aria-label="Screenshots for {{ cell.value }}">
+              <i class="nf nf-md-image_multiple ActionGlyph" aria-hidden="true"></i>
+            </a>
             <a href="{{ game.review_url }}" title="Write or edit review"
                aria-label="Review {{ cell.value }}"><i class="nf nf-fa-star ActionGlyph" aria-hidden="true"></i></a>
             <a href="{{ game.edit_url }}" title="Edit game"
@@ -56,8 +60,15 @@
             {% if platform.is_switch_2 %}<sub aria-hidden="true">2</sub>{% endif %}
           </span>
           {%- endfor -%}
-        {%- else if loop.index == 7 -%}
+        {%- else if loop.index == 8 -%}
           <div class="TextExcerpt" data-text-title="Notes">{{ cell.value }}</div>
+        {%- else if loop.index == 7 -%}
+          {% if game.has_review %}
+          <a href="{{ game.review_view_url }}" title="Read review"
+             aria-label="Read review for {{ game.cells.0.value }}">
+            <i class="nf nf-fa-star" aria-hidden="true"></i>
+          </a>
+          {% endif %}
         {%- else -%}{{ cell.value }}{%- endif -%}
       </td>
       {% endfor %}
