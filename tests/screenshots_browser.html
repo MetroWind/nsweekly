@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Screenshot browser fixture</title>
+  <link rel="stylesheet" href="/statics/games/games.css">
+  <link rel="stylesheet" href="/statics/games/screenshots.css">
+  <script src="/statics/games/screenshots.js" defer></script>
+</head>
+<body><main id="Games" class="Screenshots">
+  <h1>Public screenshots</h1>
+  <form id="ScreenshotUpload" action="/fixture/upload" method="post"
+        enctype="multipart/form-data">
+    <label>Screenshots <input type="file" name="files" multiple></label>
+    <button type="submit">Upload screenshots</button>
+    <progress id="ScreenshotProgress" value="0" max="1" hidden></progress>
+    <p id="ScreenshotUploadStatus" role="status"></p>
+    <ul id="ScreenshotResults"></ul>
+    <button id="ScreenshotRetry" type="button" hidden>Retry failed files</button>
+  </form>
+  <div class="ScreenshotGallery">
+    <figure><a class="ScreenshotPreview" href="/fixture/preview.png"
+      data-original="/fixture/original.png" data-filename="山 &amp; Moon.png">
+      <img src="/fixture/thumbnail.png" width="320" height="180"
+        alt="山 &amp; Moon.png" loading="lazy" decoding="async"></a>
+      <figcaption>山 &amp; Moon.png
+        <a href="/fixture/preview.png">Compressed preview</a>
+        <a href="/fixture/original.png">Download original</a>
+        <span class="ScreenshotImageError" role="status" hidden>Error</span>
+      </figcaption></figure>
+    <figure><a class="ScreenshotPreview" href="/fixture/unsupported.jxl"
+      data-original="/fixture/second_original.png" data-filename="second.png">
+      <img src="/fixture/thumbnail.png" width="320" height="180"
+        alt="second.png" loading="lazy" decoding="async"></a>
+      <figcaption>long_filename_abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz.png
+        <a href="/fixture/unsupported.jxl">Compressed preview</a>
+        <a href="/fixture/second_original.png">Download original</a>
+        <span class="ScreenshotImageError" role="status" hidden>Error</span>
+      </figcaption></figure>
+  </div>
+  <dialog id="ScreenshotDialog" aria-labelledby="ScreenshotTitle">
+    <button type="button" id="ScreenshotClose" autofocus>Close preview</button>
+    <h2 id="ScreenshotTitle"></h2>
+    <p id="ScreenshotStatus" role="status" aria-live="polite"></p>
+    <img id="ScreenshotImage" alt="" hidden decoding="async">
+    <p><a id="ScreenshotCompressed">Open compressed file</a>
+      <a id="ScreenshotOriginal">Download original</a></p>
+  </dialog>
+</main></body></html>

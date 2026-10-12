@@ -1,5 +1,5 @@
 #include "attachment/attachment_module.hpp"
-#include "games/game.hpp"
+#include "text.hpp"
 #include "http_adaptation.hpp"
 #include "open_graph.hpp"
 #include "route_urls.hpp"
@@ -79,7 +79,7 @@ AttachmentModule::AttachmentModule(const Configuration& conf,
     templates.add_callback("url_for", 2,
                            [](const inja::Arguments& args)
                            {
-                               return gameEscape(
+                               return mw::escapeHTML(
                                    urlFor(args[0]->get<std::string>(),
                                           args[1]->get<std::string>()));
                            });
@@ -141,7 +141,7 @@ void AttachmentModule::handle(const httplib::Request& req,
     auto suffix = path.substr(13);
     auto slash = suffix.find('/');
     auto user = httplib::decode_path_component(suffix.substr(0, slash));
-    if(user.empty() || !validGameText(user))
+    if(user.empty() || !validUtf8Text(user))
     {
         uploadFailure(res, httpError(400, "Invalid user"), json_mode);
         return;
@@ -216,7 +216,7 @@ void AttachmentModule::handle(const httplib::Request& req,
             uploadFailure(res, httpError(415, "Multipart required"), json_mode);
             return;
         }
-        std::optional<AttachmentWriter> writer;
+        std::unique_ptr<UploadExecution> writer;
         std::optional<Error> error;
         size_t parts = 0;
         bool read = (*reader)(
@@ -228,13 +228,15 @@ void AttachmentModule::handle(const httplib::Request& req,
                     error = httpError(400, "Exactly one file required");
                     return false;
                 }
-                auto upload = service.beginUpload(**owner, part.filename);
+                auto upload = service.startUpload(
+                    std::make_unique<OrdinaryUpload>(
+                        UploadInput{**owner, part.filename}));
                 if(!upload)
                 {
                     error = upload.error();
                     return false;
                 }
-                writer.emplace(std::move(*upload));
+                writer = std::move(*upload);
                 return true;
             },
             [&](const char* bytes, size_t size)
@@ -364,23 +366,23 @@ void AttachmentModule::render(httplib::Response& res, const std::string& user,
             prefix.pop_back();
         }
         rows.push_back(
-            {{"name", gameEscape(record.original_name)},
+            {{"name", mw::escapeHTML(record.original_name)},
              {"size", record.file.byte_size},
              {"date",
               std::format("{:04}-{:02}-{:02}", int(date.year()),
                           unsigned(date.month()), unsigned(date.day()))},
-             {"url", gameEscape(prefix + *url)},
+             {"url", mw::escapeHTML(prefix + *url)},
              {"delete_url",
-              gameEscape(manager + "/" + std::to_string(record.id) +
+              mw::escapeHTML(manager + "/" + std::to_string(record.id) +
                          "/delete")}});
     }
     nlohmann::json context{
-        {"session_user", gameEscape(user)},
-        {"username", gameEscape(user)},
-        {"manager_url", gameEscape(manager)},
+        {"session_user", mw::escapeHTML(user)},
+        {"username", mw::escapeHTML(user)},
+        {"manager_url", mw::escapeHTML(manager)},
         {"attachments", rows},
         {"attachment_manager", true},
-        {"attachments_url", gameEscape(manager)},
+        {"attachments_url", mw::escapeHTML(manager)},
         {"notice", notice},
         {"open_graph", openGraph(config.url_prefix, "Attachments", manager,
                                  "Manage public attachments.")}};
@@ -431,7 +433,8 @@ void AttachmentModule::download(const httplib::Request& req,
     }
     auto mime = probeMimeType(*file);
     bool inline_image =
-        mime == "image/jpeg" || mime == "image/png" || mime == "image/webp";
+        mime == "image/jpeg" || mime == "image/png" || mime == "image/webp" ||
+        mime == "image/avif" || mime == "image/jxl";
     std::string ascii;
     for(unsigned char c : name)
     {

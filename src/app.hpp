@@ -46,6 +46,7 @@ private:
     std::unique_ptr<SessionService> sessions;
     std::unique_ptr<AuthModule> auth_module;
     std::unique_ptr<WeeklyModule> weekly_module;
+    std::unique_ptr<GameScreenshotService> screenshots;
     std::unique_ptr<GamesModule> games_module;
     std::unique_ptr<AttachmentModule> attachment_module;
 };

@@ -37,6 +37,9 @@ E<std::unique_ptr<App>> App::create(const Configuration& conf,
     app->attachments = std::make_unique<AttachmentService>(
         std::make_unique<AttachmentDataSqlite>(std::move(attachment_db)), conf);
     DO_OR_RETURN(app->attachments->initialize());
+    app->screenshots = std::make_unique<GameScreenshotService>(
+        *app->attachments, *app->games, app->config);
+    DO_OR_RETURN(app->screenshots->initialize());
     app->compose();
     exit_code = 0;
     return app;
@@ -59,6 +62,9 @@ E<std::unique_ptr<App>> App::create(
     app->weeklies = std::move(weeklies);
     app->games = std::move(games);
     app->attachments = std::move(attachments);
+    app->screenshots = std::make_unique<GameScreenshotService>(
+        *app->attachments, *app->games, app->config);
+    DO_OR_RETURN(app->screenshots->initialize());
     app->compose();
     return app;
 }
@@ -72,7 +78,7 @@ void App::compose()
     weekly_module = std::make_unique<WeeklyModule>(
         config, *weeklies, *sessions);
     games_module = std::make_unique<GamesModule>(
-        config, *games, *users, *sessions);
+        config, *games, *users, *sessions, screenshots.get());
 }
 
 void App::handleIndexWithInvalidSession(Response& res) const

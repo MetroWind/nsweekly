@@ -9,7 +9,8 @@ function attachmentMarkdown(record)
     {
         throw new Error("Invalid attachment URL");
     }
-    const image = ["image/jpeg", "image/png", "image/webp"]
+    const image = ["image/jpeg", "image/png", "image/webp",
+        "image/avif", "image/jxl"]
         .includes(record.mime_type);
     return `${image ? "!" : ""}[${label}](<${record.public_url}>)`;
 }

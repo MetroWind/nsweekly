@@ -8,3 +8,14 @@ listen-port: 58787
 guest-index: user-weekly
 # guest-index-user:
 default-lang: zh-CN
+
+# Screenshot settings apply only to subsequent uploads.
+game-screenshots:
+  thumbnail:
+    codec: webp
+    quality: 75
+    long-edge: 320
+  preview:
+    codec: webp
+    quality: 85
+    long-edge: 1920

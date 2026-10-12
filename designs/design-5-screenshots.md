@@ -1,7 +1,13 @@
 # Game screenshots
 
-Status: proposed design, 2026-10-11. This document specifies implementation
-work; it does not implement the feature.
+Status: revised proposed design, 2026-10-12. This document specifies
+implementation work and the upload lifecycle contract.
+
+This revision replaces screenshot-purpose attachment uploads with
+consumer-defined `Upload` tasks executed by the attachment module. It also
+separates generic provisional-file recovery from screenshot deletion cleanup.
+JPEG XL color-profile preservation and verification remain deferred by
+agreement; the other output codecs retain the color requirements below.
 
 ## Requirements and scope
 
@@ -62,8 +68,12 @@ same SQLite database as games. Schema initialization must create game and
 attachment tables before creating screenshot tables and triggers.
 
 The attachment HTTP endpoint accepts one multipart file. Preserve that
-contract. Batch screenshot uploads use a game-specific endpoint and call
-the attachment service directly rather than making internal HTTP requests.
+contract. Batch screenshot uploads use a game-specific endpoint. For each
+file, the games module constructs a derived `Upload` task and transfers it
+to the attachment executor. It does not call task lifecycle hooks or make
+internal HTTP requests. The existing writer is an internal streaming
+building block; its current immediate-publication `finish()` is not the
+publication boundary for a consumer task.
 
 ## Configuration and encoders
 
@@ -133,7 +143,8 @@ stored variants. A future explicit migration may regenerate them.
 
 ## Color profiles and metadata
 
-Preserve embedded ICC color profiles in thumbnails and previews by default.
+For JPEG, WebP, and AVIF, preserve embedded ICC color profiles in
+thumbnails and previews by default.
 Removing a profile does not convert pixel values to sRGB. Pixels encoded
 for Display P3, Adobe RGB, or another profile must not be silently treated
 as sRGB. Resizing and compression must retain a matching color description.
@@ -186,7 +197,16 @@ unprofiled, explicitly tagged, and invalid-profile inputs. Verify decoded
 colors against a trusted color-managed reference within codec-appropriate
 tolerances, in addition to checking profile presence. Confirm that supported metadata is retained, orientation remains correct,
 and originals are byte-identical.
-Run these checks for each configured output codec, including AVIF and JXL.
+The color-management requirements in this section apply to JPEG, WebP, and
+AVIF; the following JPEG XL exception takes precedence for that codec.
+Run these color checks for JPEG, WebP, and AVIF. JPEG XL uses the standard
+system ImageMagick encoding path for now: do not add a JXL-specific profile
+workaround or reject its output because the encoder changes or drops an ICC
+profile. Profile and decoded-color checks for JXL are deferred. Signature,
+readability, dimensions, orientation, supported non-color metadata, quality,
+resource limits, and original-byte checks still apply to JXL. This exception
+must be documented as a current limitation rather than claiming equal color
+preservation across all codecs.
 
 ## Data model and ownership
 
@@ -262,80 +282,415 @@ cascade. If the attachment itself is being deleted, the queue row either
 is not inserted because the parent is absent or is removed by its own
 cascade. Verify both paths against SQLite in integration tests.
 
-The queue is also an unpublished-upload ledger: newly created screenshot
-attachments enter it atomically with attachment creation. Successful
-association removes the queue entry in the same transaction that inserts
-the screenshot. Therefore a crash cannot leave an untracked screenshot
-attachment between publication and association.
+This is exclusively a consumer-owned deletion queue. Uploads never enter
+it. New attachment records and screenshot associations commit together, so
+there is no published-but-unassociated screenshot attachment to track.
+Interrupted provisional files belong to generic attachment recovery, which
+is described below. Keep these two responsibilities separate: one releases
+published consumer references, while the other reclaims incomplete file work.
 
 Queue entries contain stable owner IDs, not filenames or public URLs.
 They are private operational metadata and are never rendered publicly.
 
-## Services and transaction boundaries
+## Consumer-defined upload tasks
 
-Add `GameScreenshotService`, borrowing `AttachmentService` and the game
-storage interface. It coordinates game authorization, variant production,
-association, listing, and deletion. `GamesModule` borrows this service.
-Keep image encoding and physical reclamation in the attachment module.
+### Responsibility and ownership
 
-Extend attachment upload internals with an explicitly typed screenshot
-upload purpose. A screenshot upload's finish transaction registers a new
-attachment in `GameScreenshotCleanup` before committing. Ordinary uploads
-retain existing behavior. Return whether the record was newly created;
-never enqueue an existing attachment merely because it was reuploaded.
+Define `Upload` in the attachment module. A consumer derives a task class,
+initializes its module-specific state in the constructor, and passes a
+`std::unique_ptr<Upload>` to the attachment service. The service executes
+the task synchronously and owns it through completion or failure. A task
+represents one file and is executed at most once.
 
-Add narrow internal attachment operations for publishing an association
-and draining screenshot cleanup. They use the attachment connection under
-its existing mutation mutex. Do not expose arbitrary SQL callbacks or
-permit games code to manipulate attachment files. Put screenshot-specific
-SQL in a dedicated data helper, such as `game_screenshot_data.cpp`, invoked
-by these coordinated operations.
+Use ownership transfer by value, for example:
 
-Association transaction steps:
+```cpp
+mw::E<UploadResult> doUpload(
+    std::unique_ptr<Upload> upload_task);
+```
 
-1. Acquire the attachment mutation mutex and start a write transaction.
-2. Resolve the game and attachment and verify the expected owner.
-3. Reject a game that has been deleted, or an attachment already queued
-   for deletion other than this operation's own unpublished upload.
-4. Verify both requested compression settings and their variant mappings still exist for this source.
-5. Insert the screenshot, or return its existing identity for a same-game
-   duplicate. Delete this operation's unpublished queue entry on success.
-6. Commit before releasing the mutex. Return gallery metadata.
+The caller uses `std::move()` for a named task. Passing `unique_ptr` by
+value transfers ownership without requiring an rvalue-reference parameter.
+The task base needs a public virtual destructor. Neither task nor result
+needs shared ownership. Request readers and injected services borrowed by a task
+must outlive execution. `doUpload()` executes synchronously and does not
+start detached work. The callback-streaming adapter described below also
+keeps execution inside the request lifetime.
 
-This prevents attachment deletion from racing between verification and
-association. Do not hold SQLite transactions or the mutation mutex while
-receiving bodies or converting images. Dedicated SQLite connections remain
-serialized by SQLite writes; handle busy errors through the existing
-storage error policy without holding a game transaction while waiting for
-an attachment operation.
+`UploadResult` is one concrete value type defined in the attachment module.
+Every upload returns the same type regardless of which module initiated it.
+It contains a snapshot of the published attachment information: record ID,
+owner ID, validated filename, source hash, MIME type, and size. It may reuse
+an existing attachment metadata value type. It has no virtual methods,
+consumer-specific fields, or reference to task-owned state. The executor
+constructs it from the resolved attachment and returns it only after commit.
+Consumers do not derive result classes or perform runtime result type checks.
 
-The screenshot service serializes its upload, screenshot deletion, game
-deletion, and queue-drain coordination within one process. All game-delete
-routes must use its deletion entrypoint. Direct attachment manager deletion
-still uses the attachment service and its mutex. Concurrent original-only
-attachment uploads remain valid and must never be mistaken for abandoned
-screenshot uploads.
+The screenshot service uses the returned attachment identity and its known
+game context to query the committed screenshot association and build the
+HTTP response, including stored settings and generated gallery URLs. The
+existing `already_uploaded` response flag describes whether the screenshot
+association already existed, which cannot be inferred from attachment
+reuse: an existing unattached attachment can receive a new association.
+For that flag, the screenshot service owns a request-local boolean and
+passes a reference to its task. The end hook sets it from its authoritative
+association check. This is consumer state, not an alternative upload result
+type; the attachment module never inspects it. The service uses it only
+after successful execution and discards it on failure. Its lifetime must
+cover synchronous execution or the full streaming handle lifetime. A later
+response-building failure does not undo a committed upload; a retry resolves
+the existing association through the normal duplicate rules.
 
-Drain the queue through `deleteAttachment(user_id, attachment_id)` after
-logical deletion commits. Treat an already missing attachment as complete.
-A storage failure leaves the queue entry for retry and is logged. Drain at
-startup before accepting requests and after screenshot/game mutations.
-Do not drain entries belonging to active uploads: hold the coordinator
-lock through the upload lifecycle, or explicitly track active IDs and
-exclude them under that lock. Choose the lock implementation initially;
-it serializes screenshot uploads but leaves ordinary attachments and
-public reads independent. Revisit throughput only if measured necessary.
+### Abstract hooks and service-owned lifecycle implementation
 
-Game deletion is one game transaction: remove `GameTracking`; the cascade
-removes screenshot rows and triggers cleanup queue insertion atomically.
-Then commit and drain the queue. A crash after commit leaves a durable
-queue. A rollback restores the game, screenshots, and queue state together.
+The three lifecycle hooks are public and pure virtual. They contain only
+module-specific logic. Consumers override them but submit tasks to the
+attachment service instead of invoking the hooks themselves. This calling
+convention is an API contract rather than a C++ access restriction. Common
+logic belongs to private, nonvirtual `AttachmentService` functions, which operate on per-upload
+`UploadExecution` state and invoke the hooks at the appropriate points.
+The service never switches on consumer types.
 
-Screenshot deletion removes its association in a transaction, commits,
-then drains cleanup. Return success after logical deletion even if physical
-cleanup needs retry, consistent with existing attachment semantics. Never
-delete attachments with raw SQL in game code: doing so bypasses the
-attachment service's variant and physical cleanup logic.
+`Upload` is the consumer extension interface, not the lifecycle driver. It
+contains consumer-specific state in derived classes and may hold immutable
+`UploadInput` until the service transfers that input into execution state.
+It owns no staging files, hash accumulator, active-work registration,
+transaction, or lifecycle phase. `UploadExecution` owns those per-upload
+resources and the task; `AttachmentService` implements their lifecycle.
+
+The following interface is schematic; context contents are specified in the
+next section. Public interface items must have intention comments in the
+implementation.
+
+```cpp
+// Consumer-supplied work executed exclusively by the attachment service.
+class Upload
+{
+public:
+    // Allows deletion through an owning base pointer.
+    virtual ~Upload() = default;
+    Upload(const Upload&) = delete;
+    Upload& operator=(const Upload&) = delete;
+
+    // Transfers initial request input into service-owned execution state.
+    mw::E<UploadInput> takeInput();
+    // Validates consumer state before the service receives file bytes.
+    virtual mw::E<void> beginUpload(UploadStart& context) = 0;
+    // Adds consumer processing after the original is completely staged.
+    virtual mw::E<void> process(UploadProcessing& context) = 0;
+    // Writes consumer records within the service's publication transaction.
+    virtual mw::E<void> endUpload(UploadPublication& context) = 0;
+
+protected:
+    // Captures initial request input for transfer into execution state.
+    explicit Upload(UploadInput input);
+
+private:
+    UploadInput input;
+};
+```
+
+`Upload` has no friend declarations. The service calls its public virtual
+hooks and uses `takeInput()` to move the initial input into execution state.
+Input transfer occurs once, before common setup and `beginUpload()`; callers
+must not consume input before submitting the task. The implementation must
+reject reuse of a task whose input has already been transferred.
+`UploadExecution` never invokes the hooks. Its public streaming methods are
+thin delegates to private service operations. The service may grant the
+execution handle access to those operations; this is separate from the
+public task interface. The service must outlive every execution handle that
+borrows it.
+
+The private service operations perform common work around the virtual hooks.
+Each takes an `UploadExecution&`; their exact signatures may follow existing
+service conventions:
+
+| Private service operation | Common logic | Consumer hook |
+| --- | --- | --- |
+| `startExecution()` | Validate owner/name and storage; create staging and register active work | Call `beginUpload()` before consuming bytes |
+| `receive()` | Enforce byte limits; stream and hash chunks into private staging | No consumer hook needed for common reception |
+| `prepare()` | Finalize the staged digest and MIME; expose bounded conversion and duplicate lookup helpers | Call `process()` with the immutable staged source |
+| `publish()` | Lock attachment mutations; begin transaction; revalidate identity; install files and attachment metadata; commit or roll back | Call `endUpload()` before committing |
+| `complete()` | Enforce phase order and single completion; run preparation and publication; own failure cleanup and result lifetime | Never requires the consumer to chain hooks |
+| `cancel()` | Reclaim or register recovery of provisional resources; unregister active work and destroy the task | No additional consumer hook |
+
+Consumers do not override these service operations, handle attachment
+transactions, or call base hook implementations. An ordinary attachment task
+has empty processing and end hooks; common validation, streaming,
+publication, and result construction still run. Existing attachment-manager
+and journal upload behavior is preserved through that task, rather than
+maintaining a second immediate-publication path for HTTP uploads.
+
+### Hook contexts and the byte source
+
+`UploadInput` carries the owner ID, supplied filename, and, for synchronous
+execution, a request-scoped bounded byte source. The attachment module
+defines reception in terms of chunks, completion, and errors, without
+depending on games or multipart field names. EOF means the current file
+part completed structurally. Cancellation or malformed multipart is an
+error, not EOF. Streaming applies existing filename and upload-byte limits;
+it never collects the original into a string or an image BLOB.
+
+The current HTTP multipart parser pushes chunks through callbacks. A
+synchronous `doUpload()` must not try to pull from that parser recursively
+inside a part-header callback. Provide an attachment-owned execution handle
+for this adapter:
+
+```cpp
+// Transfers a task and runs common start logic and its begin hook.
+mw::E<std::unique_ptr<UploadExecution>> startUpload(
+    std::unique_ptr<Upload> upload_task);
+```
+
+`UploadExecution` owns the task, staging files, hash accumulator, byte
+count, lifecycle phase, and active-work registration. It borrows the
+attachment service. Its public `append(bytes)` delegates bounded reception
+to the service; its public `finish()` delegates preparation and publication
+and returns the same result type as `doUpload()`. Destruction before
+successful completion delegates cancellation to the service. Cancellation
+must not throw; failed filesystem cleanup remains recoverable through the
+generic manifest mechanism. The service releases active-work registration
+only after cleanup succeeds or recovery can safely take over.
+
+A terminal error or a completed `finish()` destroys the task before
+returning; the remaining handle is inert. Consumer wrappers release their
+coordination resources on completion, cancellation, or terminal error. These handle operations never call the consumer's hooks
+directly. Consumers never retain or call a task after transferring it to
+either entrypoint.
+
+At each part header, the HTTP adapter constructs the derived task and calls
+`startUpload()` before any bytes for that file are accepted. Subsequent data
+callbacks call the handle's `append()`. Call `finish()` only when the parser
+proves that the part is structurally complete. For a native batch, the next
+part header completes the previous part, and successful end-of-request
+completes the last one. For a JSON request, defer `finish()` until the entire
+request has been validated as exactly one file; a second part or mixed field
+convention cancels the handle without publication. Recoverable per-file
+errors consume the remaining part and continue according to batch policy;
+structural corruption discards the current handle and aborts the remainder.
+
+`doUpload()` is the synchronous convenience wrapper around this same
+execution handle: start, stream its supplied source, and finish. Both public
+entrypoints use the same private service operations, which invoke the
+public hooks in the same order. There is one implementation of common upload mechanics.
+The existing writer may be reused internally, but closing its staging and
+computing a digest must be separated from committing an attachment record.
+Early session, Origin, owner, and game validation still occurs before the
+HTTP body reader; the begin hook revalidates the consumer state before
+accepting that part's bytes.
+
+`UploadStart` supplies immutable request identity and consumer validation
+inputs. `ScreenshotUpload::beginUpload()` verifies the owner-scoped game
+through game storage. Authorization must precede streaming even when no
+attachment records will be published until later.
+
+`UploadProcessing` exposes immutable source identity and narrow generic
+operations: inspect the staged source, look up a possible existing named
+attachment, resolve cached variants, and prepare a variant using
+`ImageVariantOptions`. Its helpers own file descriptors, conversion limits,
+and staging. Consumers cannot unlink files or publish attachment records.
+Prepared variants stay provisional; `process()` is not allowed to call the
+current public `ensureImageVariant()` on a newly created attachment, since
+there is no published attachment record yet. Refactor the shared conversion
+implementation so both public conversion and staged preparation use the
+same recipe and encoder helpers.
+
+Duplicate lookups during processing are advisory snapshots. They avoid
+unnecessary conversion but do not reserve a record or guarantee that it will
+survive until publication. Cached files used outside the mutation lock need
+a pinned descriptor or a private staged copy. A cache hit observed during
+processing must be rechecked at publication; if it disappeared, fail with
+a retryable conflict or prepare it again outside the transaction. Never
+encode while holding the publication transaction open.
+
+`UploadPublication` contains the resolved owner-scoped attachment record,
+its newly-created/previously-existing indication, prepared or reused variant
+metadata, and a borrowed transaction-scoped database access object. It
+supplies generic attachment lookups needed to revalidate duplicates. The
+context is valid only inside `endUpload()` and cannot escape in a result.
+
+The database access object borrows the attachment connection already in its
+write transaction. Games data helpers accept this access object and execute
+only consumer-table queries and writes through it. They must not call normal
+game storage methods that open another connection or begin another
+transaction. The executor owns `BEGIN`, `COMMIT`, and `ROLLBACK`; hooks must
+not issue transaction-control statements, call locking attachment service
+operations recursively, or mutate attachment tables directly. This is an
+internal programming contract, not an isolation boundary for untrusted
+plugins. A restricted transaction view should expose parameterized query
+and execution operations without exposing transaction control as methods.
+Statements must belong to the borrowed connection; reject statements
+prepared on another connection before executing them.
+
+For schema initialization, gallery reads, and deletion, generic service
+`readMetadata()` and `writeMetadata()` operations lend the same restricted
+view to games-owned helpers under the attachment mutation mutex.
+`writeMetadata()` also owns a transaction. Neither operation embeds consumer
+SQL in the attachment module. They must not be called recursively from a
+publication hook; that hook already has the appropriate view.
+
+### Publication and crash recovery
+
+No attachment record or variant mapping for a new upload is committed
+before `process()` succeeds. The publication sequence is:
+
+1. Finish reception, hashing, MIME probing, and all requested conversions
+   in private staging. No SQLite write transaction or attachment mutation
+   mutex is held while receiving bytes or encoding images.
+2. Acquire the attachment mutation mutex and start a write transaction on
+   its connection. Resolve deduplication again using owner, hash, and exact
+   validated filename. Revalidate any record identity observed earlier;
+   an attachment deleted during processing must not be resurrected under
+   that old identity. An expected existing record that disappeared causes
+   a conflict rather than being silently replaced.
+3. Install original and derivative bytes through the generic attachment
+   publication helpers, reusing equal hashes safely. Insert or reuse
+   attachment records and recipe mappings in this still-uncommitted
+   transaction. Files must be durable before their records commit.
+4. Call the task's `endUpload()` with the publication context. The screenshot
+   override checks the game, owner, deletion queue, and association again,
+   then inserts its screenshot row or accepts an existing same-game
+   association. All consumer writes use this exact connection and transaction.
+5. Commit only when the hook and every pre-commit publication operation
+   have succeeded. The executor constructs the common attachment result
+   before commit and returns it only after commit succeeds and the mutex
+   is released. A hook error, storage error, or commit failure
+   rolls back both attachment and consumer metadata and discards the result.
+   After a successful commit, a manifest/staging cleanup failure is logged
+   and retried; it must not turn the committed upload into a failed result.
+
+SQLite transactions cannot atomically roll back filesystem operations.
+Files installed before a failed commit may remain as unreferenced hashes;
+this is acceptable only with generic recovery. Before installing any new
+hash paths, write and fsync an attachment-owned publication manifest in
+private staging listing those hashes. Write a temporary manifest, fsync it,
+atomically rename it, and fsync the staging directory before installing any
+public hashes. A crash during manifest creation therefore leaves only
+ordinary abandoned staging, never a partially written recovery manifest.
+Keep the manifest until commit succeeds and cleanup bookkeeping is durable. On failure or restart, use the existing
+attachment reference checks to reclaim only unreferenced paths. Never unlink
+a hash merely because the failed task mentioned it: another attachment or
+variant may reference the same physical bytes.
+
+A manifest is generic operational metadata: task identity and file hashes,
+with no module name, game ID, screenshot purpose, or consumer SQL. In-process
+recovery excludes active tasks under the attachment service's own registry
+and mutation mutex. Startup recovery runs before requests are accepted, so
+interrupted staging and manifests have no live task owners. Failed unlinks
+retain durable recovery work for retry. A crash after commit but before
+manifest removal is safe: reference checks preserve the committed files.
+Reuse the existing attachment recovery algorithm where possible and extend
+its staging handling to recognize per-task staging files and manifests.
+
+Metadata publication is atomic; public file visibility is not. Apache serves
+hash paths without querying SQLite, so installed bytes can be retrievable
+by a known hash before commit and may survive temporarily after rollback.
+Do not claim provisional bytes become private or that a database rollback
+withdraws a previously served copy. No gallery or attachment manager record
+is returned or rendered until the metadata transaction commits.
+
+The final consumer write must share the attachment connection. Separate
+transactions on two connections to the same database do not provide this
+atomicity. Follow SQLite's [transaction semantics](
+https://www.sqlite.org/lang_transaction.html), including rollback after a
+failed commit and the existing busy-error policy. If rollback cannot restore
+an idle connection, invalidate it under the current storage policy.
+
+## Screenshot service and deletion boundaries
+
+Add `GameScreenshotService`, borrowing `AttachmentService` and game storage.
+It constructs `ScreenshotUpload` tasks, transfers them to the attachment
+executor, resolves public gallery metadata, and coordinates screenshot/game
+deletion. `GamesModule`
+borrows this service. `ScreenshotUpload` and its SQL helpers live in games;
+the attachment module knows neither their type nor their tables.
+
+`ScreenshotUpload::process()` resolves advisory duplicates and prepares the
+two variants sequentially through generic processing-context helpers. For
+an observed same-game duplicate, it may skip conversion; `endUpload()` must
+revalidate that same association and preserve its stored settings. If that
+association disappeared, return a conflict and let a retry prepare a fresh
+upload outside the transaction. For an existing unattached attachment, stage
+missing variants without changing the existing record until publication.
+
+`ScreenshotUpload::endUpload()` performs these consumer operations through
+the supplied publication transaction:
+
+1. Resolve the game and verify its owner equals the attachment owner. A
+   deleted game fails with 404; owner mismatch fails authorization.
+2. Reject any attachment still in `GameScreenshotCleanup`. There is no
+   exception for an operation's own unpublished upload: uploads never use
+   that queue.
+3. Resolve the attachment's association. Another game returns 409. An
+   existing same-game association sets the consumer-owned duplicate flag
+   and preserves its identity, timestamp, settings, and variant metadata.
+4. For a new association, validate the selected typed settings and verify
+   that both requested variant mappings exist in this transaction. Insert
+   the screenshot through games-owned data helpers. The insertion trigger
+   independently enforces owner equality.
+5. Set the consumer-owned duplicate flag to false for a new association
+   and return success. The executor constructs the common `UploadResult`
+   and commits the shared transaction before returning it to the caller.
+   The screenshot service then resolves the committed association for its
+   HTTP response using the returned attachment ID and known game ID.
+
+An advisory duplicate can become associated by another request during
+processing. Handle that as the same duplicate/conflict cases in the final
+transaction. Derivatives prepared unnecessarily may be discarded by generic
+attachment cleanup; do not rewrite an existing screenshot's recipes or
+attach new outputs to it merely because current configuration differs.
+
+The screenshot service serializes upload, screenshot deletion, game deletion,
+and screenshot deletion-queue draining within one process. Initially hold
+its coordinator lock through the complete `doUpload()` call, or from
+`startUpload()` until the corresponding execution handle is finished or
+cancelled, including resolution of the committed screenshot response.
+Acquire this lock in the screenshot service before transferring the task,
+and let the games-owned streaming wrapper retain the moved lock. It holds
+that lock through response mapping so game deletion cannot remove the
+association between publication and the wrapper's metadata query. A terminal
+append error or failed finish releases it; destruction cancels the execution
+handle before releasing it. Task destruction and consumer output lifetime
+remain independent of that lock. This coordination lock
+belongs to the consumer; generic attachment execution does not acquire or
+interpret it. Always acquire the consumer coordinator before the attachment
+mutation mutex. Ordinary attachments and public reads remain independent.
+All game-delete routes use the screenshot service's deletion entrypoint.
+Direct attachment-manager deletion still uses the attachment service and
+its mutex; publication rechecks attachment identity to handle that race.
+
+Screenshot deletion removes its association in a game transaction and
+commits before draining `GameScreenshotCleanup`. Game deletion removes
+`GameTracking`; its cascade removes screenshot rows and triggers queue
+insertion in the same game transaction. A rollback restores the game,
+screenshots, and queue state together. A crash after commit leaves a durable
+consumer-owned deletion queue.
+
+The games module enumerates its queue and invokes the generic
+`deleteAttachment(user_id, attachment_id)` operation after logical deletion.
+A successful deletion cascades away the queue row. Treat an already missing
+attachment as complete; leave storage failures queued and log them. Drain
+at startup before accepting requests and after screenshot/game mutations.
+The attachment service never enumerates this queue or executes its SQL.
+Logical deletion succeeds even if physical reclamation needs retry, matching
+existing attachment semantics. Games code never deletes attachment rows
+with raw SQL or manipulates attachment files.
+
+## Effect on the previous implementation proposal
+
+Do not add `AttachmentPurpose`, screenshot flags on generic writers,
+`AttachmentService::associateScreenshot()`, screenshot listing/deletion
+methods on the attachment service, or attachment-side SQL mentioning
+`GameScreenshots` or `GameScreenshotCleanup`. Replace those paths in the
+previous implementation when implementation work resumes. Merely wrapping
+the old finish-and-associate sequence in a derived class does not solve the
+publication gap.
+
+The intended boundary is: the attachment module executes an abstract task
+and owns generic file/metadata mechanics; the consumer's hooks own
+authorization, processing choices, and consumer-table writes. Upload recovery
+is generic, while release of published screenshot attachments remains games
+policy.
 
 ## Upload and duplicate behavior
 
@@ -351,15 +706,22 @@ For each file:
 
 1. Validate session, owner, matching Origin, request type, and game existence
    before receiving or publishing bytes.
-2. Stream through `AttachmentWriter`; apply existing filename and byte
-   limits. Never trust the client MIME type or extension.
-3. Finish with screenshot upload purpose and obtain the attachment record.
-4. Resolve duplicates as described below before doing unnecessary conversion.
-5. Generate thumbnail and preview variants through `ensureImageVariant()`.
-6. Publish the association transaction only after both variants succeed.
-7. On failure, drain the newly created unpublished attachment's queue entry.
-   Never delete a preexisting attachment returned by deduplication.
-8. Return a typed result containing screenshot identity and generated URLs.
+2. Construct a `ScreenshotUpload` task with the owner, game, compression
+   settings, and source identity. Transfer its `unique_ptr` to `doUpload()`
+   or the callback-streaming `startUpload()` adapter; the consumer never
+   calls its lifecycle hooks directly.
+3. The attachment service's private start/preparation functions validate
+   and stream the original, then invoke `process()` to check advisory duplicates and
+   prepare thumbnail and preview variants. No new attachment is committed.
+4. The attachment service's private publication function starts the shared
+   transaction, publishes attachment metadata, invokes `endUpload()` for screenshot
+   association, and commits both together.
+5. On failure, roll back metadata and reclaim execution-owned provisional files
+   through generic attachment recovery. Existing attachment records survive;
+   no screenshot upload is inserted into the screenshot deletion queue.
+6. Use the common attachment result to resolve the committed screenshot
+   association and generate the HTTP response and URLs. If the response
+   is lost, retry resolves the existing association safely.
 
 Same attachment already associated with this game: return success with
 `already_uploaded=true` and leave compression settings and upload timestamp unchanged.
@@ -385,7 +747,7 @@ For native multipart batches, keep earlier completed successes when a
 later file fails. Structural multipart corruption aborts the remaining
 request; report completed results and the unprocessed remainder. Consume
 recoverable invalid-file parts without buffering them. An interrupted
-current writer is destroyed and its staging bytes are discarded. A file
+current staged source is discarded without running its publication hook. A file
 whose association already committed stays published even if the browser
 never receives the response; retry deduplication resolves this safely.
 
@@ -488,17 +850,22 @@ means the gallery does not embed originals; it does not make their URLs
 private. Public cache copies may outlive deletion. The upload control states
 that screenshots and originals are public. Preserve original bytes and
 metadata exactly. Derivatives do not intentionally strip metadata or
-profiles. The upload notice states that screenshots and originals are
-public; this feature provides no metadata sanitization.
+profiles; JPEG XL profile preservation remains subject to the explicit
+deferral above. The upload notice states that screenshots and originals
+are public; this feature provides no metadata sanitization.
 
 ## Implementation sequence
 
 1. Add configuration, normalization, codec availability checks, and AVIF/JXL
    conversion and public-serving support. Retain existing consumer behavior.
-2. Create screenshot schema, owner enforcement, indexes, deletion trigger,
-   and cleanup ledger after game and attachment schema initialization.
-3. Extend screenshot-purpose upload finalization, association transactions,
-   cleanup draining, and the screenshot service with injected dependencies.
+2. Introduce generic `Upload` tasks, public abstract hooks, private service
+   lifecycle functions, execution-owned state, bounded streaming adapters,
+   publication contexts, and generic crash recovery. Adapt ordinary attachment uploads to this
+   executor and verify their existing contract.
+3. Create screenshot schema, owner enforcement, indexes, deletion trigger,
+   and the consumer-owned deletion queue after game/attachment initialization.
+   Add `ScreenshotUpload`, games-owned transaction helpers, response mapping,
+   and `GameScreenshotService`. Verify atomic publication before HTTP work.
 4. Route game deletion through screenshot coordination and verify rollback
    and restart behavior before adding public upload routes.
 5. Add owner routes and streaming processing, JSON and native batch results,
@@ -525,22 +892,49 @@ explicitly in test output. Default WebP conversion tests must always run.
 
 Database/service tests cover owner mismatch, duplicate uploads, conflicting
 game associations, existing attachments, same bytes across users, both
-stored integer compression settings, and exact original byte preservation. Verify records and
-files rather than only HTTP status codes.
+stored integer compression settings, and exact original byte preservation.
+Verify records and files rather than only HTTP status codes.
 
 Deletion tests cover screenshot removal, direct attachment-manager removal,
 and game cascade; each must leave no stale gallery rows. Verify cleanup
 queue creation and draining, shared originals/outputs surviving when
 referenced, last-reference cleanup, transaction rollback, unlink failure,
-and restart after every publication/association/deletion boundary. Inject
-failure between the two variant generations. Verify that existing
-attachments survive failed screenshot association and newly created ones
-are durably queued for cleanup.
+and restart after every staging/publication/association/deletion boundary.
+Inject failure between the two variant generations, inside `endUpload()`,
+after file installation, and during commit. Verify that new attachment and
+screenshot records are both absent after rollback, existing attachments
+survive failed association, and generic manifests reclaim unreferenced
+files without consulting consumer tables. Uploads must never enter
+`GameScreenshotCleanup`; it contains only release work from deletions.
 
 Concurrency tests cover attachment deletion during conversion/association,
 game deletion during upload, duplicate request retries after response loss,
-and cleanup attempting to run while uploads are active. Assert that deleted
-records cannot be resurrected and no active upload is reclaimed.
+and generic recovery attempting to run while uploads are active. Assert
+that deleted records cannot be resurrected, no active staging is reclaimed,
+and a stale duplicate/cache snapshot is revalidated before commit.
+
+Task-contract tests verify that the hooks are public and pure virtual,
+`Upload` has no friend declarations, consumers submit tasks instead of
+calling hooks directly, and all three hooks contain only consumer logic.
+Private service lifecycle
+functions enforce their order for both synchronous and callback-streaming
+execution. Verify that `Upload` has no common lifecycle operations or
+mutable execution resources, and that only `AttachmentService` invokes its
+hooks. The execution handle must delegate reception, completion, and
+cancellation to the service, which outlives the handle. Reject duplicate
+finish calls, appends after completion, and a JSON request containing a second file without publishing the first one.
+Verify that a start error prevents reception, a processing error prevents
+publication, and an end-hook error rolls back
+both modules' writes. The end hook must use the supplied transaction view;
+tests must expose any attempted second-connection write or nested transaction.
+Verify that tasks are destroyed on failure and the common value result
+is returned only after successful commit. All consumers receive the same
+concrete result type without casts or result subclasses. Verify screenshot
+response mapping and distinguish an existing unattached attachment from
+an existing screenshot association when setting `already_uploaded`. Discard
+consumer-owned output state on failure and verify its lifetime covers
+streaming execution. Ordinary uploads must execute without importing games
+headers or referring to games schema, purpose values, or deletion queues.
 
 HTTP/browser tests cover guest reads, owner-only management, Origin checks,
 malformed multipart, mixed fields, byte limits, partial native batches,

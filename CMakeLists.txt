@@ -105,9 +105,13 @@ set(SOURCE_FILES
   src/attachment/attachment_data.cpp
   src/attachment/attachment_files.cpp
   src/attachment/attachment_service.cpp
+  src/attachment/upload.cpp
   src/attachment/image_variant.cpp
   src/attachment/attachment_module.cpp
   src/open_graph.cpp
+  src/games/game_screenshot_data.cpp
+  src/games/game_screenshot_service.cpp
+  src/games/game_screenshot_module.cpp
   src/games/game_journal.cpp
   src/games/game_journal_data.cpp
   src/games/game_review.cpp
@@ -191,6 +195,7 @@ if(BUILD_TESTING)
   FetchContent_MakeAvailable(googletest)
 
   set(TEST_FILES
+    src/games/game_screenshot_test.cpp
     src/config_test.cpp
     src/attachment/attachment_test.cpp
     src/open_graph_test.cpp
@@ -266,6 +271,18 @@ if(BUILD_TESTING)
         ${APACHE_EXECUTABLE})
     set_tests_properties(AttachmentApache.DirectServing PROPERTIES
       SKIP_RETURN_CODE 77)
+  endif()
+
+  find_program(FIREFOX_EXECUTABLE NAMES firefox-bin firefox)
+  if(Python3_Interpreter_FOUND AND FIREFOX_EXECUTABLE)
+    add_test(NAME ScreenshotBrowser.Controls
+      COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/screenshots_browser_test.py)
+    add_test(NAME ScreenshotBrowser.Native
+      COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/screenshots_browser_test.py --nojs)
+    set_tests_properties(ScreenshotBrowser.Controls ScreenshotBrowser.Native
+      PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 60)
   endif()
 
   include(GoogleTest)

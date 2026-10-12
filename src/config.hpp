@@ -14,6 +14,27 @@ enum class GuestIndex
     USER_WEEKLY,                // Redirect to the weekly of a user.
 };
 
+// Stable database identifiers for screenshot output codecs.
+enum class ScreenshotCodec : int
+{
+    JPEG = 0, WEBP = 1, AVIF = 2, JXL = 3
+};
+
+// Immutable conversion settings recorded with each published screenshot.
+struct ScreenshotSettings
+{
+    ScreenshotCodec codec = ScreenshotCodec::WEBP;
+    int quality = 75;
+    int long_edge = 320;
+};
+
+// Returns the attachment converter's canonical codec name.
+std::string screenshotFormat(ScreenshotCodec codec);
+// Normalizes the supported screenshot codec names and aliases.
+E<ScreenshotCodec> screenshotCodec(std::string_view name);
+// Validates screenshot bounds, quality, and persistent codec identifiers.
+E<void> validateScreenshotSettings(const struct Configuration& config);
+
 struct Configuration
 {
     std::string data_dir;
@@ -35,6 +56,10 @@ struct Configuration
     uint64_t attachment_image_pixels = 64000000;
     int attachment_image_dimension = 16384;
     size_t attachment_image_concurrency = 2;
+
+    // Defaults apply only to future uploads.
+    ScreenshotSettings screenshot_thumbnail;
+    ScreenshotSettings screenshot_preview{ScreenshotCodec::WEBP, 85, 1920};
 
     static E<Configuration> fromYaml(const std::filesystem::path& path);
 

@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en" prefix="og: https://ogp.me/ns#">
+<head>
+  {% include "../head_common.html" %}
+  {% include "../open_graph.html" %}
+  <link rel="stylesheet" href="/statics/games/games.css">
+  <link rel="stylesheet" href="/statics/games/screenshots.css">
+  <script src="/statics/games/screenshots.js" defer></script>
+  <title>Screenshots · {{ game_name }}</title>
+</head>
+<body><main id="Games" class="Screenshots">
+  {% include "../nav.html" %}
+  <h1>{{ game_name }} · Screenshots</h1>
+  <p>By {{ username }} · <a href="{{ game_url }}">Game details</a></p>
+  {% if batch_results %}
+  <h2>Upload results</h2>
+  <ul>{% for result in results %}
+    <li>{{ result.filename }}: {% if result.success %}Uploaded{% else %}{{ result.message }}{% endif %}</li>
+  {% endfor %}</ul>
+  <p><a href="{{ gallery_url }}">Back to gallery</a></p>
+  {% else %}
+  {% if deletion %}
+  <h2>Delete screenshot?</h2>
+  <p>This also deletes its attachment record. Links copied elsewhere may stop working.</p>
+  <form method="post" action="{{ action_url }}">
+    <button type="submit">Delete screenshot</button>
+    <a href="{{ gallery_url }}">Cancel</a>
+  </form>
+  {% else %}
+  {% if is_owner %}
+  <form id="ScreenshotUpload" action="{{ upload_url }}" method="post"
+        enctype="multipart/form-data">
+    <p>Screenshots and originals are public. Metadata and color profiles are
+      retained; this feature provides no metadata sanitization. Removing a
+      screenshot also deletes its attachment record, including an existing
+      attachment reused here. Links copied elsewhere may stop working.</p>
+    <label>Select screenshots <input type="file" name="files" multiple required
+      accept="image/jpeg,image/png,image/webp"></label>
+    <button type="submit">Upload screenshots</button>
+    <progress id="ScreenshotProgress" value="0" max="1" hidden></progress>
+    <p id="ScreenshotUploadStatus" role="status" aria-live="polite"></p>
+    <ul id="ScreenshotResults"></ul>
+    <button id="ScreenshotRetry" type="button" hidden>Retry failed files</button>
+  </form>
+  {% endif %}
+  {% endif %}
+  {% if length(shots) == 0 %}<p>No screenshots yet.</p>{% endif %}
+  <div class="ScreenshotGallery">
+    {% for shot in shots %}
+    <figure>
+      <a class="ScreenshotPreview" href="{{ shot.preview.url }}"
+         data-original="{{ shot.original_url }}" data-filename="{{ shot.filename }}">
+        <img src="{{ shot.thumbnail.url }}" width="{{ shot.thumbnail.width }}"
+             height="{{ shot.thumbnail.height }}" alt="{{ shot.filename }}"
+             loading="lazy" decoding="async">
+      </a>
+      <figcaption>{{ shot.filename }}
+        <a href="{{ shot.preview.url }}">Compressed preview</a>
+        <a href="{{ shot.original_url }}">Download original</a>
+        {% if is_owner %}<a href="{{ shot.delete_url }}">Delete</a>{% endif %}
+        <span class="ScreenshotImageError" role="status" hidden>
+          Your browser could not display this compressed image. Use the file links.
+        </span>
+      </figcaption>
+    </figure>
+    {% endfor %}
+  </div>
+  <dialog id="ScreenshotDialog" aria-labelledby="ScreenshotTitle">
+    <button type="button" id="ScreenshotClose" autofocus>Close preview</button>
+    <h2 id="ScreenshotTitle"></h2>
+    <p id="ScreenshotStatus" role="status" aria-live="polite"></p>
+    <img id="ScreenshotImage" alt="" hidden decoding="async">
+    <p><a id="ScreenshotCompressed">Open compressed file</a>
+      <a id="ScreenshotOriginal">Download original</a></p>
+  </dialog>
+  {% endif %}
+</main></body></html>

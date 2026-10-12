@@ -118,7 +118,8 @@ ProxyPass "/" "http://127.0.0.1:1/"
                 assert result[1]["X-Content-Type-Options"] == "nosniff"
                 assert result[1]["Cache-Control"] == "public, max-age=3600"
             for suffix, mime in [("jpg", "image/jpeg"), ("PNG", "image/png"),
-                                 ("webp", "image/webp")]:
+                                 ("webp", "image/webp"),
+                                 ("avif", "image/avif"), ("jxl", "image/jxl")]:
                 result = request(prefix + "cosmetic." + suffix)
                 assert result[1]["Content-Type"] == mime, result
                 assert result[1]["Content-Disposition"] == "inline"

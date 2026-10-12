@@ -345,3 +345,74 @@ GET/HEAD, ranges, size rejection and deletion. Run
 the shipped direct-serving policy with the application stopped; exit 77
 means Apache is unavailable. Browser save-name checks remain a deployment
 check in Firefox and Chromium.
+
+== Game screenshots
+
+Each tracked game has a public Screenshots gallery linked from its detail
+page. Owners can select multiple JPEG, PNG, or WebP files. JavaScript sends
+one streaming request per file with progress and retries; the native form
+supports multipart batches and reports partial successes. Selecting a
+thumbnail opens a compressed preview. Original bytes are fetched only by
+following the explicit original link, including when a browser cannot decode
+AVIF or JPEG XL. Guests can browse galleries without logging in.
+
+Screenshots and originals are public and retain supported metadata and color
+profiles. This feature does not sanitize metadata. Removing a screenshot
+also deletes its attachment record, even if it was reused from the attachment
+manager; links copied elsewhere may stop working. Game deletion releases all
+its screenshots. Journal attachment lifetime is unchanged. Public cache
+copies can outlive deletion.
+
+Screenshot settings (also in `packages/arch/nsweekly.yaml`):
+
+[source,yaml]
+----
+game-screenshots:
+  thumbnail:
+    codec: webp
+    quality: 75
+    long-edge: 320
+  preview:
+    codec: webp
+    quality: 85
+    long-edge: 1920
+----
+
+Codecs are `jpg`/`jpeg`, `webp`, `avif`, and `jxl`/`jpegxl`. Quality must be
+an integer from 1 to 100; its effect depends on the encoder. Long edges must
+be positive integers no larger than `attachment-image-dimension`, with
+thumbnail no larger than preview. Missing fields use defaults; malformed
+fields prevent startup. The system Magick++ installation must provide working
+writers for the selected codecs: startup tests a real encode and decode and
+fails explicitly for unavailable coders or blocked policies. Install the
+ImageMagick WebP, libheif (AVIF), or libjxl delegates as appropriate; browser
+codec support is a separate requirement.
+
+Both variants contain the whole oriented image without enlargement. The
+converter retains supported EXIF, XMP, IPTC, comments, and ICC profiles. It
+validates profiled sources through a real ICC transform on a disposable copy,
+retains the source profile in derivatives, and reopens the encoded output to
+check color signaling. An encoder that cannot preserve color interpretation
+fails conversion for JPEG, WebP, and AVIF. JPEG XL uses the standard system
+encoder path; profile preservation and color verification for that codec
+are deferred. Format conversion can limit representable metadata.
+Original bytes are preserved exactly. Version 2 conversion recipes avoid
+reusing old metadata-stripped cached derivatives; existing cached attachment
+files remain valid.
+
+Each screenshot records its two typed compression settings; changing the
+configuration affects future uploads. Reuploading the same owner, filename,
+and bytes to the same game returns the existing screenshot. Attaching the
+same attachment record to another game returns a conflict. Different names
+can create separate references to shared physical bytes.
+
+Screenshot uploads use consumer-defined tasks executed by the attachment
+service. Originals and derivatives remain staged until conversion succeeds;
+one transaction publishes attachment metadata and the game association.
+Generic filesystem manifests recover uncommitted public bytes after failures
+or restart. A separate games-owned SQLite queue retries attachment releases
+from deleted screenshots and games; uploads never enter that deletion queue.
+Screenshot mutations are serialized within one process; ordinary attachments
+and public reads remain independent.
+Use a single application writer process for this lifecycle. Apache direct
+serving rules include AVIF and JPEG XL and continue working without the app.

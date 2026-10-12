@@ -1,0 +1,58 @@
+#Games.Screenshots
+{
+    width: auto;
+    max-width: none;
+    min-width: 0;
+}
+.ScreenshotGallery
+{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.25rem;
+    width: 100%;
+}
+.ScreenshotGallery figure
+{
+    margin: 0;
+    max-width: 100%;
+    min-width: 0;
+    width: min-content;
+    flex: 0 1 auto;
+}
+.ScreenshotGallery img
+{
+    display: block;
+    max-width: min(100%, 100vw - 3rem);
+    height: auto;
+}
+.ScreenshotGallery figcaption, #ScreenshotResults, #ScreenshotTitle
+{
+    overflow-wrap: anywhere;
+}
+.ScreenshotGallery figcaption a
+{
+    display: inline-block;
+    margin-right: .5rem;
+}
+#ScreenshotDialog
+{
+    box-sizing: border-box;
+    max-width: 96vw;
+    max-height: 96vh;
+}
+#ScreenshotDialog::backdrop
+{
+    background: rgb(0 0 0 / 75%);
+}
+#ScreenshotImage
+{
+    max-width: 90vw;
+    max-height: 70vh;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+}
+#ScreenshotUpload input
+{
+    max-width: 100%;
+}

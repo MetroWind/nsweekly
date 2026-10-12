@@ -170,7 +170,7 @@ TEST_F(Attachments, ConcurrentUploadsShareBytesAndOneRecord)
     EXPECT_EQ(inserted, 1);
     EXPECT_EQ(service->listAttachments(1)->size(), 1);
 }
-TEST_F(Attachments, DatabaseFailureLeavesSafeOrphanAndRecoveryRemovesIt)
+TEST_F(Attachments, DatabaseFailureReclaimsProvisionalBytesImmediately)
 {
     ASSERT_TRUE(inspection->execute(R"(
 CREATE TRIGGER reject_attachment BEFORE INSERT ON Attachments
@@ -178,7 +178,7 @@ BEGIN SELECT RAISE(ABORT,'injected commit failure'); END;
 )"));
     EXPECT_FALSE(upload(1, "failed", "abc"));
     const std::string hash = "ba7816bf8f01cfea414140de5dae2223";
-    EXPECT_TRUE(std::filesystem::exists(path(hash)));
+    EXPECT_FALSE(std::filesystem::exists(path(hash)));
     EXPECT_TRUE(service->listAttachments(1)->empty());
     restart();
     EXPECT_FALSE(std::filesystem::exists(path(hash)));
@@ -355,7 +355,8 @@ TEST_F(Attachments, OrientPortraitAndRejectAnimatedRaster)
     EXPECT_EQ(oriented.width, 4);
     EXPECT_EQ(oriented.height, 8);
     Magick::Image decoded(path(oriented.file.hash).string());
-    EXPECT_EQ(decoded.exifProfile().length(), 0);
+    EXPECT_GT(decoded.exifProfile().length(), 0);
+    EXPECT_EQ(decoded.orientation(), Magick::TopLeftOrientation);
 
     std::list<Magick::Image> frames;
     frames.emplace_back(Magick::Geometry(4, 4), Magick::Color("red"));
@@ -444,7 +445,7 @@ BEGIN INSERT INTO DeferredFailure VALUES(999); END;
     ASSIGN_OR_FAIL(auto files, inspection->eval<int>(
                                    "SELECT count(*) FROM AttachmentFiles"));
     EXPECT_EQ(std::get<0>(files[0]), 0);
-    EXPECT_TRUE(
+    EXPECT_FALSE(
         std::filesystem::exists(path("ba7816bf8f01cfea414140de5dae2223")));
     restart();
     EXPECT_FALSE(
@@ -520,4 +521,407 @@ TEST_F(Attachments, LibmagicLoadFailureFallsBackWithoutAffectingStorage)
     ASSIGN_OR_FAIL(auto result,upload(1,"plain","abc"));
     EXPECT_EQ(result.record.file.mime_type,"application/octet-stream");
     EXPECT_EQ(bytes(result.record.file.hash),"abc");
+}
+
+namespace
+{
+// Records consumer hook ordering and allows storage failures at real
+// boundaries.
+class ConsumerUpload : public Upload
+{
+public:
+    // Captures test observations that outlive this owned task.
+    ConsumerUpload(UploadInput input, std::vector<std::string>& calls,
+                   bool& destroyed,
+                   std::function<E<void>(UploadProcessing&)> processing = {},
+                   std::function<E<void>(UploadPublication&)> publication = {},
+                   bool reject_start = false)
+        : Upload(std::move(input)), calls(calls), destroyed(destroyed),
+          processing(std::move(processing)),
+          publication(std::move(publication)), reject_start(reject_start)
+    {
+    }
+    // Makes lifetime release observable on both success and failure.
+    ~ConsumerUpload() override
+    {
+        destroyed = true;
+    }
+    // Rejects before reception when requested.
+    E<void> beginUpload(UploadStart&) override
+    {
+        calls.push_back("begin");
+        if(reject_start)
+        {
+            return std::unexpected(runtimeError("Injected start failure"));
+        }
+        return {};
+    }
+    // Invokes a consumer-specific processing action after reception.
+    E<void> process(UploadProcessing& context) override
+    {
+        calls.push_back("process");
+        return processing ? processing(context) : E<void>{};
+    }
+    // Writes or rejects within the shared publication transaction.
+    E<void> endUpload(UploadPublication& context) override
+    {
+        calls.push_back("end");
+        return publication ? publication(context) : E<void>{};
+    }
+
+private:
+    std::vector<std::string>& calls;
+    bool& destroyed;
+    std::function<E<void>(UploadProcessing&)> processing;
+    std::function<E<void>(UploadPublication&)> publication;
+    bool reject_start;
+};
+
+// Drives synchronous reception in bounded chunks without retaining the file.
+struct UploadChunks
+{
+    size_t offset = 0;
+    E<std::string> operator()()
+    {
+        const std::string bytes = "abcdef";
+        auto chunk = bytes.substr(offset, 2);
+        offset += chunk.size();
+        return chunk;
+    }
+};
+} // namespace
+
+TEST_F(Attachments,
+       ConsumerTaskUsesSameLifecycleForSynchronousAndStreamingInput)
+{
+    std::vector<std::string> calls;
+    bool destroyed = false;
+    auto task = std::make_unique<ConsumerUpload>(
+        UploadInput{1, "sync.txt", UploadChunks{}}, calls, destroyed);
+    ASSIGN_OR_FAIL(auto result, service->doUpload(std::move(task)));
+    EXPECT_TRUE(destroyed);
+    EXPECT_EQ(calls, (std::vector<std::string>{"begin", "process", "end"}));
+    EXPECT_EQ(bytes(result.record.file.hash), "abcdef");
+    calls.clear();
+    destroyed = false;
+    auto streamed = std::make_unique<ConsumerUpload>(UploadInput{1, "sync.txt"},
+                                                     calls, destroyed);
+    ASSIGN_OR_FAIL(auto handle, service->startUpload(std::move(streamed)));
+    ASSERT_TRUE(handle->append("abcdef"));
+    EXPECT_EQ(calls, (std::vector<std::string>{"begin"}));
+    EXPECT_FALSE(destroyed);
+    ASSIGN_OR_FAIL(auto duplicate, handle->finish());
+    EXPECT_EQ(duplicate.record.id, result.record.id);
+    EXPECT_TRUE(duplicate.already_owned);
+    EXPECT_TRUE(destroyed);
+    EXPECT_EQ(calls, (std::vector<std::string>{"begin", "process", "end"}));
+    EXPECT_FALSE(handle->finish());
+    EXPECT_FALSE(handle->append("more"));
+}
+
+TEST_F(Attachments, HookFailuresStopExecutionAndReleaseOwnedTask)
+{
+    std::vector<std::string> calls;
+    bool destroyed = false;
+    auto rejected = std::make_unique<ConsumerUpload>(
+        UploadInput{1, "reject"}, calls, destroyed, nullptr, nullptr, true);
+    EXPECT_FALSE(service->startUpload(std::move(rejected)));
+    EXPECT_TRUE(destroyed);
+    EXPECT_EQ(calls, (std::vector<std::string>{"begin"}));
+    calls.clear();
+    destroyed = false;
+    auto task = std::make_unique<ConsumerUpload>(
+        UploadInput{1, "process"}, calls, destroyed,
+        [](UploadProcessing&) -> E<void>
+        {
+            return std::unexpected(runtimeError("Injected processing failure"));
+        });
+    ASSIGN_OR_FAIL(auto handle, service->startUpload(std::move(task)));
+    ASSERT_TRUE(handle->append("bytes"));
+    EXPECT_FALSE(handle->finish());
+    EXPECT_TRUE(destroyed);
+    EXPECT_EQ(calls, (std::vector<std::string>{"begin", "process"}));
+    EXPECT_TRUE(service->listAttachments(1)->empty());
+    EXPECT_TRUE(std::filesystem::is_empty(service->directory() / ".staging"));
+}
+
+TEST_F(Attachments, ConsumerWritesRollBackWithAttachmentOnEndHookFailure)
+{
+    ASSERT_TRUE(inspection->execute(
+        "CREATE TABLE ConsumerAssociations(attachment_id INTEGER "
+        "REFERENCES Attachments(id))"));
+    std::vector<std::string> calls;
+    bool destroyed = false;
+    std::string source_hash;
+    auto task = std::make_unique<ConsumerUpload>(
+        UploadInput{1, "rollback"}, calls, destroyed, nullptr,
+        [&](UploadPublication& context) -> E<void>
+        {
+            source_hash = context.attachment.record.file.hash;
+            ASSIGN_OR_RETURN(auto sql,
+                             context.database.statementFromStr(
+                                 "INSERT INTO ConsumerAssociations VALUES(?)"));
+            DO_OR_RETURN(sql.bind(context.attachment.record.id));
+            DO_OR_RETURN(context.database.execute(std::move(sql)));
+            // A separate reader cannot see either uncommitted module's rows.
+            EXPECT_EQ(std::get<0>(inspection
+                                      ->eval<int64_t>(
+                                          "SELECT count(*) FROM Attachments")
+                                      ->at(0)),
+                      0);
+            EXPECT_EQ(
+                std::get<0>(inspection
+                                ->eval<int64_t>(
+                                    "SELECT count(*) FROM ConsumerAssociations")
+                                ->at(0)),
+                0);
+            return std::unexpected(runtimeError("Injected consumer failure"));
+        });
+    ASSIGN_OR_FAIL(auto handle, service->startUpload(std::move(task)));
+    ASSERT_TRUE(handle->append("original bytes"));
+    EXPECT_FALSE(handle->finish());
+    EXPECT_TRUE(destroyed);
+    EXPECT_EQ(std::get<0>(inspection
+                              ->eval<int64_t>(
+                                  "SELECT count(*) FROM ConsumerAssociations")
+                              ->at(0)),
+              0);
+    EXPECT_TRUE(service->listAttachments(1)->empty());
+    EXPECT_FALSE(std::filesystem::exists(path(source_hash)));
+    EXPECT_TRUE(std::filesystem::is_empty(service->directory() / ".staging"));
+}
+
+TEST_F(Attachments, CommitFailureRollsBackBothModulesAndPublishedFiles)
+{
+    ASSERT_TRUE(inspection->execute(
+        "CREATE TABLE ConsumerAssociations(attachment_id INTEGER "
+        "REFERENCES Attachments(id), user_id INTEGER REFERENCES Users(id) "
+        "DEFERRABLE INITIALLY DEFERRED)"));
+    std::vector<std::string> calls;
+    bool destroyed = false;
+    std::string source_hash;
+    auto task = std::make_unique<ConsumerUpload>(
+        UploadInput{1, "commit"}, calls, destroyed, nullptr,
+        [&](UploadPublication& context) -> E<void>
+        {
+            source_hash = context.attachment.record.file.hash;
+            ASSIGN_OR_RETURN(
+                auto sql,
+                context.database.statementFromStr(
+                    "INSERT INTO ConsumerAssociations VALUES(?,999)"));
+            DO_OR_RETURN(sql.bind(context.attachment.record.id));
+            return context.database.execute(std::move(sql));
+        });
+    ASSIGN_OR_FAIL(auto handle, service->startUpload(std::move(task)));
+    ASSERT_TRUE(handle->append("bytes"));
+    EXPECT_FALSE(handle->finish());
+    EXPECT_TRUE(destroyed);
+    EXPECT_TRUE(service->listAttachments(1)->empty());
+    EXPECT_EQ(std::get<0>(inspection
+                              ->eval<int64_t>(
+                                  "SELECT count(*) FROM ConsumerAssociations")
+                              ->at(0)),
+              0);
+    EXPECT_FALSE(std::filesystem::exists(path(source_hash)));
+    EXPECT_TRUE(upload(1, "connection usable", "bytes"));
+}
+
+TEST_F(Attachments, ProcessingSnapshotCannotResurrectDeletedAttachment)
+{
+    ASSIGN_OR_FAIL(auto original, upload(1, "existing", "bytes"));
+    std::vector<std::string> calls;
+    bool destroyed = false;
+    auto task = std::make_unique<ConsumerUpload>(
+        UploadInput{1, "existing"}, calls, destroyed,
+        [&](UploadProcessing& context) -> E<void>
+        {
+            EXPECT_TRUE(context.existingAttachment());
+            return service->deleteAttachment(1, original.record.id);
+        });
+    ASSIGN_OR_FAIL(auto handle, service->startUpload(std::move(task)));
+    ASSERT_TRUE(handle->append("bytes"));
+    auto failed = handle->finish();
+    ASSERT_FALSE(failed);
+    ASSERT_NE(failed.error().as<HTTPError>(), nullptr);
+    EXPECT_EQ(failed.error().as<HTTPError>()->code, 409);
+    EXPECT_TRUE(destroyed);
+    EXPECT_EQ(calls, (std::vector<std::string>{"begin", "process"}));
+    EXPECT_TRUE(service->listAttachments(1)->empty());
+}
+
+TEST_F(Attachments, GenericManifestRecoveryPreservesCommittedAndActiveFiles)
+{
+    ASSIGN_OR_FAIL(auto original, upload(1, "kept", "bytes"));
+    ASSIGN_OR_FAIL(auto orphan,
+                   AttachmentStaging::create(service->directory()));
+    ASSERT_TRUE(orphan->append("orphan bytes"));
+    ASSIGN_OR_FAIL(auto file, orphan->finish());
+    ASSERT_TRUE(publishAttachment(service->directory(), orphan->path(), file));
+    auto manifest = service->directory() / ".staging" / "recovery.manifest";
+    {
+        std::ofstream output(manifest);
+        output << file.hash << '\n' << original.record.file.hash << '\n';
+    }
+    ASSIGN_OR_FAIL(auto active, service->beginUpload(1, "active"));
+    ASSERT_TRUE(active.append("active bytes"));
+    ASSERT_TRUE(service->cleanup());
+    EXPECT_FALSE(std::filesystem::exists(path(file.hash)));
+    EXPECT_FALSE(std::filesystem::exists(manifest));
+    EXPECT_EQ(bytes(original.record.file.hash), "bytes");
+    EXPECT_TRUE(active.finish());
+}
+
+TEST_F(Attachments, RejectsNestedConsumerTransactionsAndConsumedInput)
+{
+    OrdinaryUpload task({1, "once"});
+    ASSERT_TRUE(task.takeInput());
+    EXPECT_FALSE(task.takeInput());
+    EXPECT_FALSE(service->writeMetadata(
+        [](UploadDatabase& db) { return db.execute("BEGIN IMMEDIATE"); }));
+    EXPECT_FALSE(service->writeMetadata(
+        [](UploadDatabase& db)
+        { return db.execute("-- consumer comment\n /* comment */ COMMIT;"); }));
+    EXPECT_TRUE(upload(1, "usable", "bytes"));
+}
+
+TEST_F(Attachments, SourceErrorsCancelBeforeProcessingAndPublication)
+{
+    std::vector<std::string> calls;
+    bool destroyed = false;
+    int reads = 0;
+    UploadInput input{1, "interrupted", [&]() -> E<std::string>
+                      {
+                          if(reads++ == 0)
+                          {
+                              return "first chunk";
+                          }
+                          return std::unexpected(
+                              runtimeError("Interrupted input"));
+                      }};
+    EXPECT_FALSE(service->doUpload(
+        std::make_unique<ConsumerUpload>(std::move(input), calls, destroyed)));
+    EXPECT_TRUE(destroyed);
+    EXPECT_EQ(calls, (std::vector<std::string>{"begin"}));
+    EXPECT_TRUE(service->listAttachments(1)->empty());
+    EXPECT_TRUE(std::filesystem::is_empty(service->directory() / ".staging"));
+}
+
+TEST_F(Attachments, RollbackPreservesBytesOwnedByAnotherAttachment)
+{
+    ASSIGN_OR_FAIL(auto kept, upload(2, "shared", "bytes"));
+    std::vector<std::string> calls;
+    bool destroyed = false;
+    auto task = std::make_unique<ConsumerUpload>(
+        UploadInput{1, "new"}, calls, destroyed, nullptr,
+        [](UploadPublication&) -> E<void>
+        {
+            return std::unexpected(
+                runtimeError("Consumer rejected association"));
+        });
+    ASSIGN_OR_FAIL(auto handle, service->startUpload(std::move(task)));
+    ASSERT_TRUE(handle->append("bytes"));
+    EXPECT_FALSE(handle->finish());
+    EXPECT_TRUE(service->listAttachments(1)->empty());
+    EXPECT_TRUE(service->getAttachment(2, kept.record.id));
+    EXPECT_EQ(bytes(kept.record.file.hash), "bytes");
+}
+
+TEST_F(Attachments, FailedFileInstallationRetainsRecoveryUntilUnlinkSucceeds)
+{
+    std::vector<std::string> calls;
+    bool destroyed = false;
+    std::filesystem::path blocked;
+    auto task = std::make_unique<ConsumerUpload>(
+        UploadInput{1, "blocked"}, calls, destroyed,
+        [&](UploadProcessing& context) -> E<void>
+        {
+            blocked = path(context.source().hash);
+            std::filesystem::create_directories(blocked);
+            std::ofstream(blocked / "sentinel") << "cannot unlink directory";
+            return {};
+        });
+    ASSIGN_OR_FAIL(auto handle, service->startUpload(std::move(task)));
+    ASSERT_TRUE(handle->append("blocked bytes"));
+    EXPECT_FALSE(handle->finish());
+    EXPECT_TRUE(destroyed);
+    EXPECT_TRUE(service->listAttachments(1)->empty());
+    EXPECT_FALSE(std::filesystem::is_empty(service->directory() / ".staging"));
+    std::filesystem::remove_all(blocked);
+    ASSERT_TRUE(service->cleanup());
+    EXPECT_TRUE(std::filesystem::is_empty(service->directory() / ".staging"));
+}
+
+TEST_F(Attachments,
+       RestartRecoversUncommittedManifestAndPreservesCommittedHashes)
+{
+    ASSIGN_OR_FAIL(auto kept, upload(1, "kept", "committed bytes"));
+    ASSIGN_OR_FAIL(auto staging,
+                   AttachmentStaging::create(service->directory()));
+    ASSERT_TRUE(staging->append("uncommitted bytes"));
+    ASSIGN_OR_FAIL(auto orphan, staging->finish());
+    ASSERT_TRUE(
+        publishAttachment(service->directory(), staging->path(), orphan));
+    staging.reset();
+    auto manifest = service->directory() / ".staging" / "crashed.manifest";
+    {
+        std::ofstream output(manifest);
+        output << orphan.hash << '\n' << kept.record.file.hash << '\n';
+    }
+    restart();
+    EXPECT_TRUE(service->getAttachment(1, kept.record.id));
+    EXPECT_EQ(bytes(kept.record.file.hash), "committed bytes");
+    EXPECT_FALSE(std::filesystem::exists(path(orphan.hash)));
+    EXPECT_TRUE(std::filesystem::is_empty(service->directory() / ".staging"));
+}
+
+TEST_F(Attachments, CachedProcessingSnapshotCannotPublishAfterVariantRemoval)
+{
+    auto pixels = image();
+    ASSIGN_OR_FAIL(auto original, upload(2, "source.png", pixels));
+    ImageVariantOptions options{8, 8, 80, "webp"};
+    ASSIGN_OR_FAIL(auto variant,
+                   service->ensureImageVariant(2, original.record.id, options));
+    std::vector<std::string> calls;
+    bool destroyed = false;
+    auto task = std::make_unique<ConsumerUpload>(
+        UploadInput{1, "new.png"}, calls, destroyed,
+        [&](UploadProcessing& context) -> E<void>
+        {
+            DO_OR_RETURN(context.prepareVariant(options));
+            return service->deleteAttachment(2, original.record.id);
+        });
+    ASSIGN_OR_FAIL(auto handle, service->startUpload(std::move(task)));
+    ASSERT_TRUE(handle->append(pixels));
+    auto result = handle->finish();
+    ASSERT_FALSE(result);
+    ASSERT_NE(result.error().as<HTTPError>(), nullptr);
+    EXPECT_EQ(result.error().as<HTTPError>()->code, 409);
+    EXPECT_TRUE(destroyed);
+    EXPECT_TRUE(service->listAttachments(1)->empty());
+    EXPECT_FALSE(std::filesystem::exists(path(variant.file.hash)));
+}
+
+TEST_F(Attachments, PublicationRejectsStatementsPreparedOnAnotherConnection)
+{
+    ASSERT_TRUE(inspection->execute(
+        "CREATE TABLE ConsumerAssociations(attachment_id INTEGER)"));
+    ASSIGN_OR_FAIL(auto foreign,
+                   inspection->statementFromStr(
+                       "INSERT INTO ConsumerAssociations VALUES(42)"));
+    std::vector<std::string> calls;
+    bool destroyed = false;
+    auto task = std::make_unique<ConsumerUpload>(
+        UploadInput{1, "foreign"}, calls, destroyed, nullptr,
+        [&](UploadPublication& context)
+        { return context.database.execute(std::move(foreign)); });
+    ASSIGN_OR_FAIL(auto handle, service->startUpload(std::move(task)));
+    ASSERT_TRUE(handle->append("bytes"));
+    EXPECT_FALSE(handle->finish());
+    EXPECT_TRUE(destroyed);
+    EXPECT_TRUE(service->listAttachments(1)->empty());
+    EXPECT_EQ(std::get<0>(inspection
+                              ->eval<int64_t>(
+                                  "SELECT count(*) FROM ConsumerAssociations")
+                              ->at(0)),
+              0);
 }

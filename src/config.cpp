@@ -9,6 +9,7 @@
 
 #include "config.hpp"
 #include "error.hpp"
+#include <mw/utils.hpp>
 
 namespace {
 
@@ -59,7 +60,8 @@ E<Configuration> Configuration::fromYaml(const std::filesystem::path& path)
     // Check membership before indexing: a missing NodeRef is unreadable.
     for(const auto child: root.children())
     {
-        if(!child.has_val() || child.val_is_null())
+        if(child.key() != "game-screenshots" &&
+           (!child.has_val() || child.val_is_null()))
         {
             return std::unexpected(runtimeError(
                 "Configuration values must be non-null scalars"));
@@ -156,5 +158,87 @@ E<Configuration> Configuration::fromYaml(const std::filesystem::path& path)
        config.attachment_image_concurrency < 1 ||
        config.attachment_image_concurrency > 64)
     { return std::unexpected(runtimeError("Invalid attachment image limits")); }
+    if(root.has_child("game-screenshots"))
+    {
+        auto screenshots = root["game-screenshots"];
+        if(!screenshots.is_map())
+        {
+            return std::unexpected(runtimeError("Invalid game-screenshots"));
+        }
+        for(auto [name, settings] : {
+            std::pair{"thumbnail", &config.screenshot_thumbnail},
+            std::pair{"preview", &config.screenshot_preview}})
+        {
+            if(!screenshots.has_child(name)) { continue; }
+            auto node = screenshots[name];
+            const auto field = std::string("game-screenshots.") + name;
+            if(!node.is_map())
+            { return std::unexpected(runtimeError("Invalid " + field)); }
+            if(node.has_child("codec"))
+            {
+                auto codec = node["codec"];
+                if(!codec.has_val() || codec.val_is_null())
+                { return std::unexpected(runtimeError(field + ".codec")); }
+                auto value = codec.val();
+                auto parsed = screenshotCodec({value.begin(), value.len});
+                if(!parsed)
+                { return std::unexpected(runtimeError(field + ".codec")); }
+                settings->codec = *parsed;
+            }
+            for(auto [key, value] : {
+                std::pair{"quality", &settings->quality},
+                std::pair{"long-edge", &settings->long_edge}})
+            {
+                if(node.has_child(key) && !getYamlValue(node[key], *value))
+                { return std::unexpected(runtimeError(field + "." + key)); }
+            }
+        }
+    }
+    DO_OR_RETURN(validateScreenshotSettings(config));
     return E<Configuration>{std::in_place, std::move(config)};
+}
+
+std::string screenshotFormat(ScreenshotCodec codec)
+{
+    switch(codec)
+    {
+    case ScreenshotCodec::JPEG: return "jpeg";
+    case ScreenshotCodec::WEBP: return "webp";
+    case ScreenshotCodec::AVIF: return "avif";
+    case ScreenshotCodec::JXL: return "jxl";
+    }
+    return {};
+}
+
+E<ScreenshotCodec> screenshotCodec(std::string_view name)
+{
+    if(name == "jpg" || name == "jpeg") { return ScreenshotCodec::JPEG; }
+    if(name == "webp") { return ScreenshotCodec::WEBP; }
+    if(name == "avif") { return ScreenshotCodec::AVIF; }
+    if(name == "jxl" || name == "jpegxl") { return ScreenshotCodec::JXL; }
+    return std::unexpected(runtimeError("Unsupported screenshot codec"));
+}
+
+E<void> validateScreenshotSettings(const Configuration& config)
+{
+    for(auto [name, settings] : {
+        std::pair{"thumbnail", config.screenshot_thumbnail},
+        std::pair{"preview", config.screenshot_preview}})
+    {
+        auto field = std::string("game-screenshots.") + name;
+        if(screenshotFormat(settings.codec).empty())
+        { return std::unexpected(runtimeError(field + ".codec")); }
+        if(settings.quality < 1 || settings.quality > 100)
+        { return std::unexpected(runtimeError(field + ".quality")); }
+        if(settings.long_edge < 1 ||
+           settings.long_edge > config.attachment_image_dimension)
+        { return std::unexpected(runtimeError(field + ".long-edge")); }
+    }
+    if(config.screenshot_thumbnail.long_edge >
+       config.screenshot_preview.long_edge)
+    {
+        return std::unexpected(runtimeError(
+            "game-screenshots.thumbnail.long-edge exceeds preview.long-edge"));
+    }
+    return {};
 }

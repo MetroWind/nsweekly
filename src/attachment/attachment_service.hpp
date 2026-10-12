@@ -2,38 +2,11 @@
 #include "attachment/attachment_data.hpp"
 #include "attachment/attachment_files.hpp"
 #include "config.hpp"
+#include "attachment/upload.hpp"
 #include <condition_variable>
 #include <map>
 #include <mutex>
-
-class AttachmentService;
-// Move-only upload operation; destruction cancels unpublished bytes.
-class AttachmentWriter
-{
-public:
-    // Transfers an in-progress upload without copying its digest state.
-    AttachmentWriter(AttachmentWriter&&) = default;
-    AttachmentWriter& operator=(AttachmentWriter&&) = default;
-    AttachmentWriter(const AttachmentWriter&) = delete;
-    AttachmentWriter& operator=(const AttachmentWriter&) = delete;
-    // Enforces the configured byte limit while writing a chunk.
-    E<void> append(std::string_view bytes);
-    // Publishes and creates or returns this owner's named record.
-    E<AttachmentUpload> finish();
-
-private:
-    friend class AttachmentService;
-    AttachmentWriter(AttachmentService& owner, int64_t user, std::string name,
-                     std::unique_ptr<AttachmentStaging> temporary)
-        : service(&owner), user_id(user), filename(std::move(name)),
-          staging(std::move(temporary))
-    {
-    }
-    AttachmentService* service;
-    int64_t user_id;
-    std::string filename;
-    std::unique_ptr<AttachmentStaging> staging;
-};
+#include <set>
 
 // Coordinates immutable public files, ownership, variants and reclamation.
 class AttachmentService
@@ -44,8 +17,18 @@ public:
                       const Configuration& settings);
     // Creates storage, removes interrupted work, and validates persisted bytes.
     E<void> initialize();
-    // Validates storage identity and filename before accepting any file data.
+    // Starts an ordinary task through the common executor for existing callers.
     E<AttachmentWriter> beginUpload(int64_t user, std::string_view filename);
+    // Takes exclusive ownership and executes a task's bounded source
+    // synchronously.
+    E<UploadResult> doUpload(std::unique_ptr<Upload> upload_task);
+    // Takes exclusive ownership for request-local callback streaming.
+    E<std::unique_ptr<UploadExecution>>
+    startUpload(std::unique_ptr<Upload> upload_task);
+    // Borrows serialized metadata access for consumer-owned read helpers.
+    E<void> readMetadata(const std::function<E<void>(UploadDatabase&)>& read);
+    // Runs consumer-owned schema or mutations inside a common transaction.
+    E<void> writeMetadata(const std::function<E<void>(UploadDatabase&)>& write);
     // Lists only this owner's named references.
     E<std::vector<Attachment>> listAttachments(int64_t user);
     // Returns 404 for both absent and foreign records.
@@ -64,8 +47,24 @@ public:
     }
 
 private:
-    friend class AttachmentWriter;
-    E<AttachmentUpload> finish(AttachmentWriter& writer);
+    friend class UploadExecution;
+    friend class UploadProcessing;
+    E<void> startExecution(UploadExecution& state);
+    E<void> receive(UploadExecution& state, std::string_view bytes);
+    E<void> prepare(UploadExecution& state);
+    E<void> prepareVariant(UploadExecution& state,
+                           const ImageVariantOptions& options);
+    E<std::pair<int, int>> convertVariant(int descriptor,
+                                          const std::string& mime,
+                                          const ImageVariantOptions& options,
+                                          AttachmentStaging& staging);
+    E<UploadResult> publish(UploadExecution& state);
+    E<UploadResult> complete(UploadExecution& state);
+    void cancel(UploadExecution& state);
+    E<void> recoverUploads();
+    E<void> recoverManifest(const std::filesystem::path& manifest);
+    E<void> writeManifest(UploadExecution& state);
+    std::set<std::filesystem::path> active_uploads;
     E<Attachment> get(int64_t user, int64_t id);
     E<AttachmentFile> adopt(const AttachmentStaging& staging,
                             AttachmentFile file);

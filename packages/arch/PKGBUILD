@@ -7,6 +7,8 @@ url="https://github.com/MetroWind/nsweekly"
 license=('WTFPL')
 groups=()
 depends=('sqlite>=3.35.0' 'curl' 'file' 'imagemagick' 'openssl' 'argon2')
+optdepends=('libheif: ImageMagick AVIF screenshot encoder'
+            'libjxl: ImageMagick JPEG XL screenshot encoder')
 makedepends=('git' 'cmake' 'gcc' 'pkgconf' 'emscripten')
 provides=("${pkgname%-git}")
 conflicts=("${pkgname%-git}")
@@ -18,7 +20,7 @@ source=('git+https://github.com/MetroWind/nsweekly.git' "sysusers-nsweekly.conf"
 noextract=()
 sha256sums=('SKIP' "cb284aa8081215095b5c47460804d8714393558e6300b1bb1d979ca0efad15c0"
             "42d4e9aded7f018d5cc8fbb79e8402b147287e61036d8592b058e7f1eb77ebe3"
-            "3580bcc87078624438819804d7822ddda462fdc24e664195feb3d65f4ccba713")
+            "a2cdc12aea362f24a60a6584ce9cc9a7384190d331788e09af6e575f41736780")
 
 pkgver()
 {

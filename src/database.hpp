@@ -262,6 +262,11 @@ E<std::vector<std::tuple<Types...>>> SQLite::eval(SQLiteStatement sql) const
     {
         return std::unexpected(runtimeError("Database requires restart"));
     }
+    if(!sql.data() || sqlite3_db_handle(sql.data()) != db)
+    {
+        return std::unexpected(runtimeError(
+            "Statement belongs to another database connection"));
+    }
     std::vector<std::tuple<Types...>> result;
     while(true)
     {

@@ -17,7 +17,8 @@ const block = server.slice(server.indexOf("bool inline_image ="),
     server.indexOf("std::string ascii;"));
 const inline_types = [...block.matchAll(/"(image\/[^"]+)"/g)]
     .map(function(match) { return match[1]; });
-assert.deepEqual(inline_types, ["image/jpeg", "image/png", "image/webp"]);
+assert.deepEqual(inline_types, ["image/jpeg", "image/png", "image/webp",
+    "image/avif", "image/jxl"]);
 for(const mime_type of inline_types)
 {
     assert.ok(attachmentMarkdown({...record, mime_type}).startsWith("!"));

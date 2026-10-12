@@ -80,3 +80,28 @@ TEST_F(ConfigurationParsing, RejectsInvalidOptionalSettingsWithoutAborting)
         EXPECT_FALSE(parse(yaml)) << yaml;
     }
 }
+
+TEST_F(ConfigurationParsing, ScreenshotDefaultsAliasesAndBounds)
+{
+    auto defaults = parse("{}");
+    ASSERT_TRUE(defaults);
+    EXPECT_EQ(defaults->screenshot_thumbnail.long_edge, 320);
+    EXPECT_EQ(defaults->screenshot_preview.quality, 85);
+    for(auto alias : {"jpg", "jpeg", "webp", "avif", "jxl", "jpegxl"})
+    {
+        auto config = parse(std::string("game-screenshots:\n  thumbnail:\n") +
+            "    codec: " + alias + "\n    quality: 100\n    long-edge: 240\n");
+        ASSERT_TRUE(config) << alias << errorMsg(config.error());
+        EXPECT_EQ(config->screenshot_thumbnail.codec, *screenshotCodec(alias));
+        EXPECT_EQ(config->screenshot_thumbnail.quality, 100);
+    }
+    for(auto invalid : {"null", "[]", "{thumbnail: null}",
+        "{thumbnail: {codec: png}}", "{thumbnail: {codec: {}}}",
+        "{thumbnail: {quality: 1.5}}", "{preview: {quality: 101}}",
+        "{thumbnail: {quality: 0}}", "{preview: {long-edge: -1}}",
+        "{preview: {long-edge: 20000}}", "{preview: {long-edge: 100}}",
+        "{thumbnail: {long-edge: []}}"})
+    {
+        EXPECT_FALSE(parse(std::string("game-screenshots: ") + invalid));
+    }
+}

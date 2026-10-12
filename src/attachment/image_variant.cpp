@@ -1,9 +1,11 @@
 #include "attachment/image_variant.hpp"
+#include "attachment/srgb_profile.hpp"
 #include <Magick++.h>
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <list>
 #include <mutex>
 #include <unistd.h>
@@ -52,11 +54,13 @@ E<std::string> imageRecipe(const ImageVariantOptions& options,
        options.max_height > config.attachment_image_dimension ||
        options.quality < 1 || options.quality > 100 ||
        (options.format != "jpeg" && options.format != "png" &&
-        options.format != "webp"))
+        options.format != "webp" && options.format != "avif" &&
+        options.format != "jxl"))
     {
         return std::unexpected(httpError(422, "Invalid image options"));
     }
-    return std::format("v1;fit=contain;upscale=0;w={};h={};format={};q={}",
+    return std::format("v2;metadata=preserve;fit=contain;upscale=0;"
+                       "w={};h={};format={};q={}",
                        options.max_width, options.max_height, options.format,
                        options.quality);
 }
@@ -112,8 +116,22 @@ E<std::pair<int, int>> convertImage(int descriptor, const std::string& mime,
             return std::unexpected(
                 httpError(422, "Unsupported decoded format"));
         }
+        const auto icc = image.profile("icc");
+        if(icc.length() != 0)
+        {
+            // Reject malformed ICC containers before any encoder can discard
+            // them. Force a profile transform on a copy to validate the
+            // installed color-management delegate and the profile itself.
+            if(icc.length() < 128 ||
+               std::memcmp(static_cast<const char*>(icc.data()) + 36,
+                           "acsp", 4) != 0)
+            { return std::unexpected(httpError(422, "Invalid ICC profile")); }
+            auto validation = image;
+            validation.profile("icc", Magick::Blob(
+                SRGB_PROFILE.data(), SRGB_PROFILE.size()));
+        }
         image.autoOrient();
-        image.colorSpace(Magick::sRGBColorspace);
+        image.orientation(Magick::TopLeftOrientation);
         double ratio = std::min(
             {1.0, static_cast<double>(options.max_width) / image.columns(),
              static_cast<double>(options.max_height) / image.rows()});
@@ -127,16 +145,11 @@ E<std::pair<int, int>> convertImage(int descriptor, const std::string& mime,
         }
         if(options.format == "jpeg" && image.alpha())
         {
-            Magick::Image background(
-                Magick::Geometry(image.columns(), image.rows()),
-                Magick::Color("white"));
-            background.colorSpace(Magick::sRGBColorspace);
-            background.composite(image, 0, 0, Magick::OverCompositeOp);
-            image = std::move(background);
-            image.alpha(false);
+            // Composite in the source image's color interpretation, preserving
+            // its profiles and metadata rather than copying into a new image.
+            image.backgroundColor(Magick::Color("white"));
+            image.alphaChannel(Magick::RemoveAlphaChannel);
         }
-        image.strip();
-        image.colorSpace(Magick::sRGBColorspace);
         image.magick(options.format);
         image.quality(options.quality);
         if(options.format == "png")
@@ -163,6 +176,27 @@ E<std::pair<int, int>> convertImage(int descriptor, const std::string& mime,
         }
         image.write(options.format + ":/proc/self/fd/" +
                     std::to_string(fileno(encoded.file)));
+        Magick::Image verified;
+        verified.read(options.format + ":/proc/self/fd/" +
+                      std::to_string(fileno(encoded.file)));
+        if(icc.length() != 0 && options.format != "jxl")
+        {
+            const auto result_profile = verified.profile("icc");
+            const bool identical = result_profile.length() == icc.length() &&
+                std::memcmp(result_profile.data(), icc.data(), icc.length()) == 0;
+            if(!identical)
+            {
+                return std::unexpected(httpError(422,
+                    "Encoder cannot preserve the source color profile"));
+            }
+        }
+        else if(icc.length() == 0 &&
+                (image.colorSpace() != verified.colorSpace() ||
+                 std::abs(image.gamma() - verified.gamma()) > 0.01))
+        {
+            return std::unexpected(httpError(422,
+                "Encoder cannot preserve source color interpretation"));
+        }
         if(fflush(encoded.file) != 0 || fseek(encoded.file, 0, SEEK_SET) != 0)
         {
             return std::unexpected(runtimeError("Cannot rewind encoded image"));
@@ -183,4 +217,30 @@ E<std::pair<int, int>> convertImage(int descriptor, const std::string& mime,
         return std::unexpected(httpError(
             422, std::string("Image conversion failed: ") + error.what()));
     }
+}
+
+E<void> validateImageEncoder(const ImageVariantOptions& options)
+{
+    DO_OR_RETURN(initializeImageConverter());
+    const auto& format = options.format;
+    try
+    {
+        Magick::CoderInfo coder(format);
+        if(!coder.isWritable())
+        { return std::unexpected(runtimeError("Unavailable encoder: " + format)); }
+        Magick::Image image(Magick::Geometry(2, 2), Magick::Color("red"));
+        image.magick(format);
+        image.quality(options.quality);
+        Magick::Blob encoded;
+        image.write(&encoded, format);
+        Magick::Image decoded(encoded);
+        if(decoded.columns() != 2 || decoded.rows() != 2)
+        { return std::unexpected(runtimeError("Invalid encoder: " + format)); }
+    }
+    catch(const Magick::Exception& error)
+    {
+        return std::unexpected(runtimeError(
+            "Image encoder " + format + ": " + error.what()));
+    }
+    return {};
 }

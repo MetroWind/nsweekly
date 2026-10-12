@@ -4,6 +4,7 @@
 #include <mw/http_server.hpp>
 #include "config.hpp"
 #include "games/game_data.hpp"
+#include "games/game_screenshot_service.hpp"
 #include "session_service.hpp"
 #include "user_data.hpp"
 
@@ -13,7 +14,8 @@ class GamesModule
   public:
     // Borrows stable application dependencies and owns template state.
     GamesModule(const Configuration &conf, GameDataInterface &games,
-                UserDataInterface &users, SessionService &sessions);
+                UserDataInterface &users, SessionService &sessions,
+                GameScreenshotService* screenshots = nullptr);
     // Keeps registered callback targets at their original address.
     GamesModule(const GamesModule &) = delete;
     GamesModule &operator=(const GamesModule &) = delete;
@@ -45,6 +47,10 @@ class GamesModule
                  const httplib::ContentReader &reader, const std::string &user,
                  const std::string &action, const std::string &id_text,
                  const std::string &entry_text);
+    void handleScreenshots(const mw::HTTPServer::Request& req,
+        mw::HTTPServer::Response& res, const std::string& user,
+        const std::string& action, const std::string& id_text,
+        const std::string& shot_text, const httplib::ContentReader* reader);
     void handleJournal(const mw::HTTPServer::Request &req,
                        mw::HTTPServer::Response &res, const std::string &user,
                        const std::string &session_user,
@@ -61,6 +67,7 @@ class GamesModule
     GameDataInterface &games;
     UserDataInterface &users;
     SessionService &sessions;
+    GameScreenshotService* screenshots;
     inja::Environment templates;
     std::mutex template_mutex;
 };

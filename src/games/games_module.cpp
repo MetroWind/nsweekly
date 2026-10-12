@@ -165,8 +165,10 @@ nlohmann::json choices(const std::array<GameChoice<T>, N> &list,
 } // namespace
 
 GamesModule::GamesModule(const Configuration &conf, GameDataInterface &data,
-                         UserDataInterface &user_data, SessionService &service)
+                         UserDataInterface &user_data, SessionService &service,
+                         GameScreenshotService* screenshot_service)
     : config(conf), games(data), users(user_data), sessions(service),
+      screenshots(screenshot_service),
       templates(
           (std::filesystem::path(conf.data_dir) / "templates" / "").string())
 {
@@ -365,7 +367,8 @@ void GamesModule::handleSession(const Request &req, Response &res,
         }
         if(action == "delete")
         {
-            auto removed = games.deleteGame(user, id);
+            auto removed = screenshots ? screenshots->deleteGame(user, id) :
+                games.deleteGame(user, id);
             if(!removed)
             {
                 storageError(res, removed.error());
@@ -917,7 +920,19 @@ void GamesModule::dispatch(const Request &req, Response &res,
                 entry = tail.substr(0, split);
                 action = "journal/" + tail.substr(split + 1);
             }
-            if(action != "view" && action != "edit" && action != "delete" &&
+            if(action.starts_with("screenshots/") &&
+               action != "screenshots/upload")
+            {
+                auto tail = action.substr(12);
+                auto split = tail.find('/');
+                if(split == tail.npos || tail.substr(split + 1) != "delete")
+                { htmlError(res, 404); return; }
+                entry = tail.substr(0, split);
+                action = "screenshots/delete";
+            }
+            if(action != "screenshots" && action != "screenshots/upload" &&
+               action != "screenshots/delete" &&
+               action != "view" && action != "edit" && action != "delete" &&
                action != "review/edit" && action != "review/delete" &&
                action != "journal/new" && action != "journal/edit" &&
                action != "journal/delete")
@@ -926,6 +941,11 @@ void GamesModule::dispatch(const Request &req, Response &res,
                 return;
             }
         }
+    }
+    if(action.starts_with("screenshots"))
+    {
+        handleScreenshots(req, res, user, action, id, entry, reader);
+        return;
     }
     if(reader)
     {

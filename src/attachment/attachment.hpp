@@ -36,7 +36,7 @@ struct ImageVariantOptions
 {
     // Positive containment bounds and encoder quality in [1, 100].
     int max_width = 0, max_height = 0, quality = 80;
-    // Explicit canonical output: jpeg, png, or webp.
+    // Explicit canonical output: jpeg, png, webp, avif, or jxl.
     std::string format;
 };
 // A persisted reusable image result.

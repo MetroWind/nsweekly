@@ -72,6 +72,12 @@ SQLite::connectFile(const std::string& db_file)
     DO_OR_RETURN(internal::sqlMaybe(
         sqlite3_busy_timeout(data->db, BUSY_TIMEOUT_MS),
         "Failed to set SQLite busy timeout"));
+    DO_OR_RETURN(data->execute("PRAGMA foreign_keys=ON"));
+    ASSIGN_OR_RETURN(auto foreign_keys, data->eval<int>("PRAGMA foreign_keys"));
+    if(foreign_keys.empty() || std::get<0>(foreign_keys[0]) != 1)
+    {
+        return std::unexpected(runtimeError("Foreign keys unavailable"));
+    }
     return data;
 }
 

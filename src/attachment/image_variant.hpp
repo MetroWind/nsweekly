@@ -6,7 +6,9 @@
 E<void> validateImageSettings(const Configuration& config);
 // Initializes Magick++ and process-wide cache limits exactly once.
 E<void> initializeImageConverter();
-// Validates every option and creates the fixed-order v1 recipe.
+// Probes writer availability and a real disposable encode for one recipe.
+E<void> validateImageEncoder(const ImageVariantOptions& options);
+// Validates every option and creates the versioned metadata-preserving recipe.
 E<std::string> imageRecipe(const ImageVariantOptions& options,
                            const Configuration& config);
 // Decodes a pinned source descriptor and streams encoded bytes into staging.
