@@ -118,6 +118,8 @@ void GamesModule::handleScreenshots(const Request& req, Response& res,
     const auto base = gamesURL(user) + "/" + std::to_string(*id);
     const auto gallery = base + "/screenshots";
     Json context{
+        {"table_url", gameEscape(gamesURL(user))},
+        {"weekly_url", gameEscape(weeklyURL(user))},
         {"username", gameEscape(user)},
         {"session_user", gameEscape(session_user)}, {"is_owner", owner},
         {"attachments_url", gameEscape(urlFor("attachments", session_user))},
