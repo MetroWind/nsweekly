@@ -211,7 +211,7 @@ button, input, select, textarea
     color: var(--color-muted);
 }
 
-#Games form > button
+#Games :is(form > button, .ScreenshotUploadControls > button)
 {
     margin-top: 1rem;
     margin-inline-end: .75rem;
@@ -378,7 +378,7 @@ button, input, select, textarea
     margin: 1.5rem 0;
 }
 
-#Games > p > a, #Games form > button
+#Games > p > a, #Games :is(form > button, .ScreenshotUploadControls > button)
 {
     display: inline-block;
     padding: .65rem 1rem;
@@ -392,7 +392,7 @@ button, input, select, textarea
     text-decoration: none;
 }
 
-#Games > p > a:hover, #Games form > button:hover
+#Games > p > a:hover, #Games :is(form > button, .ScreenshotUploadControls > button):hover
 {
     background: #ff87d5;
     box-shadow: 4px 4px 0 var(--color-accent);
