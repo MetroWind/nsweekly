@@ -22,6 +22,10 @@ E<std::unique_ptr<App>> App::create(const Configuration& conf,
     auto users = std::make_unique<UserDataSqlite>(std::move(user_db));
     auto weeklies = std::make_unique<WeeklyDataSqlite>(std::move(weekly_db));
     DO_OR_RETURN(users->initializeSchema());
+    ASSIGN_OR_RETURN(auto music_db, SQLite::connectFile(path));
+    auto music = std::make_unique<MusicDataSqlite>(std::move(music_db));
+    DO_OR_RETURN(music->initializeSchema());
+    app->music = std::move(music);
     DO_OR_RETURN(weeklies->initializeSchema());
     ASSIGN_OR_RETURN(auto game_db, SQLite::connectFile(path));
     auto games = std::make_unique<GameDataSqlite>(std::move(game_db));
@@ -40,7 +44,7 @@ E<std::unique_ptr<App>> App::create(const Configuration& conf,
     app->screenshots = std::make_unique<GameScreenshotService>(
         *app->attachments, *app->games, app->config);
     DO_OR_RETURN(app->screenshots->initialize());
-    app->compose();
+    DO_OR_RETURN(app->compose());
     exit_code = 0;
     return app;
 }
@@ -50,7 +54,8 @@ E<std::unique_ptr<App>> App::create(
     std::unique_ptr<UserDataInterface> users,
     std::unique_ptr<WeeklyDataInterface> weeklies,
     std::unique_ptr<GameDataInterface> games,
-    std::unique_ptr<AttachmentService> attachments)
+    std::unique_ptr<AttachmentService> attachments,
+    std::unique_ptr<MusicDataInterface> music)
 {
     if(!auth || !users || !weeklies || !games || !attachments)
     {
@@ -62,14 +67,15 @@ E<std::unique_ptr<App>> App::create(
     app->weeklies = std::move(weeklies);
     app->games = std::move(games);
     app->attachments = std::move(attachments);
+    app->music = std::move(music);
     app->screenshots = std::make_unique<GameScreenshotService>(
         *app->attachments, *app->games, app->config);
     DO_OR_RETURN(app->screenshots->initialize());
-    app->compose();
+    DO_OR_RETURN(app->compose());
     return app;
 }
 
-void App::compose()
+E<void> App::compose()
 {
     sessions = std::make_unique<SessionService>(*auth);
     attachment_module = std::make_unique<AttachmentModule>(
@@ -79,6 +85,14 @@ void App::compose()
         config, *weeklies, *sessions);
     games_module = std::make_unique<GamesModule>(
         config, *games, *users, *sessions, screenshots.get());
+    if(music)
+    {
+        ASSIGN_OR_RETURN(auto zone, musicTimeZone(config.music_time_zone));
+        music_module = std::make_unique<MusicModule>(
+            config, *music, *users, *sessions, *zone);
+        listenbrainz = std::make_unique<ListenBrainzApi>(*music, *users);
+    }
+    return {};
 }
 
 void App::handleIndexWithInvalidSession(Response& res) const
@@ -140,6 +154,11 @@ void App::setup()
     weekly_module->registerRoutes(server);
     games_module->registerRoutes(server);
     attachment_module->registerRoutes(server);
+    if(music_module)
+    {
+        music_module->registerRoutes(server);
+        listenbrainz->registerRoutes(server);
+    }
     spdlog::info("Listening at http://{}:{}/...", config.listen_address,
                  config.listen_port);
 }

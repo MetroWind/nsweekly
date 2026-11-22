@@ -1,0 +1,108 @@
+:root
+{
+    color-scheme: light dark;
+    font-family: Inter, system-ui, sans-serif;
+    --border: color-mix(in srgb, currentColor 20%, transparent);
+}
+
+body
+{
+    margin: 0;
+}
+
+main
+{
+    max-width: 60rem;
+    margin: auto;
+    padding: 1rem clamp(1rem, 4vw, 2rem) 3rem;
+}
+
+main > nav, .ModuleLinks, .MusicHeading, .MusicFilters,
+.MusicDevices > li
+{
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: .75rem 1rem;
+}
+
+main > nav, .MusicHeading, .MusicDevices > li
+{
+    justify-content: space-between;
+}
+
+main > nav, .MusicDay, .MusicDevices > li
+{
+    border-bottom: 1px solid var(--border);
+    padding-block: .75rem;
+}
+
+nav [aria-current="page"]
+{
+    font-weight: bold;
+}
+
+.MusicFilters, .MusicNow
+{
+    border: 1px solid var(--border);
+    padding: .75rem;
+}
+
+.MusicFilters small, .MusicNow span
+{
+    display: block;
+}
+
+.MusicNow
+{
+    margin-block: 1rem;
+}
+
+.MusicRankings
+{
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(16rem, 100%), 1fr));
+    gap: 1rem;
+}
+
+.MusicRankings li span
+{
+    margin-inline-start: .5rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.MusicDay h3
+{
+    margin-top: 0;
+}
+
+.MusicDay ol, .MusicDevices
+{
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.MusicDay li
+{
+    display: grid;
+    grid-template-columns: 4rem 1fr;
+    gap: .5rem;
+    padding-block: .25rem;
+}
+
+.MusicDay time
+{
+    font-variant-numeric: tabular-nums;
+}
+
+input, button
+{
+    font: inherit;
+    max-width: 100%;
+}
+
+code, li, h1
+{
+    overflow-wrap: anywhere;
+}

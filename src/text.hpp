@@ -1,5 +1,9 @@
 #pragma once
+#include <algorithm>
+#include <charconv>
+#include <chrono>
 #include <cstdint>
+#include <optional>
 #include <string_view>
 
 // Accepts well-formed Unicode text without embedded NUL bytes.
@@ -61,4 +65,34 @@ inline bool validUtf8Text(std::string_view text)
         }
     }
     return true;
+}
+
+// Parses a four-digit ISO calendar date with no time or offset.
+inline std::optional<std::chrono::year_month_day>
+parseCalendarDate(std::string_view text)
+{
+    if(text.size() != 10 || text[4] != '-' || text[7] != '-')
+    {
+        return {};
+    }
+    int parts[3]{};
+    const size_t offsets[]{0, 5, 8};
+    const size_t widths[]{4, 2, 2};
+    for(size_t i = 0; i < 3; ++i)
+    {
+        auto part = text.substr(offsets[i], widths[i]);
+        if(!std::ranges::all_of(part, [](char c) { return c >= '0' && c <= '9'; }))
+        {
+            return {};
+        }
+        std::from_chars(part.data(), part.data() + part.size(), parts[i]);
+    }
+    std::chrono::year_month_day date{std::chrono::year(parts[0]),
+                                     std::chrono::month(parts[1]),
+                                     std::chrono::day(parts[2])};
+    if(parts[0] < 1 || !date.ok())
+    {
+        return {};
+    }
+    return date;
 }

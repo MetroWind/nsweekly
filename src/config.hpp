@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <string>
 #include <expected>
 #include <filesystem>
@@ -35,6 +36,9 @@ E<ScreenshotCodec> screenshotCodec(std::string_view name);
 // Validates screenshot bounds, quality, and persistent codec identifiers.
 E<void> validateScreenshotSettings(const struct Configuration& config);
 
+// Resolves an IANA time-zone name for Music calendar dates.
+E<const std::chrono::time_zone*> musicTimeZone(std::string_view name);
+
 struct Configuration
 {
     std::string data_dir;
@@ -60,6 +64,9 @@ struct Configuration
     // Defaults apply only to future uploads.
     ScreenshotSettings screenshot_thumbnail;
     ScreenshotSettings screenshot_preview{ScreenshotCodec::WEBP, 85, 1920};
+
+    // IANA time zone for Music filters and timestamps.
+    std::string music_time_zone = "UTC";
 
     static E<Configuration> fromYaml(const std::filesystem::path& path);
 

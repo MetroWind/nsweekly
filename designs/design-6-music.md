@@ -5,7 +5,7 @@ Status — proposed design.
 ## Objective and scope
 
 Receive listens from Poweramp through Pano Scrobbler, keep them in NSWeekly,
-and give the owner a browser view of their listening history. A user should
+and publish completed listening history and live playback. A user should
 be able to configure Pano using the information on the Music settings page
 and verify that their first completed play reached the server.
 
@@ -13,7 +13,7 @@ The initial delivery covers ListenBrainz v1 token validation, submission,
 and basic history reads, plus a server-rendered Music page and device
 settings. Use the existing NSWeekly browser login and shared user identity.
 The Music feature has no dependencies on Weekly, Games, or Attachments.
-Provider sync, metadata enrichment, feedback, and public profiles are
+Provider sync, metadata enrichment, and feedback are
 outside the initial scope.
 
 ## Application structure
@@ -30,9 +30,9 @@ Following [the module design](design-0-modules.md), wire the Music storage
 and handlers explicitly in `App`. Give storage its own connection to the
 shared SQLite database and initialize its tables after the shared Users
 table. Reuse the existing SQLite wrapper, libmw HTTP interfaces, and
-`mw::E<>` error propagation. The browser handlers borrow `SessionService`
-and shared user storage. Apply refreshed session cookies using the existing
-helper. Browser and API handlers call storage directly.
+`mw::E<>` error propagation. Both sets of handlers borrow shared user storage
+to resolve account names. The browser handlers also borrow `SessionService`
+and apply refreshed cookies using the existing helper.
 
 ## API base and device setup
 
@@ -46,13 +46,15 @@ exact copyable value on the settings page. Record the tested Pano version
 and the value in the implementation documentation.
 [Koito's versioned API setup](https://koito.io/guides/scrobbler/)
 
-A signed-in user creates a named device token. Generate 32 cryptographically
-random bytes with an existing crypto facility and encode them as lowercase
-hex. Store a SHA-256 digest with the owner's numeric user ID and a unique
+A signed-in user creates a named device token. Generate 16 cryptographically
+random bytes with an existing crypto facility and encode them using the
+standard Base64 alphabet without padding. New tokens are 22 characters long.
+Previously issued padded Base64 and hex tokens remain valid. Store a SHA-256
+digest of the encoded token with the owner's numeric user ID and a unique
 device ID. Show the original token once on a private response with
-`Cache-Control: no-store`. A lost token can be replaced by issuing a new
-one and revoking the old one. Require HTTPS for deployment. Keep token
-values out of query strings, redirects, metrics, and logs.
+`Cache-Control: no-store`. A lost token can be replaced by issuing a new one
+and revoking the old one. Require HTTPS for deployment. Keep token values out
+of query strings, redirects, metrics, and logs.
 
 Device requests use `Authorization: Token <token>`. The digest lookup
 establishes the owner and device. The returned `user_name` is the NSWeekly
@@ -72,18 +74,17 @@ responses and test exact response shapes against upstream documentation.
 | --- | --- |
 | `GET /validate-token` | Return HTTP 200 with `code`, `message`, `valid`, and `user_name` for an active token. A supplied invalid or revoked token returns 200 and `valid: false` without `user_name`. A missing token returns 400. Use the header form for Pano. |
 | `POST /submit-listens` | Accept `single`, `import`, and `playing_now`. Return 200 and `{"status":"ok"}` after successful processing. Invalid authorization returns 401 and invalid payloads return 400. |
-| `GET /user/{user_name}/listens` | Require an active token whose owner matches the named user. Return newest first in `payload.listens`, with `payload.count` equal to the number returned and `payload.user_id` equal to the account name. |
-| `GET /user/{user_name}/playing-now` | Apply the same authorization as history. Return the history envelope with zero or one item, a `payload.playing_now` boolean, and no `listened_at` on the item. |
+| `GET /user/{user_name}/listens` | Public. Return newest first in `payload.listens`, with `payload.count` equal to the number returned and `payload.user_id` equal to the account name. Include `additional_info` when the owner supplies an active device token. |
+| `GET /user/{user_name}/playing-now` | Public. Return the history envelope with zero or one item, a `payload.playing_now` boolean, and no `listened_at` on the item. Include `additional_info` when the owner supplies an active device token. |
 
 History accepts `count` and at most one of `min_ts` and `max_ts`. Apply
 exclusive timestamp bounds and sort by `listened_at DESC, id DESC` so
 ties are deterministic. Default to 25 rows and cap requests at 1,000 rows.
 Timestamp-only API paging has a boundary when multiple rows share a
 timestamp. The browser uses a two-field cursor to traverse such rows.
-Return 401 for missing or invalid read credentials and 404 if the URL
-names a different account. This owner-only rule is an intentional
-difference from the hosted service. Verify Pano supplies the token on
-reads before claiming its in-app history works.
+Public history includes the timestamp, artist, track, and optional release.
+Public now-playing includes the artist, track, and optional release.
+Return 404 for unknown accounts on either endpoint.
 [ListenBrainz core endpoints](https://listenbrainz.readthedocs.io/en/latest/users/api/core.html)
 · [JSON envelopes](https://listenbrainz.readthedocs.io/en/latest/users/json.html)
 
@@ -179,11 +180,12 @@ cases. Avoid fuzzy matching, which would make the result harder to predict.
 
 | Route | Behavior |
 | --- | --- |
-| `GET /music` | Render the signed-in owner's recent history and summary. Accept `from`, `to`, and an older-page cursor. |
+| `GET /music` | Render history for the signed-in user or the configured `guest-index-user`. |
+| `GET /music/user/{user_name}` | Render the named account's public history, summary, and now-playing status. Accept `from`, `to`, and an older-page cursor on both history routes. |
 | `GET /music/settings` | Render the Pano setup URL, device labels, token creation form, revocation forms, and last successful completed submission per device. |
 | `POST /music/devices` | Create a device and show its one-time token. Use a short-lived, one-time server-side result with a redirect if the current session infrastructure supports it. Otherwise render the result directly and consume a one-time form nonce to prevent duplicate issuance on reload. |
 | `POST /music/devices/{id}/revoke` | Revoke an owner-scoped device and redirect to settings on success. Repeating the request is harmless. |
-| `GET /music/now-playing` | Optional session-authenticated endpoint for refreshing the now-playing row. Return the current state with `Cache-Control: no-store`. |
+| `GET /music/user/{user_name}/now-playing` | Optional public endpoint for refreshing the now-playing row. Return the current state with `Cache-Control: no-store`. |
 
 Use server-rendered templates for the first paint, filtering, paging, and
 settings. Render history newest-first, grouped by date, with time, track,
@@ -212,7 +214,8 @@ the controls and show an empty result message.
 
 Escape imported metadata in templates. If the now-playing row is enhanced,
 poll only while the page is visible and set text through text-safe DOM
-APIs. The initial row renders on the server. Token copy buttons may use
+APIs. The initial row renders on the server for all visitors.
+Token copy buttons may use
 the clipboard API and leave the token selectable if copying fails. The
 history page and device forms work with JavaScript disabled. Use private
 cache policy for authenticated pages and `no-store` for setup and token
@@ -232,7 +235,8 @@ responses.
 3. Build the settings page and basic server-rendered history. Test CSRF,
    one-time token display, escaped metadata, empty states, cursor paging
    across timestamp ties, and date bounds on a daylight saving transition.
-   Add owner-authenticated reads and check their envelopes and bounds.
+   Verify public history and now-playing in the browser and API. Check
+   response envelopes, history bounds, and private metadata.
 4. On Android, grant Pano notification access, enable Poweramp in Pano,
    and enter the server URL and token using its ListenBrainz-like option.
    Confirm that login succeeds and a Poweramp play appears once in Music,

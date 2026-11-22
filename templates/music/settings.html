@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+{% include "../head_common.html" %}
+<title>Music device settings</title>
+<link rel="stylesheet" href="/statics/music/music.css">
+</head>
+<body><main>
+{% include "../nav.html" %}
+<header class="MusicHeading">
+  <h1>Music device settings</h1>
+  <a href="/music">Listening history</a>
+</header>
+<section>
+  <h2>Connect Pano Scrobbler</h2>
+  <ol>
+    <li>Grant Pano notification access on Android and enable Poweramp in Pano.</li>
+    <li>Add a ListenBrainz-like account using this API URL and a device token.</li>
+    <li>Play a track in Poweramp and check <a href="/music">listening history</a>.</li>
+  </ol>
+  <p><code>{{ pano_url }}</code></p>
+  <p>Your completed plays and now-playing status are public.</p>
+  <form action="/music/devices" method="post">
+    <input type="hidden" name="csrf" value="{{ nonce }}">
+    <label>Device name <input name="label" required maxlength="120"></label>
+    <button type="submit">Create token</button>
+  </form>
+</section>
+<section>
+  <h2>Devices</h2>
+  {% if length(devices) == 0 %}
+  <p>No devices yet.</p>
+  {% else %}
+  <p>Times in {{ zone }}.</p>
+  <ul class="MusicDevices">
+  {% for item in devices %}
+    <li>
+      <div>
+        <strong>{{ item.label }}</strong>
+        <div>Created {{ item.created }}</div>
+        <div>Last completed submission{% if item.last == "" %} · Never{% else %} · {{ item.last }}{% endif %}</div>
+      </div>
+      {% if item.revoked != "" %}
+      <span>Revoked {{ item.revoked }}</span>
+      {% else %}
+      <form action="/music/devices/{{ item.id }}/revoke" method="post">
+        <input type="hidden" name="csrf" value="{{ nonce }}">
+        <button type="submit">Revoke</button>
+      </form>
+      {% endif %}
+    </li>
+  {% endfor %}
+  </ul>
+  {% endif %}
+</section>
+</main></body>
+</html>

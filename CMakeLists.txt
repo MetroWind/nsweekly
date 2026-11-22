@@ -101,6 +101,10 @@ find_package(CURL REQUIRED)
 find_package(SQLite3 3.35.0 REQUIRED)
 
 set(SOURCE_FILES
+  src/music/music_data.cpp
+  src/music/music_http.cpp
+  src/music/listenbrainz_api.cpp
+  src/music/music_module.cpp
   src/attachment/attachment.cpp
   src/attachment/attachment_data.cpp
   src/attachment/attachment_files.cpp
@@ -159,6 +163,7 @@ set(SOURCE_FILES
 set(LIBS
   MacroDown::MacroDown
   cxxopts
+  mw::mw
   mw::crypto
   PkgConfig::MAGIC
   PkgConfig::MAGICK
@@ -195,6 +200,7 @@ if(BUILD_TESTING)
   FetchContent_MakeAvailable(googletest)
 
   set(TEST_FILES
+    src/music/music_test.cpp
     src/games/game_screenshot_test.cpp
     src/config_test.cpp
     src/attachment/attachment_test.cpp

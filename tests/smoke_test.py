@@ -8,6 +8,7 @@ import datetime
 import http.client
 import http.server
 import json
+import re
 from html.parser import HTMLParser
 from pathlib import Path
 import socket
@@ -85,15 +86,15 @@ class OpenIDProvider(http.server.BaseHTTPRequestHandler):
         """Keep smoke output limited to its outcome."""
 
 
-def request(port, path, method="GET", body=None, cookie=None):
+def request(port, path, method="GET", body=None, cookie=None, headers=None):
     """Make one request without following redirects."""
-    headers = {}
+    headers = dict(headers or {})
     if cookie:
         headers["Cookie"] = cookie
     if method == "POST" and path.startswith("/games/"):
         headers["Origin"] = f"http://127.0.0.1:{port}"
     if body is not None:
-        headers["Content-Type"] = "application/x-www-form-urlencoded"
+        headers.setdefault("Content-Type", "application/x-www-form-urlencoded")
     connection = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
     try:
         connection.request(method, path, body, headers)
@@ -239,6 +240,56 @@ def attachmentSmoke(port, cookie, db_path, data_dir):
     assert list((data_dir / "attachments" / ".staging").iterdir()) == []
 
 
+def musicSmoke(port, cookie, listened_at):
+    """Create a device and submit an identical play twice over HTTP."""
+    status, headers, settings = request(port, "/music/settings", cookie=cookie)
+    assert status == 200
+    assert dict(headers)["Cache-Control"] == "no-store"
+    api_root = f"http://127.0.0.1:{port}/music/api/listenbrainz/"
+    assert api_root in settings
+    nonce = re.search(r'name="csrf" value="([a-f0-9]{64})"', settings)
+    assert nonce
+    form = urlencode({"label": "Smoke phone", "csrf": nonce.group(1)})
+    status, headers, result = request(port, "/music/devices", "POST",
+                                      form, cookie)
+    assert status == 200
+    assert dict(headers)["Cache-Control"] == "no-store"
+    token = re.search(r'id="device-token">([A-Za-z0-9+/]{21}[AQgw])<', result)
+    assert token
+    auth = {"Authorization": "token " + token.group(1)}
+    api = "/music/api/listenbrainz/1"
+    status, _, body = request(port, api + "/validate-token", headers=auth)
+    assert status == 200
+    assert json.loads(body)["user_name"] == "mw"
+
+    item = {"listened_at": listened_at, "track_metadata": {
+        "artist_name": "Smoke Artist", "track_name": "Smoke Track"}}
+    submission = json.dumps({"listen_type": "single", "payload": [item]})
+    submission_headers = auth | {"Content-Type": "application/json"}
+    for _ in range(2):
+        status, _, body = request(port, api + "/submit-listens", "POST",
+                                  submission, headers=submission_headers)
+        assert status == 200 and json.loads(body) == {"status": "ok"}
+    status, _, history = request(port, "/music/user/mw")
+    assert status == 200
+    assert "<strong>1</strong> completed play" in history
+    assert "Smoke Track" in history
+
+    live_track = {"artist_name": "Smoke Artist", "track_name": "Smoke Live"}
+    current = json.dumps({"listen_type": "playing_now",
+                          "payload": [{"track_metadata": live_track}]})
+    assert request(port, api + "/submit-listens?return_msid=true", "POST",
+                   current, headers=submission_headers)[0] == 200
+    status, headers, playing = request(port, api + "/user/mw/playing-now")
+    assert status == 200
+    assert dict(headers)["Cache-Control"] == "no-store"
+    assert json.loads(playing)["payload"]["listens"][0]["track_metadata"] == live_track
+    status, _, history = request(port, "/music/user/mw")
+    assert status == 200
+    assert "Now playing" in history and "Smoke Live" in history
+
+
+
 def main():
     """Verify production wiring, persistence, and startup failures."""
     binary = str(Path(sys.argv[1]).resolve())
@@ -335,6 +386,8 @@ def main():
                     assert request(port, "/games/mw/new")[0] == 401
                     cookie = "access-token=access"
                     attachmentSmoke(port, cookie, db_path, data_dir)
+                    musicSmoke(port, cookie, int(now.timestamp()))
+                    assert request(port, "/statics/music/music.css")[0] == 200
                     assert request(port, "/games/mw/new", cookie=cookie)[0] == 200
                     created = request(port, "/games/mw/new", "POST",
                         urlencode({"name": "Smoke Game", "status": "now_playing",
@@ -460,6 +513,13 @@ def main():
                     reopened = request(port, f"/weekly/mw/{date}")
                     assert reopened[0] == 200
                     assert "<strong>saved</strong>" in reopened[2]
+                    api = "/music/api/listenbrainz/1/user/mw/"
+                    status, _, history = request(port, api + "listens")
+                    assert status == 200
+                    assert json.loads(history)["payload"]["count"] == 1
+                    status, _, playing = request(port, api + "playing-now")
+                    assert status == 200
+                    assert json.loads(playing)["payload"]["count"] == 0
                 finally:
                     stop(process)
                 with sqlite3.connect(db_path) as db:
@@ -472,6 +532,7 @@ def main():
                 failures = [
                     ({"url-prefix": "invalid"}, 4),
                     ({"openid-url-prefix": ""}, 1),
+                    ({"music-time-zone": "Invalid/Zone"}, 3),
                     ({"data-dir": str(data_dir / "missing")}, 2),
                 ]
                 for changes, expected_code in failures:
@@ -536,7 +597,8 @@ def main():
                 assert subprocess.run([binary, "--help"],
                     capture_output=True).returncode == 0
                 print("Production smoke passed: login, guest, pages, preview, "
-                      "save, refresh, reopen, games and reviews CRUD/import, attachments, and startup exit codes.")
+                      "save, refresh, reopen, games and reviews CRUD/import, "
+                      "attachments, music scrobbling, and startup exit codes.")
     finally:
         provider.shutdown()
         provider_thread.join()

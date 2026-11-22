@@ -5,6 +5,8 @@
 #include "config.hpp"
 #include "attachment/attachment_module.hpp"
 #include "games/games_module.hpp"
+#include "music/listenbrainz_api.hpp"
+#include "music/music_module.hpp"
 #include "user_data.hpp"
 #include "weekly/weekly_module.hpp"
 
@@ -26,7 +28,8 @@ public:
         std::unique_ptr<UserDataInterface> users,
         std::unique_ptr<WeeklyDataInterface> weeklies,
         std::unique_ptr<GameDataInterface> games,
-        std::unique_ptr<AttachmentService> attachments);
+        std::unique_ptr<AttachmentService> attachments,
+        std::unique_ptr<MusicDataInterface> music = nullptr);
     // Applies the existing session and guest landing-page policy.
     void handleIndex(const Request& req, Response& res) const;
 private:
@@ -35,7 +38,7 @@ private:
               conf.listen_address, conf.listen_port}), config(conf)
     {}
     void setup() override;
-    void compose();
+    E<void> compose();
     void handleIndexWithInvalidSession(Response& res) const;
     const Configuration config;
     std::unique_ptr<AuthInterface> auth;
@@ -43,10 +46,13 @@ private:
     std::unique_ptr<WeeklyDataInterface> weeklies;
     std::unique_ptr<GameDataInterface> games;
     std::unique_ptr<AttachmentService> attachments;
+    std::unique_ptr<MusicDataInterface> music;
     std::unique_ptr<SessionService> sessions;
     std::unique_ptr<AuthModule> auth_module;
     std::unique_ptr<WeeklyModule> weekly_module;
     std::unique_ptr<GameScreenshotService> screenshots;
     std::unique_ptr<GamesModule> games_module;
     std::unique_ptr<AttachmentModule> attachment_module;
+    std::unique_ptr<MusicModule> music_module;
+    std::unique_ptr<ListenBrainzApi> listenbrainz;
 };

@@ -416,3 +416,53 @@ Screenshot mutations are serialized within one process; ordinary attachments
 and public reads remain independent.
 Use a single application writer process for this lifecycle. Apache direct
 serving rules include AVIF and JPEG XL and continue working without the app.
+
+== Music scrobbling
+
+Completed listening history, date filters, rankings, and now playing are
+public at `/music/user/USERNAME`. The `/music` shortcut opens your history
+when you sign in and the configured guest account's history otherwise. The
+ListenBrainz `listens` and `playing-now` endpoints are public. They include
+submitted `additional_info` when the owner supplies an active device token.
+Device settings are available to the owner.
+
+Sign in and open *Music → Device settings* to create a separate token for
+each scrobbler. Configure the public HTTPS address in `url-prefix`, forward
+the `Authorization` header at the reverse proxy, and keep request bodies and
+authorization headers out of access logs. New tokens contain 16 random bytes
+encoded as 22 Base64 characters without padding. The token is shown once.
+To replace a lost token, issue a new one and revoke the old device.
+
+On Android, grant Pano Scrobbler notification access and enable Poweramp in
+Pano. Add a *ListenBrainz-like* account and paste the settings URL
+(`https://example.org/music/api/listenbrainz/` for this example) and the
+device token. Pano adds `1/` itself. Listen until Pano scrobbles a completed
+play, then check the Music page and the device's last completed submission
+time. Clients that take the full ListenBrainz v1 base use
+`https://example.org/music/api/listenbrainz/1`.
+
+The setup URL, lowercase token scheme, now-playing request, and authorized
+history reads were checked against
+https://github.com/kawaiiDango/pano-scrobbler/blob/main/composeApp/src/commonMain/kotlin/com/arn/scrobble/api/listenbrainz/ListenBrainz.kt[Pano's client source].
+A `playing_now` request with `return_msid=true` receives a stable NSWeekly
+recording UUID derived from the submitted artist, track, and optional release.
+The response follows the
+https://listenbrainz.readthedocs.io/en/latest/users/api/core.html#post--1-submit-listens[ListenBrainz submit contract].
+Feedback, charts, the profile listen count, and Pano's full history pagination
+are outside this version's compatibility scope. The Android test and its
+tested Pano version are pending. The phone test should cover login, a completed
+Poweramp play, a queued offline play, retry after reconnection, persistence
+after an NSWeekly restart, and a separate check of Pano's Recents screen.
+
+Set `music-time-zone: America/Los_Angeles` or another IANA zone to display
+timestamps and interpret calendar filters in that zone. The default is
+`UTC`. NSWeekly uses the system time-zone database. Music shows the last
+30 local calendar days by default and offers an all-history view. Completed
+plays and device records persist in SQLite. Temporary playback state expires
+after five minutes or on restart.
+
+Run the Music storage and HTTP tests with
+`ctest --test-dir build -R '^Music' --output-on-failure` after
+`cmake --build build -j24`. The Music HTTP tests exercise rendering, filters,
+paging, and settings forms without JavaScript. The production smoke test is
+`python3 tests/smoke_test.py build/nsweekly`.

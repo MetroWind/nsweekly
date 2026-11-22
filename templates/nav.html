@@ -5,14 +5,15 @@
     <a href="{{ table_url }}" aria-current="page">Games</a>
 {% else %}
 {% if exists("username") %}
-    <a href="{{ url_for("weekly", username) }}"{% if not exists("attachment_manager") %} aria-current="page"{% endif %}>Weeklies</a>
+    <a href="{{ url_for("weekly", username) }}"{% if not exists("attachment_manager") and not exists("music_page") %} aria-current="page"{% endif %}>Weeklies</a>
     <a href="{{ url_for("games", username) }}">Games</a>
 {% else %}
-    <a href="{{ url_for("weekly", session_user) }}" aria-current="page">Weeklies</a>
+    <a href="{{ url_for("weekly", session_user) }}"{% if not exists("music_page") %} aria-current="page"{% endif %}>Weeklies</a>
     <a href="{{ url_for("games", session_user) }}">Games</a>
 {% endif %}
 {% endif %}
     <a href="{{ attachments_url }}"{% if exists("attachment_manager") %} aria-current="page"{% endif %}>Attachments</a>
+    <a href="{% if exists("username") %}{{ url_for("music", username) }}{% else %}/music{% endif %}"{% if exists("music_page") %} aria-current="page"{% endif %}>Music</a>
   </div>
   <span class="NavAccount">
 {% if length(session_user) > 0 %}

@@ -1,49 +1,9 @@
 #include <algorithm>
 #include <map>
-#include <spdlog/spdlog.h>
 #include "games/game_data.hpp"
 
 namespace
 {
-class Transaction
-{
-  public:
-    explicit Transaction(SQLite &connection) : db(connection) {}
-    E<void> begin()
-    {
-        DO_OR_RETURN(db.execute("BEGIN IMMEDIATE"));
-        active = true;
-        return {};
-    }
-    E<void> commit()
-    {
-        DO_OR_RETURN(db.execute("COMMIT"));
-        active = false;
-        return {};
-    }
-    ~Transaction()
-    {
-        if(active)
-        {
-            auto result = db.execute("ROLLBACK");
-            if(!result)
-            {
-                spdlog::error("Game transaction rollback failed");
-                if(!db.autocommit())
-                {
-                    db.invalidate();
-                }
-            }
-        }
-    }
-    Transaction(const Transaction &) = delete;
-    Transaction &operator=(const Transaction &) = delete;
-
-  private:
-    SQLite &db;
-    bool active = false;
-};
-
 std::optional<std::string>
 dateText(const std::optional<std::chrono::year_month_day> &date)
 {
@@ -242,7 +202,7 @@ E<GameRecord> GameDataSqlite::updateGame(const std::string &user, int64_t id,
 E<GameRecord> GameDataSqlite::save(const std::string &user, int64_t id,
                                    const GameInput &input)
 {
-    Transaction transaction(*db);
+    SQLiteTransaction transaction(*db);
     DO_OR_RETURN(transaction.begin());
     if(id)
     {

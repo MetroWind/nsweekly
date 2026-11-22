@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+{% include "../head_common.html" %}
+<title>Music · {{ username }}</title>
+<link rel="stylesheet" href="/statics/music/music.css">
+</head>
+<body><main>
+{% include "../nav.html" %}
+<header class="MusicHeading">
+  <h1>Music · {{ username }}</h1>
+  {% if is_owner %}
+  <a href="/music/settings">Device settings</a>
+  {% endif %}
+</header>
+<form class="MusicFilters" method="get" action="{{ history_url }}" aria-label="Date range">
+  <label>From <input type="date" name="from" value="{{ from }}"></label>
+  <label>To <input type="date" name="to" value="{{ to }}"></label>
+  <button type="submit">Filter</button>
+  <a href="{{ history_url }}?all=1">All history</a>
+  <small>Dates and times in {{ zone }}</small>
+</form>
+{% if error != "" %}
+<p role="alert">{{ error }}</p>
+{% else %}
+{% if now != null %}
+<aside class="MusicNow">
+  <strong>Now playing</strong>
+  <span>{{ now.title }} · {{ now.artist }}{% if now.release != "" %} · {{ now.release }}{% endif %}</span>
+</aside>
+{% endif %}
+<section aria-labelledby="summary">
+  <h2 id="summary">Summary</h2>
+  <p><strong>{{ count }}</strong> completed {% if count == 1 %}play{% else %}plays{% endif %}</p>
+  {% if count > 0 %}
+  <div class="MusicRankings">
+    <section>
+      <h3>Top artists</h3>
+      <ol>
+      {% for item in artists %}
+        <li>{{ item.artist }} <span>{{ item.count }}</span></li>
+      {% endfor %}
+      </ol>
+    </section>
+    <section>
+      <h3>Top tracks</h3>
+      <ol>
+      {% for item in tracks %}
+        <li>{{ item.title }} · {{ item.artist }} <span>{{ item.count }}</span></li>
+      {% endfor %}
+      </ol>
+    </section>
+  </div>
+  {% endif %}
+</section>
+<section aria-labelledby="history">
+  <h2 id="history">Listening history</h2>
+  {% if new_account %}
+  <p><a href="/music/settings">Set up a scrobbling device</a> to start recording plays.</p>
+  {% else if length(groups) == 0 %}
+  <p>{% if count == 0 %}No plays in this date range.{% else %}No more plays in this date range.{% endif %}</p>
+  {% endif %}
+  {% for group in groups %}
+  <section class="MusicDay">
+    <h3>{{ group.date }}</h3>
+    <ol>
+    {% for listen in group.listens %}
+      <li>
+        <time datetime="{{ listen.datetime }}">{{ listen.time }}</time>
+        <span><strong>{{ listen.title }}</strong> · {{ listen.artist }}{% if listen.release != "" %} · {{ listen.release }}{% endif %}</span>
+      </li>
+    {% endfor %}
+    </ol>
+  </section>
+  {% endfor %}
+  {% if older != "" %}
+  <p><a href="{{ older }}" rel="next">Older</a></p>
+  {% endif %}
+</section>
+{% endif %}
+</main></body>
+</html>

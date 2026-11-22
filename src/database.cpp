@@ -34,6 +34,10 @@ E<SQLiteStatement> SQLiteStatement::fromStr(sqlite3* db, const char* expr)
 {
     SQLiteStatement s;
     int code = sqlite3_prepare_v2(db, expr, -1, &s.sql, nullptr);
+    if(code == SQLITE_BUSY || code == SQLITE_LOCKED)
+    {
+        return std::unexpected(Error(SQLiteContention{sqlite3_errstr(code)}));
+    }
     if(code != SQLITE_OK)
     {
         return std::unexpected(runtimeError(std::format(
@@ -118,4 +122,30 @@ SQLite::~SQLite()
 int64_t SQLite::lastInsertRowID() const
 {
     return sqlite3_last_insert_rowid(db);
+}
+
+E<void> SQLiteTransaction::begin()
+{
+    DO_OR_RETURN(db.execute("BEGIN IMMEDIATE"));
+    active = true;
+    return {};
+}
+
+E<void> SQLiteTransaction::commit()
+{
+    DO_OR_RETURN(db.execute("COMMIT"));
+    active = false;
+    return {};
+}
+
+SQLiteTransaction::~SQLiteTransaction()
+{
+    if(active && !db.autocommit() && !db.execute("ROLLBACK"))
+    {
+        spdlog::error("SQLite transaction rollback failed");
+        if(!db.autocommit())
+        {
+            db.invalidate();
+        }
+    }
 }

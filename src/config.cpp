@@ -194,6 +194,13 @@ E<Configuration> Configuration::fromYaml(const std::filesystem::path& path)
             }
         }
     }
+    if(root.has_child("music-time-zone"))
+    {
+        auto value = root["music-time-zone"].val();
+        config.music_time_zone.assign(value.begin(), value.end());
+        auto zone = musicTimeZone(config.music_time_zone);
+        if(!zone) { return std::unexpected(zone.error()); }
+    }
     DO_OR_RETURN(validateScreenshotSettings(config));
     return E<Configuration>{std::in_place, std::move(config)};
 }
@@ -241,4 +248,16 @@ E<void> validateScreenshotSettings(const Configuration& config)
             "game-screenshots.thumbnail.long-edge exceeds preview.long-edge"));
     }
     return {};
+}
+
+E<const std::chrono::time_zone*> musicTimeZone(std::string_view name)
+{
+    try
+    {
+        return std::chrono::locate_zone(name);
+    }
+    catch(const std::runtime_error&)
+    {
+        return std::unexpected(runtimeError("Invalid music-time-zone"));
+    }
 }

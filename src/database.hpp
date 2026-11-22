@@ -94,6 +94,33 @@ private:
     void clear();
 };
 
+// A retryable SQLite busy or locked result.
+struct SQLiteContention
+{
+    std::string msg;
+};
+
+// Rolls back an uncommitted write transaction on scope exit.
+class SQLiteTransaction
+{
+public:
+    // Borrows a connection whose use the caller serializes.
+    explicit SQLiteTransaction(SQLite& connection) : db(connection) {}
+    SQLiteTransaction(const SQLiteTransaction&) = delete;
+    SQLiteTransaction& operator=(const SQLiteTransaction&) = delete;
+    // Rolls back an active transaction and invalidates a broken connection.
+    ~SQLiteTransaction();
+
+    // Acquires the write transaction before any application reads.
+    E<void> begin();
+    // Commits the transaction.
+    E<void> commit();
+
+private:
+    SQLite& db;
+    bool active = false;
+};
+
 // ========== Template implementations ==============================>
 
 namespace internal
@@ -279,7 +306,8 @@ E<std::vector<std::tuple<Types...>>> SQLite::eval(SQLiteStatement sql) const
             result.push_back(internal::getRow<Types...>(sql));
             break;
         case SQLITE_BUSY:
-            return std::unexpected(runtimeError(sqlite3_errstr(code)));
+        case SQLITE_LOCKED:
+            return std::unexpected(Error(SQLiteContention{sqlite3_errstr(code)}));
         case SQLITE_ERROR:
         case SQLITE_MISUSE:
             return std::unexpected(runtimeError(std::string(

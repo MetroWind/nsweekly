@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+{% include "../head_common.html" %}
+<meta name="referrer" content="no-referrer">
+<title>Music device token</title>
+<link rel="stylesheet" href="/statics/music/music.css">
+</head>
+<body><main>
+{% include "../nav.html" %}
+<h1>Token for {{ label }}</h1>
+<p>Enter this API URL and token in Pano Scrobbler. Copy the token before leaving this page.</p>
+<dl>
+  <dt>API URL</dt>
+  <dd><code>{{ pano_url }}</code></dd>
+  <dt>Device token</dt>
+  <dd><code id="device-token">{{ token }}</code></dd>
+</dl>
+<p><a href="/music/settings">Back to device settings</a></p>
+</main></body>
+</html>
